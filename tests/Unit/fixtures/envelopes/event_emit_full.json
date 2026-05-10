@@ -1,0 +1,25 @@
+{
+    "arcp": "1.0",
+    "id": "msg_01JABC",
+    "type": "event.emit",
+    "timestamp": "2026-05-09T13:00:00.000000Z",
+    "payload": {
+        "type": "subscription.backfill_complete",
+        "attributes": {
+            "scanned": 412
+        }
+    },
+    "session_id": "sess_42",
+    "trace_id": "trace_777",
+    "span_id": "span_aa",
+    "parent_span_id": "span_root",
+    "correlation_id": "msg_subscribe_001",
+    "causation_id": "msg_subscribe_001",
+    "idempotency_key": "subscribe-once",
+    "source": "runtime/openclaw",
+    "target": "client/dashboard",
+    "priority": "high",
+    "extensions": {
+        "arcpx.acme.tag": "ingest"
+    }
+}

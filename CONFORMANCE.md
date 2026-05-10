@@ -14,9 +14,9 @@ This file tracks the implementation status of every RFC-mandated feature in
 
 | Feature | Status |
 | --- | --- |
-| Envelope (§6.1) | 🚧 wip — Phase 1 |
-| Idempotency: `id` (transport) (§6.4) | 🚧 wip — Phase 1 |
-| Idempotency: `idempotency_key` (logical) (§6.4) | 🚧 wip — Phase 1 |
+| Envelope (§6.1) | ✅ done |
+| Idempotency: `id` (transport) (§6.4) | ✅ done |
+| Idempotency: `idempotency_key` (logical) (§6.4) | ✅ done |
 | Priority + scheduling (§6.5) | 🚧 wip — Phase 3 |
 | Critical priority bypass (§6.5) | 🚧 wip — Phase 3 |
 
@@ -128,10 +128,10 @@ This file tracks the implementation status of every RFC-mandated feature in
 
 | Feature | Status |
 | --- | --- |
-| Canonical error code taxonomy | 🚧 wip — Phase 1 |
-| Typed exception hierarchy | 🚧 wip — Phase 1 |
-| `retryable` flag | 🚧 wip — Phase 1 |
-| `cause` chaining | 🚧 wip — Phase 1 |
+| Canonical error code taxonomy | ✅ done |
+| Typed exception hierarchy | ✅ done |
+| `retryable` flag | ✅ done |
+| `cause` chaining | ✅ done |
 
 ## §19 Resume
 
@@ -145,9 +145,9 @@ This file tracks the implementation status of every RFC-mandated feature in
 
 | Feature | Status |
 | --- | --- |
-| Naming rules (§21.1) | 🚧 wip — Phase 1 |
+| Naming rules (§21.1) | ✅ done |
 | Extension capability negotiation (§21.2) | 🚧 wip — Phase 2 |
-| Unknown message handling (§21.3) | 🚧 wip — Phase 1 |
+| Unknown message handling (§21.3) | ✅ done (envelope dispatch); session wiring Phase 2 |
 
 ## §22 Transports
 

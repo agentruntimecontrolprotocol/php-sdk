@@ -21,8 +21,4 @@ final class Version
 
     /** Identifier reported in `client.kind` / `runtime.kind` (RFC §8.2/§8.3). */
     public const string IMPL_KIND = 'arcp-php';
-
-    private function __construct()
-    {
-    }
 }

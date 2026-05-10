@@ -21,4 +21,16 @@ parameters:
     reportAnyTypeWideningInVarTag: true
     excludePaths:
         - vendor
-    ignoreErrors: []
+    ignoreErrors:
+        # PHPStan can't see PHPUnit setUp() initializing properties; the
+        # idiom is widely accepted and the runtime checks fail loudly if
+        # setUp isn't called.
+        -
+            identifier: property.uninitialized
+            path: tests/*
+        # Test data providers and fixtures legitimately probe array shapes
+        # that PHPStan considers uncertain; we use assertArrayHasKey before
+        # access where it matters and otherwise accept the looseness.
+        -
+            identifier: offsetAccess.notFound
+            path: tests/*
