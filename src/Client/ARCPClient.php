@@ -28,7 +28,6 @@ use Arcp\Ids\TraceId;
 use Arcp\Json\EnvelopeSerializer;
 use Arcp\Messages\Artifacts\ArtifactPut;
 use Arcp\Messages\Artifacts\ArtifactRef;
-use Arcp\Messages\Control\Ack;
 use Arcp\Messages\Control\Nack;
 use Arcp\Messages\Execution\ToolError;
 use Arcp\Messages\Execution\ToolInvoke;
@@ -76,6 +75,14 @@ final class ARCPClient
 
     /** @var array<string, \Closure(Envelope): void> */
     private array $subscribers = [];
+
+    /**
+     * Subscription ids for which we've received SubscribeEvents before the
+     * caller's subscribe() returned. Drained when the callback is set.
+     *
+     * @var array<string, list<Envelope>>
+     */
+    private array $pendingSubscriptionEvents = [];
 
     /** @var Future<mixed>|null */
     private ?Future $readLoop = null;
@@ -170,10 +177,6 @@ final class ARCPClient
             throw $this->raise($response->error);
         }
         if (!$response instanceof ToolResult) {
-            // job.accepted / ack arrived first — keep waiting for terminal.
-            $response = $this->pending->awaitResponse($id, $deadlineSeconds, $cancellation);
-        }
-        if (!$response instanceof ToolResult) {
             throw new InvalidArgumentException('unexpected terminal: ' . $response::class);
         }
         return $response;
@@ -200,10 +203,25 @@ final class ARCPClient
         );
         $this->session->transport->send($env);
         $response = $this->pending->awaitResponse($id, 30.0, $cancellation);
+        if ($response instanceof Nack) {
+            throw $this->raise($response->error);
+        }
         if (!$response instanceof SubscribeAccepted) {
             throw new InvalidArgumentException('expected subscribe.accepted');
         }
-        $this->subscribers[(string) $response->subscriptionId] = $onEvent;
+        $key = (string) $response->subscriptionId;
+        $this->subscribers[$key] = $onEvent;
+        // Drain any events that arrived before this point.
+        if (isset($this->pendingSubscriptionEvents[$key])) {
+            foreach ($this->pendingSubscriptionEvents[$key] as $bufferedEnv) {
+                try {
+                    $onEvent($bufferedEnv);
+                } catch (\Throwable $e) {
+                    $this->logger->warning('subscription callback error during drain', ['error' => $e->getMessage()]);
+                }
+            }
+            unset($this->pendingSubscriptionEvents[$key]);
+        }
         return $response->subscriptionId;
     }
 
@@ -336,12 +354,22 @@ final class ARCPClient
 
         if ($msg instanceof SubscribeEvent) {
             $sid = $env->subscriptionId;
-            if ($sid !== null && isset($this->subscribers[(string) $sid])) {
+            if ($sid !== null) {
+                $key = (string) $sid;
                 try {
                     $inner = $this->serializer->envelopeFromArray($msg->event);
-                    ($this->subscribers[(string) $sid])($inner);
                 } catch (\Throwable $e) {
-                    $this->logger->warning('subscription handler error', ['error' => $e->getMessage()]);
+                    $this->logger->warning('subscription decode error', ['error' => $e->getMessage()]);
+                    return;
+                }
+                if (isset($this->subscribers[$key])) {
+                    try {
+                        ($this->subscribers[$key])($inner);
+                    } catch (\Throwable $e) {
+                        $this->logger->warning('subscription handler error', ['error' => $e->getMessage()]);
+                    }
+                } else {
+                    $this->pendingSubscriptionEvents[$key][] = $inner;
                 }
             }
             return;

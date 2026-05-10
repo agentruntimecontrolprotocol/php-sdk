@@ -5,12 +5,11 @@ declare(strict_types=1);
 namespace Arcp\Runtime;
 
 use Amp\Cancellation;
-use Amp\CompositeCancellation;
 use Amp\DeferredFuture;
-use Amp\TimeoutCancellation;
 use Arcp\Envelope\MessageType;
 use Arcp\Errors\DeadlineExceededException;
 use Arcp\Ids\MessageId;
+use Revolt\EventLoop;
 
 /**
  * Routes correlated responses back to their `await`ing fiber (RFC §6.3).
@@ -30,18 +29,34 @@ final class PendingRegistry
         $deferred = new DeferredFuture();
         $this->waiters[(string) $id] = $deferred;
 
-        $cancellations = [];
+        // Schedule our own referenced timer for the deadline. Amp's
+        // TimeoutCancellation uses an unreferenced timer, which causes the
+        // event loop to exit when every fiber happens to be suspended on a
+        // DeferredFuture (no other referenced work). A referenced delay
+        // keeps the loop alive long enough for the timeout to fire.
+        $timer = null;
+        $timedOut = false;
         if ($deadlineSeconds !== null) {
-            $cancellations[] = new TimeoutCancellation($deadlineSeconds);
+            $timer = EventLoop::delay($deadlineSeconds, function () use (&$timedOut, $deferred): void {
+                if (!$deferred->isComplete()) {
+                    $timedOut = true;
+                    $deferred->error(new \Amp\TimeoutException('deadline exceeded'));
+                }
+            });
         }
+
+        $cancelCallback = null;
         if ($cancellation !== null) {
-            $cancellations[] = $cancellation;
+            $cancelCallback = $cancellation->subscribe(function (\Throwable $reason) use ($deferred): void {
+                if (!$deferred->isComplete()) {
+                    $deferred->error($reason);
+                }
+            });
         }
-        $combined = $cancellations === [] ? null : new CompositeCancellation(...$cancellations);
 
         try {
             /** @var MessageType $result */
-            $result = $deferred->getFuture()->await($combined);
+            $result = $deferred->getFuture()->await();
             return $result;
         } catch (\Amp\TimeoutException $e) {
             throw new DeadlineExceededException(
@@ -51,6 +66,12 @@ final class PendingRegistry
                 $e,
             );
         } finally {
+            if ($timer !== null && !$timedOut) {
+                EventLoop::cancel($timer);
+            }
+            if ($cancelCallback !== null && $cancellation !== null) {
+                $cancellation->unsubscribe($cancelCallback);
+            }
             unset($this->waiters[(string) $id]);
         }
     }

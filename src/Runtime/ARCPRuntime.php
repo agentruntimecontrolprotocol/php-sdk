@@ -377,8 +377,10 @@ final class ARCPRuntime
         }
 
         $job = $this->jobs->start($session, $env->id, $env->traceId, $msg->tool);
+        // job.accepted/started keyed on job_id; only the terminal
+        // tool.result/tool.error envelopes carry correlation_id, so
+        // synchronous invokeTool() callers see exactly one resolution.
         $this->emit($session, new JobAccepted(), [
-            'correlation_id' => $env->id,
             'job_id' => $job->id,
             'trace_id' => $env->traceId,
         ]);
@@ -415,10 +417,15 @@ final class ARCPRuntime
                 }
             } catch (\Amp\CancelledException $e) {
                 $this->jobs->transition($job, JobState::Cancelled);
+                $payload = new ErrorPayload('CANCELLED', 'cooperative cancellation');
+                $this->emit($session, new ToolError($payload), [
+                    'correlation_id' => $env->id,
+                    'job_id' => $job->id,
+                    'trace_id' => $env->traceId,
+                ]);
                 $this->emit($session, new JobCancelled('cooperative', 'CANCELLED'), [
                     'job_id' => $job->id,
                     'trace_id' => $env->traceId,
-                    'correlation_id' => $env->id,
                 ]);
             } catch (ARCPException $e) {
                 $this->jobs->transition($job, JobState::Failed);

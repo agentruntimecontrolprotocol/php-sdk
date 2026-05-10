@@ -219,4 +219,23 @@ final class JobContext
     {
         return $this->runtime->artifacts->put($this->session, $mediaType, $bytes, $retentionSeconds);
     }
+
+    /**
+     * Emit `job.heartbeat` (RFC §10.3). The runtime expects callers to
+     * heartbeat at least every `heartbeat_interval_seconds`; the deadline
+     * defaults to twice the interval so a single drop is forgiven.
+     */
+    public function heartbeat(int $deadlineMs = 60000, string $state = 'running'): void
+    {
+        $job = $this->runtime->jobs->tryGet($this->jobId);
+        if ($job === null) {
+            return;
+        }
+        $sequence = ++$job->heartbeatSequence;
+        $this->runtime->emit(
+            $this->session,
+            new \Arcp\Messages\Execution\JobHeartbeat($sequence, $deadlineMs, $state),
+            ['job_id' => $this->jobId, 'trace_id' => $this->traceId],
+        );
+    }
 }

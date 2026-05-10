@@ -17,8 +17,6 @@ use Arcp\Runtime\ARCPRuntime;
 use Arcp\Transport\MemoryTransport;
 use PHPUnit\Framework\TestCase;
 
-use function Amp\async;
-
 final class HandshakeTest extends TestCase
 {
     public function testBearerHandshakeSucceeds(): void
@@ -36,7 +34,7 @@ final class HandshakeTest extends TestCase
             new Capabilities(streaming: true, humanInput: true),
         );
 
-        self::assertNotNull($accepted->sessionId);
+        self::assertNotEmpty((string) $accepted->sessionId);
         self::assertSame('alice@example.com', $client->session->principal);
 
         $client->close();
@@ -82,7 +80,7 @@ final class HandshakeTest extends TestCase
             new Capabilities(anonymous: true),
         );
 
-        self::assertNotNull($accepted->sessionId);
+        self::assertNotEmpty((string) $accepted->sessionId);
         $client->close();
         $serverFuture->await();
     }
