@@ -8,7 +8,11 @@
 /coverage.xml
 /coverage/
 /.idea/
-/.vscode/
+/.vscode/*
+!/.vscode/settings.json
+!/.vscode/extensions.json
+!/.vscode/tasks.json
+!/.vscode/launch.json
 .DS_Store
 *.sqlite
 *.sqlite3
