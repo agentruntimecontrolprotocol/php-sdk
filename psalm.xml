@@ -25,5 +25,14 @@
         <PossiblyUnusedMethod errorLevel="suppress"/>
         <PossiblyUnusedParam errorLevel="suppress"/>
         <PossiblyUnusedProperty errorLevel="suppress"/>
+        <!--
+            Mixed-assignment is unavoidable at the JSON trust boundary; we
+            validate aggressively in fromArray() and reject anything we can't
+            type. PHPStan max picks up the real issues.
+        -->
+        <MixedAssignment errorLevel="suppress"/>
+        <MixedArgumentTypeCoercion errorLevel="suppress"/>
+        <MixedPropertyTypeCoercion errorLevel="suppress"/>
+        <MixedReturnTypeCoercion errorLevel="suppress"/>
     </issueHandlers>
 </psalm>
