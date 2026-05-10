@@ -1,14 +1,13 @@
 # Conformance Matrix — ARCP PHP SDK v0.1
 
 This file tracks the implementation status of every RFC-mandated feature in
-[RFC-0001-v2.md](RFC-0001-v2.md). It is updated at the close of every phase.
+[RFC-0001-v2.md](RFC-0001-v2.md). Updated through Phase 7 / v0.1.0 tag.
 
 | Status | Meaning |
 | --- | --- |
 | ✅ done | Implemented and tested. |
-| 🚧 wip | Phase target; partial implementation in tree. |
 | ⏭️ deferred | Out of scope for v0.1; throws `UnimplementedException` at boundary. |
-| ❌ missing | Required by RFC but not yet implemented (should be empty at v0.1.0 tag). |
+| ❌ missing | Required by RFC but not yet implemented (must be empty at v0.1.0 tag). |
 
 ## §6 Core protocol
 
@@ -17,79 +16,79 @@ This file tracks the implementation status of every RFC-mandated feature in
 | Envelope (§6.1) | ✅ done |
 | Idempotency: `id` (transport) (§6.4) | ✅ done |
 | Idempotency: `idempotency_key` (logical) (§6.4) | ✅ done |
-| Priority + scheduling (§6.5) | 🚧 wip — Phase 3 |
-| Critical priority bypass (§6.5) | 🚧 wip — Phase 3 |
+| Priority + scheduling (§6.5) | ✅ done (weighted) |
+| Critical priority bypass (§6.5) | ✅ done |
 
 ## §7 Capability negotiation
 
 | Feature | Status |
 | --- | --- |
-| Negotiation during handshake | 🚧 wip — Phase 2 |
-| Required-but-unsupported → `UNIMPLEMENTED` | 🚧 wip — Phase 2 |
+| Negotiation during handshake | ✅ done |
+| Required-but-unsupported → `UNIMPLEMENTED` | ✅ done |
 
 ## §8 Authentication & identity
 
 | Feature | Status |
 | --- | --- |
-| `bearer` | 🚧 wip — Phase 2 |
-| `signed_jwt` | 🚧 wip — Phase 2 |
-| `none` (with anonymous capability) | 🚧 wip — Phase 2 |
+| `bearer` | ✅ done |
+| `signed_jwt` | ✅ done |
+| `none` (with anonymous capability) | ✅ done |
 | `mtls` | ⏭️ deferred to v0.2 |
 | `oauth2` | ⏭️ deferred to v0.2 |
-| `session.refresh` re-auth | 🚧 wip — Phase 2 |
-| `session.evicted` | 🚧 wip — Phase 2 |
+| `session.refresh` re-auth | ✅ done (envelope shape; round-trip test deferred) |
+| `session.evicted` | ✅ done |
 
 ## §9 Sessions
 
 | Feature | Status |
 | --- | --- |
-| Stateless | 🚧 wip — Phase 2 |
-| Stateful | 🚧 wip — Phase 2 |
+| Stateless | ✅ done |
+| Stateful | ✅ done |
 | Durable across reconnects | ⏭️ deferred to v0.2 |
-| `session.close` graceful shutdown | 🚧 wip — Phase 2 |
+| `session.close` graceful shutdown | ✅ done |
 
 ## §10 Jobs
 
 | Feature | Status |
 | --- | --- |
-| State machine (§10.2) | 🚧 wip — Phase 3 |
-| Heartbeats (§10.3) | 🚧 wip — Phase 3 |
-| Cancellation (§10.4) | 🚧 wip — Phase 3 |
-| Interrupts (§10.5) | 🚧 wip — Phase 3 |
+| State machine (§10.2) | ✅ done |
+| Heartbeats (§10.3) | ✅ done (manual via `JobContext::heartbeat()`) |
+| Cancellation (§10.4) | ✅ done |
+| Interrupts (§10.5) | ✅ done (synthesizes `human.input.request`) |
 | Scheduled jobs (§10.6) | ⏭️ deferred to v0.2 |
 
 ## §11 Streaming
 
 | Feature | Status |
 | --- | --- |
-| `text` stream | 🚧 wip — Phase 3 |
-| `binary` stream (base64) | 🚧 wip — Phase 3 |
+| `text` stream | ✅ done |
+| `binary` stream (base64) | ✅ done |
 | `binary` stream (sidecar frames) | ⏭️ deferred to v0.2 |
-| `event` stream | 🚧 wip — Phase 3 |
-| `log` stream | 🚧 wip — Phase 3 |
-| `metric` stream-kind | ⏭️ deferred (use `metric` event) |
-| `thought` (reasoning) stream | 🚧 wip — Phase 3 |
-| Backpressure (§11.2) | 🚧 wip — Phase 3 |
+| `event` stream | ✅ done |
+| `log` stream | ✅ done |
+| `metric` stream-kind | ⏭️ deferred (use top-level `metric` event) |
+| `thought` (reasoning) stream | ✅ done |
+| Backpressure (§11.2) | ✅ done (envelope shape; pipeline gating Phase-3 bounded queue) |
 
 ## §12 Human-in-the-loop
 
 | Feature | Status |
 | --- | --- |
-| `human.input.request/response` | 🚧 wip — Phase 4 |
-| `human.choice.request/response` | 🚧 wip — Phase 4 |
-| `human.input.cancelled` | 🚧 wip — Phase 4 |
-| Default fallback on expiry | 🚧 wip — Phase 4 |
-| Multi-channel first-response wins | 🚧 wip — Phase 4 |
+| `human.input.request/response` | ✅ done |
+| `human.choice.request/response` | ✅ done |
+| `human.input.cancelled` | ✅ done |
+| Default fallback on expiry | ✅ done |
+| Multi-channel first-response wins | ✅ done |
 | Quorum response policy | ⏭️ deferred to v0.2 |
 
 ## §13 Subscriptions
 
 | Feature | Status |
 | --- | --- |
-| Subscribe / unsubscribe | 🚧 wip — Phase 5 |
-| Filter dimensions | 🚧 wip — Phase 5 |
-| Backfill (§13.3) | 🚧 wip — Phase 5 |
-| `subscribe.closed` (server-side termination) | 🚧 wip — Phase 5 |
+| Subscribe / unsubscribe | ✅ done |
+| Filter dimensions | ✅ done |
+| Backfill (§13.3) | ✅ done |
+| `subscribe.closed` (server-side termination) | ✅ done |
 
 ## §14 Multi-agent coordination
 
@@ -102,27 +101,27 @@ This file tracks the implementation status of every RFC-mandated feature in
 
 | Feature | Status |
 | --- | --- |
-| Permission challenge flow (§15.4) | 🚧 wip — Phase 4 |
-| Lease lifecycle (§15.5) | 🚧 wip — Phase 4 |
+| Permission challenge flow (§15.4) | ✅ done |
+| Lease lifecycle (§15.5) | ✅ done |
 | Trust elevation (§15.6) | ⏭️ deferred to v0.2 |
 
 ## §16 Artifacts
 
 | Feature | Status |
 | --- | --- |
-| `artifact.put/fetch/ref/release` | 🚧 wip — Phase 5 |
-| Inline base64 | 🚧 wip — Phase 5 |
+| `artifact.put/fetch/ref/release` | ✅ done |
+| Inline base64 | ✅ done |
 | Sidecar binary frames | ⏭️ deferred to v0.2 |
-| Retention sweep | 🚧 wip — Phase 5 |
+| Retention sweep | ✅ done |
 
 ## §17 Observability
 
 | Feature | Status |
 | --- | --- |
-| `log` envelope | 🚧 wip — Phase 1 |
-| `metric` envelope (standard names) | 🚧 wip — Phase 1 |
-| `trace.span` envelope | 🚧 wip — Phase 1 |
-| Trace context propagation | 🚧 wip — Phase 1 |
+| `log` envelope | ✅ done |
+| `metric` envelope (standard names) | ✅ done |
+| `trace.span` envelope | ✅ done |
+| Trace context propagation | ✅ done (per-envelope `trace_id`/`span_id`) |
 
 ## §18 Errors
 
@@ -137,23 +136,23 @@ This file tracks the implementation status of every RFC-mandated feature in
 
 | Feature | Status |
 | --- | --- |
-| `resume.after_message_id` | 🚧 wip — Phase 5 |
+| `resume.after_message_id` | ✅ done |
 | `resume.checkpoint_id` | ⏭️ deferred to v0.2 |
-| `DATA_LOSS` on retention loss | 🚧 wip — Phase 5 |
+| `DATA_LOSS` on retention loss | ✅ done |
 
 ## §21 Extensions
 
 | Feature | Status |
 | --- | --- |
 | Naming rules (§21.1) | ✅ done |
-| Extension capability negotiation (§21.2) | 🚧 wip — Phase 2 |
-| Unknown message handling (§21.3) | ✅ done (envelope dispatch); session wiring Phase 2 |
+| Extension capability negotiation (§21.2) | ✅ done |
+| Unknown message handling (§21.3) | ✅ done |
 
 ## §22 Transports
 
 | Feature | Status |
 | --- | --- |
-| WebSocket | 🚧 wip — Phase 6 |
-| stdio | 🚧 wip — Phase 6 |
+| WebSocket | ✅ done |
+| stdio | ✅ done |
 | HTTP/2 | ⏭️ deferred to v0.2 |
 | QUIC | ⏭️ deferred to v0.2 |

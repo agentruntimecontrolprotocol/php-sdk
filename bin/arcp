@@ -4,18 +4,29 @@
 declare(strict_types=1);
 
 /*
- * arcp — CLI entry point. Implementation lands in Phase 7.
+ * arcp — CLI entry point (RFC §22 transports + Phase 7 commands).
  *
- * RFC §22 (transports) and the build prompt's CLI section list the commands
- * (`serve`, `tail`, `send`, `replay`). Until Phase 7 wires Symfony Console,
- * this script just prints a placeholder so `composer validate` is happy.
+ *  arcp serve  ws://host:port    Run an empty runtime accepting connections.
+ *  arcp tail   <session-id>      Subscribe to all events from a session.
+ *  arcp send   <type> --payload  Send a single envelope and print the reply.
+ *  arcp replay <after-id>        Replay an event log file from a message id.
+ *
+ * Production deployments should subclass these commands with real auth
+ * configuration; the defaults assume `none` (anonymous) for development.
  */
 
-(static function (): void {
+(static function (): int {
     $autoload = dirname(__DIR__) . '/vendor/autoload.php';
-    if (is_file($autoload)) {
-        require $autoload;
+    if (!is_file($autoload)) {
+        fwrite(\STDERR, "vendor/autoload.php missing — run `composer install` first\n");
+        return 1;
     }
-    fwrite(\STDERR, "arcp CLI: not implemented yet (lands in Phase 7)\n");
-    exit(1);
+    require $autoload;
+
+    $app = new Symfony\Component\Console\Application('arcp', \Arcp\Version::IMPL_VERSION);
+    $app->add(new \Arcp\Cli\ServeCommand());
+    $app->add(new \Arcp\Cli\TailCommand());
+    $app->add(new \Arcp\Cli\SendCommand());
+    $app->add(new \Arcp\Cli\ReplayCommand());
+    return $app->run();
 })();
