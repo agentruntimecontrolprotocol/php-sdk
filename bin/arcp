@@ -1,0 +1,21 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/*
+ * arcp — CLI entry point. Implementation lands in Phase 7.
+ *
+ * RFC §22 (transports) and the build prompt's CLI section list the commands
+ * (`serve`, `tail`, `send`, `replay`). Until Phase 7 wires Symfony Console,
+ * this script just prints a placeholder so `composer validate` is happy.
+ */
+
+(static function (): void {
+    $autoload = dirname(__DIR__) . '/vendor/autoload.php';
+    if (is_file($autoload)) {
+        require $autoload;
+    }
+    fwrite(\STDERR, "arcp CLI: not implemented yet (lands in Phase 7)\n");
+    exit(1);
+})();

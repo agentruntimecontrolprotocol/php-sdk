@@ -1,0 +1,24 @@
+includes:
+    - vendor/phpstan/phpstan-strict-rules/rules.neon
+
+parameters:
+    level: max
+    paths:
+        - src
+        - tests
+        - bin
+        - samples
+    treatPhpDocTypesAsCertain: false
+    checkExplicitMixedMissingReturn: true
+    checkFunctionNameCase: true
+    checkInternalClassCaseSensitivity: true
+    checkTooWideReturnTypesInProtectedAndPublicMethods: true
+    checkUninitializedProperties: true
+    checkMissingCallableSignature: true
+    reportPossiblyNonexistentGeneralArrayOffset: true
+    reportPossiblyNonexistentConstantArrayOffset: true
+    reportAlwaysTrueInLastCondition: true
+    reportAnyTypeWideningInVarTag: true
+    excludePaths:
+        - vendor
+    ignoreErrors: []

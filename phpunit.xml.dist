@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd" bootstrap="vendor/autoload.php" cacheDirectory=".phpunit.cache" colors="true" executionOrder="depends,defects" requireCoverageMetadata="false" beStrictAboutCoverageMetadata="false" beStrictAboutOutputDuringTests="true" failOnRisky="true" failOnWarning="true" displayDetailsOnTestsThatTriggerDeprecations="true" displayDetailsOnTestsThatTriggerErrors="true" displayDetailsOnTestsThatTriggerNotices="true" displayDetailsOnTestsThatTriggerWarnings="true">
+  <testsuites>
+    <testsuite name="unit">
+      <directory>tests/Unit</directory>
+    </testsuite>
+    <testsuite name="integration">
+      <directory>tests/Integration</directory>
+    </testsuite>
+    <testsuite name="e2e">
+      <directory>tests/E2E</directory>
+    </testsuite>
+  </testsuites>
+  <source restrictNotices="true" restrictWarnings="true" ignoreIndirectDeprecations="true">
+    <include>
+      <directory>src</directory>
+    </include>
+  </source>
+  <coverage>
+    <report>
+      <text outputFile="php://stdout" showOnlySummary="true"/>
+    </report>
+  </coverage>
+</phpunit>
