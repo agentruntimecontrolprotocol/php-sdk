@@ -42,7 +42,7 @@ final class EnvelopeTest extends TestCase
             correlationId: new MessageId('msg_subscribe_001'),
             causationId: new MessageId('msg_subscribe_001'),
             idempotencyKey: new IdempotencyKey('subscribe-once'),
-            source: 'runtime/openclaw',
+            source: 'runtime/example-runtime',
             target: 'client/dashboard',
             extensions: ['arcpx.acme.tag' => 'ingest'],
         );

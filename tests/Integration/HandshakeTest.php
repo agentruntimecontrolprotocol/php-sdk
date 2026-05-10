@@ -113,7 +113,7 @@ final class HandshakeTest extends TestCase
     {
         $runtime = new ARCPRuntime(
             authRouter: new AuthRouter([new NoneAuth()]),
-            runtimeIdentity: new PeerInfo('openclaw', '1.2.3', trustLevel: 'privileged'),
+            runtimeIdentity: new PeerInfo('example-runtime', '1.2.3', trustLevel: 'privileged'),
         );
         [$serverT, $clientT] = MemoryTransport::pair();
         $serverFuture = $runtime->serveAsync($serverT);
@@ -126,7 +126,7 @@ final class HandshakeTest extends TestCase
         );
 
         self::assertNotNull($accepted->runtime);
-        self::assertSame('openclaw', $accepted->runtime->kind);
+        self::assertSame('example-runtime', $accepted->runtime->kind);
         self::assertSame('privileged', $accepted->runtime->trustLevel);
 
         $client->close();

@@ -16,7 +16,7 @@
     "correlation_id": "msg_subscribe_001",
     "causation_id": "msg_subscribe_001",
     "idempotency_key": "subscribe-once",
-    "source": "runtime/openclaw",
+    "source": "runtime/example-runtime",
     "target": "client/dashboard",
     "priority": "high",
     "extensions": {
