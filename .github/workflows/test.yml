@@ -51,7 +51,7 @@ jobs:
         with:
           php-version: ${{ matrix.php }}
           extensions: pdo, pdo_sqlite, mbstring, json
-          coverage: none
+          coverage: pcov
           tools: composer:v2
 
       - name: Get composer cache directory
