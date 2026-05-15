@@ -50,36 +50,23 @@ final readonly class Capabilities
         }
     }
 
+    private const KNOWN_KEYS = [
+        'streaming', 'durable_jobs', 'checkpoints', 'binary_streams', 'agent_handoff',
+        'human_input', 'artifacts', 'subscriptions', 'scheduled_jobs', 'interrupt',
+        'anonymous', 'heartbeat_interval_seconds', 'heartbeat_recovery',
+        'binary_encoding', 'extensions', 'artifact_retention',
+    ];
+
     /** @return array<string, mixed> */
     public function toArray(): array
     {
-        $out = [
-            'streaming' => $this->streaming,
-            'durable_jobs' => $this->durableJobs,
-            'checkpoints' => $this->checkpoints,
-            'binary_streams' => $this->binaryStreams,
-            'agent_handoff' => $this->agentHandoff,
-            'human_input' => $this->humanInput,
-            'artifacts' => $this->artifacts,
-            'subscriptions' => $this->subscriptions,
-            'scheduled_jobs' => $this->scheduledJobs,
-            'interrupt' => $this->interrupt,
-            'anonymous' => $this->anonymous,
-            'heartbeat_interval_seconds' => $this->heartbeatIntervalSeconds,
-            'heartbeat_recovery' => $this->heartbeatRecovery,
-            'binary_encoding' => $this->binaryEncodings,
-            'extensions' => $this->extensions,
-        ];
-        $hasRetention = $this->artifactRetentionDefaultSeconds !== null
-            || $this->artifactRetentionMaxSeconds !== null;
-        if ($hasRetention) {
-            $retention = [];
-            if ($this->artifactRetentionDefaultSeconds !== null) {
-                $retention['default_seconds'] = $this->artifactRetentionDefaultSeconds;
-            }
-            if ($this->artifactRetentionMaxSeconds !== null) {
-                $retention['max_seconds'] = $this->artifactRetentionMaxSeconds;
-            }
+        $out = $this->booleansToArray();
+        $out['heartbeat_interval_seconds'] = $this->heartbeatIntervalSeconds;
+        $out['heartbeat_recovery'] = $this->heartbeatRecovery;
+        $out['binary_encoding'] = $this->binaryEncodings;
+        $out['extensions'] = $this->extensions;
+        $retention = $this->retentionToArray();
+        if ($retention !== null) {
             $out['artifact_retention'] = $retention;
         }
         foreach ($this->extra as $k => $v) {
@@ -93,85 +80,131 @@ final readonly class Capabilities
      */
     public static function fromArray(array $data): self
     {
-        $bool = static fn (string $k, bool $default = false): bool
-            => isset($data[$k]) && $data[$k] === true;
-        $extensions = [];
-        if (isset($data['extensions']) && \is_array($data['extensions'])) {
-            foreach ($data['extensions'] as $ext) {
-                if (\is_string($ext)) {
-                    $extensions[] = $ext;
-                }
-            }
-        }
-        $binaryEncodings = ['base64'];
-        if (isset($data['binary_encoding']) && \is_array($data['binary_encoding'])) {
-            $binaryEncodings = [];
-            foreach ($data['binary_encoding'] as $enc) {
-                if (\is_string($enc)) {
-                    $binaryEncodings[] = $enc;
-                }
-            }
-        }
+        [$defaultRet, $maxRet] = self::retentionFromArray($data);
+        return new self(
+            streaming: self::boolField($data, 'streaming'),
+            durableJobs: self::boolField($data, 'durable_jobs'),
+            checkpoints: self::boolField($data, 'checkpoints'),
+            binaryStreams: self::boolField($data, 'binary_streams'),
+            agentHandoff: self::boolField($data, 'agent_handoff'),
+            humanInput: self::boolField($data, 'human_input'),
+            artifacts: self::boolField($data, 'artifacts'),
+            subscriptions: self::boolField($data, 'subscriptions'),
+            scheduledJobs: self::boolField($data, 'scheduled_jobs'),
+            interrupt: self::boolField($data, 'interrupt'),
+            anonymous: self::boolField($data, 'anonymous'),
+            heartbeatIntervalSeconds: self::intField($data, 'heartbeat_interval_seconds', 30),
+            heartbeatRecovery: self::stringField($data, 'heartbeat_recovery', 'fail'),
+            binaryEncodings: self::stringListField($data, 'binary_encoding', ['base64']),
+            extensions: self::stringListField($data, 'extensions', []),
+            artifactRetentionDefaultSeconds: $defaultRet,
+            artifactRetentionMaxSeconds: $maxRet,
+            extra: self::extraFromArray($data),
+        );
+    }
 
-        $heartbeat = 30;
-        if (
-            isset($data['heartbeat_interval_seconds'])
-            && \is_int($data['heartbeat_interval_seconds'])
-        ) {
-            $heartbeat = $data['heartbeat_interval_seconds'];
-        }
-
-        $recovery = 'fail';
-        if (isset($data['heartbeat_recovery']) && \is_string($data['heartbeat_recovery'])) {
-            $recovery = $data['heartbeat_recovery'];
-        }
-
-        $defaultRet = null;
-        $maxRet = null;
-        if (isset($data['artifact_retention']) && \is_array($data['artifact_retention'])) {
-            $defaultSec = $data['artifact_retention']['default_seconds'] ?? null;
-            if (\is_int($defaultSec)) {
-                $defaultRet = $defaultSec;
-            }
-            $maxSec = $data['artifact_retention']['max_seconds'] ?? null;
-            if (\is_int($maxSec)) {
-                $maxRet = $maxSec;
-            }
-        }
-
-        $known = [
-            'streaming', 'durable_jobs', 'checkpoints', 'binary_streams', 'agent_handoff',
-            'human_input', 'artifacts', 'subscriptions', 'scheduled_jobs', 'interrupt',
-            'anonymous', 'heartbeat_interval_seconds', 'heartbeat_recovery',
-            'binary_encoding', 'extensions', 'artifact_retention',
+    /** @return array<string, bool> */
+    private function booleansToArray(): array
+    {
+        return [
+            'streaming' => $this->streaming,
+            'durable_jobs' => $this->durableJobs,
+            'checkpoints' => $this->checkpoints,
+            'binary_streams' => $this->binaryStreams,
+            'agent_handoff' => $this->agentHandoff,
+            'human_input' => $this->humanInput,
+            'artifacts' => $this->artifacts,
+            'subscriptions' => $this->subscriptions,
+            'scheduled_jobs' => $this->scheduledJobs,
+            'interrupt' => $this->interrupt,
+            'anonymous' => $this->anonymous,
         ];
+    }
+
+    /** @return array<string, int>|null */
+    private function retentionToArray(): ?array
+    {
+        if ($this->artifactRetentionDefaultSeconds === null
+            && $this->artifactRetentionMaxSeconds === null) {
+            return null;
+        }
+        $retention = [];
+        if ($this->artifactRetentionDefaultSeconds !== null) {
+            $retention['default_seconds'] = $this->artifactRetentionDefaultSeconds;
+        }
+        if ($this->artifactRetentionMaxSeconds !== null) {
+            $retention['max_seconds'] = $this->artifactRetentionMaxSeconds;
+        }
+        return $retention;
+    }
+
+    /** @param array<string, mixed> $data */
+    private static function boolField(array $data, string $key): bool
+    {
+        return isset($data[$key]) && $data[$key] === true;
+    }
+
+    /** @param array<string, mixed> $data */
+    private static function intField(array $data, string $key, int $default): int
+    {
+        return isset($data[$key]) && \is_int($data[$key]) ? $data[$key] : $default;
+    }
+
+    /** @param array<string, mixed> $data */
+    private static function stringField(array $data, string $key, string $default): string
+    {
+        return isset($data[$key]) && \is_string($data[$key]) ? $data[$key] : $default;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     * @param list<string> $default
+     * @return list<string>
+     */
+    private static function stringListField(array $data, string $key, array $default): array
+    {
+        if (!isset($data[$key]) || !\is_array($data[$key])) {
+            return $default;
+        }
+        $out = [];
+        foreach ($data[$key] as $v) {
+            if (\is_string($v)) {
+                $out[] = $v;
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     * @return array{0: ?int, 1: ?int}
+     */
+    private static function retentionFromArray(array $data): array
+    {
+        if (!isset($data['artifact_retention']) || !\is_array($data['artifact_retention'])) {
+            return [null, null];
+        }
+        $defaultSec = $data['artifact_retention']['default_seconds'] ?? null;
+        $maxSec = $data['artifact_retention']['max_seconds'] ?? null;
+        return [
+            \is_int($defaultSec) ? $defaultSec : null,
+            \is_int($maxSec) ? $maxSec : null,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    private static function extraFromArray(array $data): array
+    {
         $extra = [];
         foreach ($data as $k => $v) {
-            if (!\in_array($k, $known, true)) {
+            if (!\in_array($k, self::KNOWN_KEYS, true)) {
                 $extra[$k] = $v;
             }
         }
-
-        return new self(
-            streaming: $bool('streaming'),
-            durableJobs: $bool('durable_jobs'),
-            checkpoints: $bool('checkpoints'),
-            binaryStreams: $bool('binary_streams'),
-            agentHandoff: $bool('agent_handoff'),
-            humanInput: $bool('human_input'),
-            artifacts: $bool('artifacts'),
-            subscriptions: $bool('subscriptions'),
-            scheduledJobs: $bool('scheduled_jobs'),
-            interrupt: $bool('interrupt'),
-            anonymous: $bool('anonymous'),
-            heartbeatIntervalSeconds: $heartbeat,
-            heartbeatRecovery: $recovery,
-            binaryEncodings: $binaryEncodings,
-            extensions: $extensions,
-            artifactRetentionDefaultSeconds: $defaultRet,
-            artifactRetentionMaxSeconds: $maxRet,
-            extra: $extra,
-        );
+        return $extra;
     }
 
     /** Default capabilities advertised by this implementation (PLAN.md §1 / §7). */

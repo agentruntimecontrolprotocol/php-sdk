@@ -39,18 +39,40 @@ final class ServeCommand extends Command
     #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
+        [$host, $port] = $this->parseListenOptions($input);
+        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
+        $this->startWebSocketServer($runtime, $host, $port);
+        $output->writeln(\sprintf('<info>arcp listening on ws://%s:%d/</info>', $host, $port));
+
+        // Block; pressing Ctrl-C kills the process. Production deployments
+        // should wire SIGINT/SIGTERM via the EventLoop driver.
+        EventLoop::run();
+        return Command::SUCCESS;
+    }
+
+    /** @return array{0: string, 1: int} */
+    private function parseListenOptions(InputInterface $input): array
+    {
         $rawHost = $input->getOption('host');
         $rawPort = $input->getOption('port');
         $host = \is_string($rawHost) ? $rawHost : '127.0.0.1';
         $port = \is_string($rawPort) ? (int) $rawPort : (\is_int($rawPort) ? $rawPort : 8765);
+        return [$host, $port];
+    }
 
-        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
+    private function startWebSocketServer(ARCPRuntime $runtime, string $host, int $port): void
+    {
         $logger = new NullLogger();
         $http = SocketHttpServer::createForDirectAccess($logger);
         $http->expose(\sprintf('%s:%d', $host, $port));
+        $clientHandler = $this->newClientHandler($runtime);
+        $websocket = new Websocket($http, $logger, new Rfc6455Acceptor(), $clientHandler);
+        $http->start($websocket, new DefaultErrorHandler());
+    }
 
-        $serializer = $runtime->serializer;
-        $clientHandler = new readonly class ($runtime, $serializer) implements
+    private function newClientHandler(ARCPRuntime $runtime): WebsocketClientHandler
+    {
+        return new readonly class ($runtime, $runtime->serializer) implements
             WebsocketClientHandler {
             public function __construct(
                 private ARCPRuntime $runtime,
@@ -68,14 +90,5 @@ final class ServeCommand extends Command
                 $this->runtime->serve($transport);
             }
         };
-
-        $websocket = new Websocket($http, $logger, new Rfc6455Acceptor(), $clientHandler);
-        $http->start($websocket, new DefaultErrorHandler());
-        $output->writeln(\sprintf('<info>arcp listening on ws://%s:%d/</info>', $host, $port));
-
-        // Block; pressing Ctrl-C kills the process. Production deployments
-        // should wire SIGINT/SIGTERM via the EventLoop driver.
-        EventLoop::run();
-        return Command::SUCCESS;
     }
 }

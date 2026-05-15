@@ -100,44 +100,72 @@ final readonly class ErrorPayload
      */
     public static function fromArray(array $data): self
     {
+        [$code, $message] = self::requiredStrings($data);
+        return new self(
+            $code,
+            $message,
+            self::retryableFromArray($data),
+            self::detailsFromArray($data),
+            self::causeFromArray($data),
+            isset($data['trace_id']) ? TraceId::fromJson($data['trace_id']) : null,
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     * @return array{0: string, 1: string}
+     */
+    private static function requiredStrings(array $data): array
+    {
         $code = $data['code'] ?? throw new InvalidArgumentException('error.code missing');
-        $message = $data['message'] ?? throw new InvalidArgumentException('error.message missing');
+        $message = $data['message']
+            ?? throw new InvalidArgumentException('error.message missing');
         if (!\is_string($code) || !\is_string($message)) {
             throw new InvalidArgumentException('error.code/message must be strings');
         }
+        return [$code, $message];
+    }
 
-        $retryable = null;
-        if (\array_key_exists('retryable', $data)) {
-            if (!\is_bool($data['retryable'])) {
-                throw new InvalidArgumentException('error.retryable must be bool');
-            }
-            $retryable = $data['retryable'];
+    /** @param array<string, mixed> $data */
+    private static function retryableFromArray(array $data): ?bool
+    {
+        if (!\array_key_exists('retryable', $data)) {
+            return null;
         }
-
-        $details = [];
-        if (isset($data['details'])) {
-            if (!\is_array($data['details'])) {
-                throw new InvalidArgumentException('error.details must be an object');
-            }
-            /** @var array<string, mixed> $details */
-            $details = $data['details'];
+        if (!\is_bool($data['retryable'])) {
+            throw new InvalidArgumentException('error.retryable must be bool');
         }
+        return $data['retryable'];
+    }
 
-        $cause = null;
-        if (isset($data['cause'])) {
-            if (!\is_array($data['cause'])) {
-                throw new InvalidArgumentException('error.cause must be an object');
-            }
-            /** @var array<string, mixed> $causeData */
-            $causeData = $data['cause'];
-            $cause = self::fromArray($causeData);
+    /**
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    private static function detailsFromArray(array $data): array
+    {
+        if (!isset($data['details'])) {
+            return [];
         }
-
-        $traceId = null;
-        if (isset($data['trace_id'])) {
-            $traceId = TraceId::fromJson($data['trace_id']);
+        if (!\is_array($data['details'])) {
+            throw new InvalidArgumentException('error.details must be an object');
         }
+        /** @var array<string, mixed> $details */
+        $details = $data['details'];
+        return $details;
+    }
 
-        return new self($code, $message, $retryable, $details, $cause, $traceId);
+    /** @param array<string, mixed> $data */
+    private static function causeFromArray(array $data): ?self
+    {
+        if (!isset($data['cause'])) {
+            return null;
+        }
+        if (!\is_array($data['cause'])) {
+            throw new InvalidArgumentException('error.cause must be an object');
+        }
+        /** @var array<string, mixed> $causeData */
+        $causeData = $data['cause'];
+        return self::fromArray($causeData);
     }
 }

@@ -117,21 +117,33 @@ final readonly class EventLog
      */
     public function replayAfter(string $afterMessageId, ?int $limit = null): iterable
     {
-        $startRowId = 0;
-        if ($afterMessageId !== '') {
-            $stmt = $this->pdo->prepare('SELECT rowid FROM events WHERE message_id = :id LIMIT 1');
-            $stmt->execute([':id' => $afterMessageId]);
-            /** @var int|string|false $rowIdValue */
-            $rowIdValue = $stmt->fetchColumn();
-            if ($rowIdValue === false) {
-                throw new InvalidArgumentException(
-                    'after_message_id not present in log',
-                    ['after_message_id' => $afterMessageId],
-                );
+        $startRowId = $afterMessageId === '' ? 0 : $this->rowIdFor($afterMessageId);
+        $stmt = $this->prepareReplayQuery($startRowId, $limit);
+        while (($json = $stmt->fetchColumn()) !== false) {
+            if (!\is_string($json)) {
+                throw new InternalException('event log row has non-string payload_json');
             }
-            $startRowId = (int) $rowIdValue;
+            yield $this->serializer->decode($json);
         }
+    }
 
+    private function rowIdFor(string $messageId): int
+    {
+        $stmt = $this->pdo->prepare('SELECT rowid FROM events WHERE message_id = :id LIMIT 1');
+        $stmt->execute([':id' => $messageId]);
+        /** @var int|string|false $rowIdValue */
+        $rowIdValue = $stmt->fetchColumn();
+        if ($rowIdValue === false) {
+            throw new InvalidArgumentException(
+                'after_message_id not present in log',
+                ['after_message_id' => $messageId],
+            );
+        }
+        return (int) $rowIdValue;
+    }
+
+    private function prepareReplayQuery(int $startRowId, ?int $limit): \PDOStatement
+    {
         $sql = 'SELECT payload_json FROM events WHERE rowid > :rowid ORDER BY rowid ASC';
         if ($limit !== null) {
             $sql .= ' LIMIT :limit';
@@ -142,13 +154,7 @@ final readonly class EventLog
             $stmt->bindValue(':limit', $limit, \PDO::PARAM_INT);
         }
         $stmt->execute();
-
-        while (($json = $stmt->fetchColumn()) !== false) {
-            if (!\is_string($json)) {
-                throw new InternalException('event log row has non-string payload_json');
-            }
-            yield $this->serializer->decode($json);
-        }
+        return $stmt;
     }
 
     /**
