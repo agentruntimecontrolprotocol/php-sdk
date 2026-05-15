@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Arcp\Runtime;
 
+use Amp\CancelledException;
 use Amp\DeferredCancellation;
 use Arcp\Errors\NotFoundException;
 use Arcp\Ids\JobId;
@@ -19,10 +20,6 @@ final class JobManager
 {
     /** @var array<string, Job> */
     private array $jobs = [];
-
-    public function __construct()
-    {
-    }
 
     public function start(
         Session $session,
@@ -66,7 +63,7 @@ final class JobManager
         if ($job === null || $job->state->isTerminal()) {
             return false;
         }
-        $job->cancellation->cancel(new \Amp\CancelledException(new \RuntimeException($reason)));
+        $job->cancellation->cancel(new CancelledException(new \RuntimeException($reason)));
         return true;
     }
 

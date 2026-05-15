@@ -9,10 +9,6 @@ use Arcp\Envelope\MessageType;
 /** RFC §13.4 — close a subscription. */
 final readonly class Unsubscribe extends MessageType
 {
-    public function __construct()
-    {
-    }
-
     #[\Override]
     public static function typeName(): string
     {

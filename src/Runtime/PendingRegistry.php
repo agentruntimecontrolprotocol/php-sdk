@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Arcp\Runtime;
 
+use Amp\TimeoutException;
 use Amp\Cancellation;
 use Amp\DeferredFuture;
 use Arcp\Envelope\MessageType;
@@ -40,7 +41,7 @@ final class PendingRegistry
             $timer = EventLoop::delay($deadlineSeconds, function () use (&$timedOut, $deferred): void {
                 if (!$deferred->isComplete()) {
                     $timedOut = true;
-                    $deferred->error(new \Amp\TimeoutException('deadline exceeded'));
+                    $deferred->error(new TimeoutException('deadline exceeded'));
                 }
             });
         }
@@ -58,7 +59,7 @@ final class PendingRegistry
             /** @var MessageType $result */
             $result = $deferred->getFuture()->await();
             return $result;
-        } catch (\Amp\TimeoutException $e) {
+        } catch (TimeoutException $e) {
             throw new DeadlineExceededException(
                 \sprintf('await(%s) deadline of %.3fs exceeded', $id, $deadlineSeconds ?? 0.0),
                 ['correlation_id' => (string) $id],

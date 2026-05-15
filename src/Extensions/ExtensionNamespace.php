@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Arcp\Extensions;
 
+use Arcp\Errors\InvalidArgumentException;
+
 /**
  * Validation for ARCP extension type/field names (RFC §21.1).
  *
@@ -72,7 +74,7 @@ final class ExtensionNamespace
     public static function ensureValidExtension(string $type): void
     {
         if (!self::isValidExtension($type)) {
-            throw new \Arcp\Errors\InvalidArgumentException(
+            throw new InvalidArgumentException(
                 \sprintf('not a valid ARCP extension type: %s', $type),
                 ['type' => $type],
             );

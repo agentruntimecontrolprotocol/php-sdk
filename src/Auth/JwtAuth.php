@@ -14,11 +14,11 @@ use Firebase\JWT\Key;
  * material (HMAC secret or asymmetric public key); we verify `aud` and
  * extract `sub` as the principal.
  */
-final class JwtAuth implements AuthScheme
+final readonly class JwtAuth implements AuthScheme
 {
     public function __construct(
-        private readonly Key $key,
-        private readonly string $audience,
+        private Key $key,
+        private string $audience,
     ) {
     }
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Arcp\Messages\Session;
 
+use Arcp\Errors\InvalidArgumentException;
 use Arcp\Envelope\MessageType;
 use Arcp\Errors\ErrorPayload;
 
@@ -31,7 +32,7 @@ final readonly class SessionUnauthenticated extends MessageType
     {
         $err = $data['error'] ?? [];
         if (!\is_array($err)) {
-            throw new \Arcp\Errors\InvalidArgumentException('error must be object');
+            throw new InvalidArgumentException('error must be object');
         }
         /** @var array<string, mixed> $err */
         return new static(ErrorPayload::fromArray($err));

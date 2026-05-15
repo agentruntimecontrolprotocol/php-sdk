@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace Arcp\Tests\Integration;
 
+use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\NotFoundException;
+use Arcp\Ids\IdempotencyKey;
+use Arcp\Errors\DeadlineExceededException;
 use Amp\Cancellation;
 use Arcp\Auth\AuthRouter;
 use Arcp\Auth\NoneAuth;
@@ -49,7 +53,7 @@ final class JobLifecycleTest extends TestCase
             #[\Override]
             public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
             {
-                throw new \Arcp\Errors\InvalidArgumentException('bad input');
+                throw new InvalidArgumentException('bad input');
             }
         });
         [$serverT, $clientT] = MemoryTransport::pair();
@@ -57,7 +61,7 @@ final class JobLifecycleTest extends TestCase
         $client = new ARCPClient($clientT);
         $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(anonymous: true));
 
-        $this->expectException(\Arcp\Errors\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         try {
             $client->invokeTool('boom');
         } finally {
@@ -77,7 +81,7 @@ final class JobLifecycleTest extends TestCase
         try {
             $client->invokeTool('nope');
             self::fail('expected NotFoundException');
-        } catch (\Arcp\Errors\NotFoundException $e) {
+        } catch (NotFoundException $e) {
             self::assertStringContainsString('nope', $e->getMessage());
         } finally {
             $client->close();
@@ -106,7 +110,7 @@ final class JobLifecycleTest extends TestCase
         $client = new ARCPClient($clientT);
         $client->open(Auth::none(), new PeerInfo('cli', '0.1', principal: 'alice'), new Capabilities(anonymous: true));
 
-        $key = new \Arcp\Ids\IdempotencyKey('refund-1');
+        $key = new IdempotencyKey('refund-1');
         $first = $client->invokeTool('once', [], idempotencyKey: $key);
         self::assertSame(['ran' => 1], $first->value);
 
@@ -116,9 +120,9 @@ final class JobLifecycleTest extends TestCase
         // a value, only that no second execution happened.
         try {
             $client->invokeTool('once', [], idempotencyKey: $key, deadlineSeconds: 0.5);
-        } catch (\Arcp\Errors\DeadlineExceededException) {
+        } catch (DeadlineExceededException) {
             // Expected: ack is not a ToolResult, so awaitResponse times out.
-        } catch (\Arcp\Errors\InvalidArgumentException) {
+        } catch (InvalidArgumentException) {
             // Same expected outcome.
         }
         self::assertSame(1, $count, 'idempotency cache must prevent re-execution');

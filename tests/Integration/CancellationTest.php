@@ -31,7 +31,7 @@ final class CancellationTest extends TestCase
         /** @var DeferredFuture<JobId> $started */
         $started = new DeferredFuture();
         $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
-        $runtime->registerTool('block', new class ($started) implements ToolHandler {
+        $runtime->registerTool('block', new readonly class ($started) implements ToolHandler {
             /** @param DeferredFuture<JobId> $started */
             public function __construct(private DeferredFuture $started)
             {

@@ -10,15 +10,15 @@ use Arcp\Messages\Human\HumanInputRequest;
 use Arcp\Messages\Human\HumanInputResponse;
 
 /** Closure-backed handler. Ergonomic for tests and small samples. */
-final class CallbackHumanInputHandler implements HumanInputHandler
+final readonly class CallbackHumanInputHandler implements HumanInputHandler
 {
     /**
      * @param \Closure(HumanInputRequest): HumanInputResponse $onInput
      * @param \Closure(HumanChoiceRequest): HumanChoiceResponse $onChoice
      */
     public function __construct(
-        private readonly \Closure $onInput,
-        private readonly \Closure $onChoice,
+        private \Closure $onInput,
+        private \Closure $onChoice,
     ) {
     }
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Arcp\Auth;
 
+use Arcp\Messages\Session\PeerInfo;
 use Arcp\Messages\Session\Auth;
 
 /**
@@ -18,5 +19,5 @@ interface AuthScheme
     /** Wire scheme name (`bearer`, `signed_jwt`, `none`, …). */
     public function name(): string;
 
-    public function verify(Auth $auth, \Arcp\Messages\Session\PeerInfo $client): AuthResult;
+    public function verify(Auth $auth, PeerInfo $client): AuthResult;
 }

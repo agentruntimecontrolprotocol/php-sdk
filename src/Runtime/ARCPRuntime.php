@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace Arcp\Runtime;
 
+use Amp\CancelledException;
+use Arcp\Messages\Human\HumanInputRequest;
+use Arcp\Messages\Subscriptions\SubscribeEvent;
+use Arcp\Messages\Permissions\LeaseExtended;
+use Arcp\Ids\StreamId;
 use function Amp\async;
 
 use Amp\Cancellation;
@@ -52,7 +57,6 @@ use Arcp\Messages\Execution\ToolInvoke;
 use Arcp\Messages\Execution\ToolResult;
 use Arcp\Messages\Execution\WorkflowStart;
 use Arcp\Messages\Permissions\LeaseRefresh;
-use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\Capabilities;
 use Arcp\Messages\Session\PeerInfo;
 use Arcp\Messages\Session\SessionAccepted;
@@ -415,7 +419,7 @@ final class ARCPRuntime
                         $this->clock->now()->modify('+24 hours'),
                     );
                 }
-            } catch (\Amp\CancelledException $e) {
+            } catch (CancelledException) {
                 $this->jobs->transition($job, JobState::Cancelled);
                 $payload = new ErrorPayload('CANCELLED', 'cooperative cancellation');
                 $this->emit($session, new ToolError($payload), [
@@ -463,7 +467,7 @@ final class ARCPRuntime
                 $this->nack($session, $env, 'FAILED_PRECONDITION', 'job already terminal');
                 return;
             }
-            $job->cancellation->cancel(new \Amp\CancelledException(new \RuntimeException($msg->reason)));
+            $job->cancellation->cancel(new CancelledException(new \RuntimeException($msg->reason)));
             $this->emit($session, new CancelAccepted($msg->deadlineMs), [
                 'correlation_id' => $env->id,
                 'job_id' => $job->id,
@@ -481,7 +485,7 @@ final class ARCPRuntime
             return;
         }
         $job->state = JobState::Blocked;
-        $this->emit($session, new \Arcp\Messages\Human\HumanInputRequest(
+        $this->emit($session, new HumanInputRequest(
             prompt: $msg->prompt !== '' ? $msg->prompt : 'Job interrupted; provide guidance.',
             responseSchema: ['type' => 'object'],
             expiresAt: $this->clock->now()->modify('+5 minutes'),
@@ -526,7 +530,7 @@ final class ARCPRuntime
                 }
                 $session->transport->send(new Envelope(
                     id: MessageId::random(),
-                    payload: new \Arcp\Messages\Subscriptions\SubscribeEvent(
+                    payload: new SubscribeEvent(
                         $this->serializer->envelopeToArray($past),
                     ),
                     timestamp: $this->clock->now(),
@@ -542,7 +546,7 @@ final class ARCPRuntime
             $this->subscriptions->close($sub->id);
             return;
         }
-        $this->emit($session, new \Arcp\Messages\Subscriptions\SubscribeEvent([
+        $this->emit($session, new SubscribeEvent([
             'arcp' => Version::PROTOCOL_VERSION,
             'id' => (string) MessageId::random(),
             'type' => 'event.emit',
@@ -622,7 +626,7 @@ final class ARCPRuntime
             $current = $this->leases->get($msg->leaseId);
             $newExp = $current->expiresAt->modify('+' . $extra . ' seconds');
             $extended = $this->leases->extend($msg->leaseId, $newExp);
-            $this->emit($session, new \Arcp\Messages\Permissions\LeaseExtended($extended->leaseId, $extended->expiresAt), [
+            $this->emit($session, new LeaseExtended($extended->leaseId, $extended->expiresAt), [
                 'correlation_id' => $env->id,
             ]);
         } catch (ARCPException $e) {
@@ -640,14 +644,7 @@ final class ARCPRuntime
     /**
      * Build, log, send, and return the message id for an outbound envelope.
      *
-     * @param array{
-     *     correlation_id?: MessageId,
-     *     job_id?: JobId|null,
-     *     stream_id?: \Arcp\Ids\StreamId|null,
-     *     subscription_id?: SubscriptionId|null,
-     *     trace_id?: TraceId|null,
-     *     priority?: Priority,
-     * } $hints
+     * @param array{correlation_id?: MessageId, job_id?: JobId|null, stream_id?: StreamId|null, subscription_id?: SubscriptionId|null, trace_id?: TraceId|null, priority?: Priority} $hints
      */
     public function emit(Session $session, MessageType $payload, array $hints = []): MessageId
     {

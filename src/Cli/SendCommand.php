@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace Arcp\Cli;
 
+use Arcp\Errors\InvalidArgumentException;
+use Arcp\Json\EnvelopeSerializer;
+use Arcp\Envelope\MessageCatalog;
+use Arcp\Version;
 use function Amp\Websocket\Client\connect;
 
 use Amp\Websocket\Client\WebsocketHandshake;
@@ -38,7 +42,7 @@ final class SendCommand extends Command
         $rawTool = $input->getArgument('tool');
         $rawArgs = $input->getOption('arguments');
         if (!\is_string($rawUri) || !\is_string($rawTool)) {
-            throw new \Arcp\Errors\InvalidArgumentException('uri and tool are required');
+            throw new InvalidArgumentException('uri and tool are required');
         }
         $uri = $rawUri;
         $tool = $rawTool;
@@ -47,13 +51,13 @@ final class SendCommand extends Command
         $args = json_decode($argsJson, associative: true, flags: \JSON_THROW_ON_ERROR);
 
         $connection = connect(new WebsocketHandshake($uri));
-        $serializer = new \Arcp\Json\EnvelopeSerializer(\Arcp\Envelope\MessageCatalog::create());
+        $serializer = new EnvelopeSerializer(MessageCatalog::create());
         $transport = new WebSocketTransport($connection, $serializer);
 
         $client = new ARCPClient($transport);
         $client->open(
             Auth::none(),
-            new PeerInfo('arcp-send', \Arcp\Version::IMPL_VERSION),
+            new PeerInfo('arcp-send', Version::IMPL_VERSION),
             new Capabilities(anonymous: true),
         );
 

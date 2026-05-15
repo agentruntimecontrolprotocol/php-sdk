@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Arcp\Runtime;
 
+use Arcp\Messages\Subscriptions\SubscribeEvent;
+use Arcp\Ids\MessageId;
 use Arcp\Envelope\Envelope;
 use Arcp\Envelope\Priority;
 use Arcp\Errors\InvalidArgumentException;
@@ -75,7 +77,7 @@ final class SubscriptionManager
             if (!$sub->matches($env)) {
                 continue;
             }
-            $wrapper = new \Arcp\Messages\Subscriptions\SubscribeEvent(
+            $wrapper = new SubscribeEvent(
                 $this->serializer->envelopeToArray($env),
             );
             $session = $sub->session;
@@ -83,7 +85,7 @@ final class SubscriptionManager
             // delivery from the runtime's perspective (RFC §13).
             try {
                 $session->transport->send(new Envelope(
-                    id: \Arcp\Ids\MessageId::random(),
+                    id: MessageId::random(),
                     payload: $wrapper,
                     timestamp: new \DateTimeImmutable('now', new \DateTimeZone('UTC')),
                     sessionId: $session->sessionId,

@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace Arcp\Runtime;
 
+use Arcp\Messages\Telemetry\LogEvent;
+use Arcp\Messages\Telemetry\MetricEvent;
+use Arcp\Errors\DeadlineExceededException;
+use Arcp\Messages\Human\HumanInputCancelled;
+use Arcp\Messages\Execution\JobHeartbeat;
 use Amp\Cancellation;
 use Amp\DeferredCancellation;
 use Arcp\Envelope\Priority;
@@ -59,7 +64,7 @@ final class JobContext
     /** @param array<string, mixed> $attributes */
     public function emitLog(string $level, string $message, array $attributes = []): void
     {
-        $this->runtime->emit($this->session, new \Arcp\Messages\Telemetry\LogEvent($level, $message, $attributes), [
+        $this->runtime->emit($this->session, new LogEvent($level, $message, $attributes), [
             'job_id' => $this->jobId,
             'trace_id' => $this->traceId,
         ]);
@@ -68,7 +73,7 @@ final class JobContext
     /** @param array<string, bool|float|int|string> $dims */
     public function emitMetric(string $name, int|float $value, string $unit, array $dims = []): void
     {
-        $this->runtime->emit($this->session, new \Arcp\Messages\Telemetry\MetricEvent($name, $value, $unit, $dims), [
+        $this->runtime->emit($this->session, new MetricEvent($name, $value, $unit, $dims), [
             'job_id' => $this->jobId,
             'trace_id' => $this->traceId,
         ]);
@@ -145,11 +150,11 @@ final class JobContext
             /** @var HumanInputResponse $response */
             $response = $this->runtime->pending->awaitResponse($msgId, $deadline, $cancellation);
             return $response;
-        } catch (\Arcp\Errors\DeadlineExceededException $e) {
+        } catch (DeadlineExceededException $e) {
             if ($default !== null) {
                 return new HumanInputResponse($default, 'default', $this->runtime->clock->now());
             }
-            $this->runtime->emit($this->session, new \Arcp\Messages\Human\HumanInputCancelled('DEADLINE_EXCEEDED'), [
+            $this->runtime->emit($this->session, new HumanInputCancelled('DEADLINE_EXCEEDED'), [
                 'job_id' => $this->jobId,
                 'trace_id' => $this->traceId,
                 'correlation_id' => $msgId,
@@ -234,7 +239,7 @@ final class JobContext
         $sequence = ++$job->heartbeatSequence;
         $this->runtime->emit(
             $this->session,
-            new \Arcp\Messages\Execution\JobHeartbeat($sequence, $deadlineMs, $state),
+            new JobHeartbeat($sequence, $deadlineMs, $state),
             ['job_id' => $this->jobId, 'trace_id' => $this->traceId],
         );
     }

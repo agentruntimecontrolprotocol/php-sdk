@@ -25,19 +25,15 @@ use Arcp\Json\EnvelopeSerializer;
  * is local, and the event loop does not block beyond a single insert.
  * v0.2 may move to `amphp/sqlite` if/when the package becomes stable.
  */
-final class EventLog
+final readonly class EventLog
 {
-    private \PDO $pdo;
     private ClockInterface $clock;
-    private EnvelopeSerializer $serializer;
 
     public function __construct(
-        \PDO $pdo,
-        EnvelopeSerializer $serializer,
+        private \PDO $pdo,
+        private EnvelopeSerializer $serializer,
         ?ClockInterface $clock = null,
     ) {
-        $this->pdo = $pdo;
-        $this->serializer = $serializer;
         $this->clock = $clock ?? new SystemClock();
 
         $this->pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);

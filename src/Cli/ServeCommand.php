@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Arcp\Cli;
 
+use Revolt\EventLoop;
 use Amp\Http\Server\DefaultErrorHandler;
 use Amp\Http\Server\Request;
 use Amp\Http\Server\Response;
@@ -49,10 +50,10 @@ final class ServeCommand extends Command
         $http->expose(\sprintf('%s:%d', $host, $port));
 
         $serializer = $runtime->serializer;
-        $clientHandler = new class ($runtime, $serializer) implements WebsocketClientHandler {
+        $clientHandler = new readonly class ($runtime, $serializer) implements WebsocketClientHandler {
             public function __construct(
-                private readonly ARCPRuntime $runtime,
-                private readonly EnvelopeSerializer $serializer,
+                private ARCPRuntime $runtime,
+                private EnvelopeSerializer $serializer,
             ) {
             }
 
@@ -70,7 +71,7 @@ final class ServeCommand extends Command
 
         // Block; pressing Ctrl-C kills the process. Production deployments
         // should wire SIGINT/SIGTERM via the EventLoop driver.
-        \Revolt\EventLoop::run();
+        EventLoop::run();
         return Command::SUCCESS;
     }
 }

@@ -13,7 +13,7 @@ use Arcp\Ids\SubscriptionId;
  * arrays within a field are OR'd. `min_priority` lifts to a numeric
  * weight via {@see Priority::weight()}.
  */
-final class Subscription
+final readonly class Subscription
 {
     /**
      * @param list<string> $sessionIds
@@ -23,14 +23,14 @@ final class Subscription
      * @param list<string> $types
      */
     public function __construct(
-        public readonly SubscriptionId $id,
-        public readonly Session $session,
-        public readonly array $sessionIds = [],
-        public readonly array $traceIds = [],
-        public readonly array $jobIds = [],
-        public readonly array $streamIds = [],
-        public readonly array $types = [],
-        public readonly Priority $minPriority = Priority::Low,
+        public SubscriptionId $id,
+        public Session $session,
+        public array $sessionIds = [],
+        public array $traceIds = [],
+        public array $jobIds = [],
+        public array $streamIds = [],
+        public array $types = [],
+        public Priority $minPriority = Priority::Low,
     ) {
     }
 

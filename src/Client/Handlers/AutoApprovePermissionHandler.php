@@ -8,9 +8,9 @@ use Arcp\Messages\Permissions\PermissionGrant;
 use Arcp\Messages\Permissions\PermissionRequest;
 
 /** Test/sample handler that grants every request. */
-final class AutoApprovePermissionHandler implements PermissionHandler
+final readonly class AutoApprovePermissionHandler implements PermissionHandler
 {
-    public function __construct(public readonly int $leaseSeconds = 300)
+    public function __construct(public int $leaseSeconds = 300)
     {
     }
 

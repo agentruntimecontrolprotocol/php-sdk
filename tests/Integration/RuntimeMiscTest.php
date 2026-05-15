@@ -4,6 +4,14 @@ declare(strict_types=1);
 
 namespace Arcp\Tests\Integration;
 
+use Arcp\Messages\Control\Nack;
+use Arcp\Messages\Control\Ack;
+use Arcp\Messages\Permissions\LeaseGranted;
+use Arcp\Ids\LeaseId;
+use Arcp\Messages\Permissions\LeaseExtended;
+use Arcp\Ids\ArtifactId;
+use Arcp\Errors\NotFoundException;
+use Amp\Future;
 use Amp\Cancellation;
 use Arcp\Auth\AuthRouter;
 use Arcp\Auth\NoneAuth;
@@ -30,7 +38,7 @@ use PHPUnit\Framework\TestCase;
  */
 final class RuntimeMiscTest extends TestCase
 {
-    /** @return array{0: ARCPRuntime, 1: ARCPClient, 2: \Amp\Future<mixed>} */
+    /** @return array{0: ARCPRuntime, 1: ARCPClient, 2: Future<mixed>} */
     private function client(): array
     {
         $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
@@ -64,7 +72,7 @@ final class RuntimeMiscTest extends TestCase
         );
         $client->session->transport->send($env);
         $response = $client->pending->awaitResponse($msgId, 5.0);
-        self::assertInstanceOf(\Arcp\Messages\Control\Nack::class, $response);
+        self::assertInstanceOf(Nack::class, $response);
         self::assertSame('UNIMPLEMENTED', $response->error->code);
 
         $client->close();
@@ -83,7 +91,7 @@ final class RuntimeMiscTest extends TestCase
         );
         $client->session->transport->send($env);
         $response = $client->pending->awaitResponse($msgId, 5.0);
-        self::assertInstanceOf(\Arcp\Messages\Control\Nack::class, $response);
+        self::assertInstanceOf(Nack::class, $response);
         self::assertSame('UNIMPLEMENTED', $response->error->code);
         $client->close();
         $serverFuture->await();
@@ -112,7 +120,7 @@ final class RuntimeMiscTest extends TestCase
         );
         $client->session->transport->send($env);
         $response = $client->pending->awaitResponse($msgId, 5.0);
-        self::assertInstanceOf(\Arcp\Messages\Control\Ack::class, $response);
+        self::assertInstanceOf(Ack::class, $response);
 
         $client->close();
         $serverFuture->await();
@@ -121,8 +129,8 @@ final class RuntimeMiscTest extends TestCase
     public function testLeaseRefreshExtendsExistingLease(): void
     {
         [$runtime, $client, $serverFuture] = $this->client();
-        $lease = new \Arcp\Messages\Permissions\LeaseGranted(
-            new \Arcp\Ids\LeaseId('lease_x'),
+        $lease = new LeaseGranted(
+            new LeaseId('lease_x'),
             'p',
             'r',
             'op',
@@ -139,7 +147,7 @@ final class RuntimeMiscTest extends TestCase
         );
         $client->session->transport->send($env);
         $response = $client->pending->awaitResponse($msgId, 5.0);
-        self::assertInstanceOf(\Arcp\Messages\Permissions\LeaseExtended::class, $response);
+        self::assertInstanceOf(LeaseExtended::class, $response);
 
         $client->close();
         $serverFuture->await();
@@ -150,8 +158,8 @@ final class RuntimeMiscTest extends TestCase
         [, $client, $serverFuture] = $this->client();
         $caught = null;
         try {
-            $client->fetchArtifact(new \Arcp\Ids\ArtifactId('art_unknown'));
-        } catch (\Arcp\Errors\NotFoundException $e) {
+            $client->fetchArtifact(new ArtifactId('art_unknown'));
+        } catch (NotFoundException $e) {
             $caught = $e;
         } finally {
             $client->close();

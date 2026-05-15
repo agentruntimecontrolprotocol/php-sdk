@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Arcp\Tests\Integration;
 
+use Arcp\Messages\Telemetry\EventEmit;
+use Arcp\Errors\PermissionDeniedException;
 use Amp\Cancellation;
 use Amp\DeferredFuture;
 
@@ -37,7 +39,7 @@ final class SubscriptionTest extends TestCase
             ['types' => ['event.emit']],
             function (Envelope $env) use ($sawBackfillMarker): void {
                 $payload = $env->payload;
-                if ($payload instanceof \Arcp\Messages\Telemetry\EventEmit && $payload->eventType === 'subscription.backfill_complete') {
+                if ($payload instanceof EventEmit && $payload->eventType === 'subscription.backfill_complete') {
                     if (!$sawBackfillMarker->isComplete()) {
                         $sawBackfillMarker->complete(true);
                     }
@@ -101,12 +103,12 @@ final class SubscriptionTest extends TestCase
         $caught = null;
         try {
             $client->subscribe(['session_id' => ['sess_someoneElse']], fn () => null);
-        } catch (\Arcp\Errors\PermissionDeniedException $e) {
+        } catch (PermissionDeniedException $e) {
             $caught = $e;
         } finally {
             $client->close();
             $serverFuture->await();
         }
-        self::assertInstanceOf(\Arcp\Errors\PermissionDeniedException::class, $caught);
+        self::assertInstanceOf(PermissionDeniedException::class, $caught);
     }
 }

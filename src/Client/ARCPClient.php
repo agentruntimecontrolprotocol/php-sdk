@@ -4,6 +4,29 @@ declare(strict_types=1);
 
 namespace Arcp\Client;
 
+use Arcp\Errors\UnimplementedException;
+use Arcp\Messages\Subscriptions\Unsubscribe;
+use Arcp\Ids\JobId;
+use Arcp\Messages\Control\Cancel;
+use Arcp\Messages\Control\Pong;
+use Arcp\Messages\Control\Ping;
+use Arcp\Ids\ArtifactId;
+use Arcp\Messages\Artifacts\ArtifactFetch;
+use Arcp\Messages\Session\SessionClose;
+use Arcp\Errors\ErrorCode;
+use Arcp\Errors\PermissionDeniedException;
+use Arcp\Errors\DeadlineExceededException;
+use Arcp\Errors\CancelledException;
+use Arcp\Errors\NotFoundException;
+use Arcp\Errors\AlreadyExistsException;
+use Arcp\Errors\ResourceExhaustedException;
+use Arcp\Errors\FailedPreconditionException;
+use Arcp\Errors\InternalException;
+use Arcp\Errors\UnavailableException;
+use Arcp\Errors\DataLossException;
+use Arcp\Errors\AbortedException;
+use Arcp\Errors\OutOfRangeException;
+use Arcp\Errors\BackpressureOverflowException;
 use function Amp\async;
 
 use Amp\Cancellation;
@@ -131,7 +154,7 @@ final class ARCPClient
             throw new UnauthenticatedException($msg->error->message);
         }
         if ($msg instanceof SessionRejected) {
-            throw new \Arcp\Errors\UnimplementedException('§7', $msg->error->message);
+            throw new UnimplementedException('§7', $msg->error->message);
         }
         if (!$msg instanceof SessionAccepted) {
             throw new UnauthenticatedException('handshake: unexpected response ' . $response->type());
@@ -230,7 +253,7 @@ final class ARCPClient
         unset($this->subscribers[(string) $id]);
         $env = new Envelope(
             id: MessageId::random(),
-            payload: new \Arcp\Messages\Subscriptions\Unsubscribe(),
+            payload: new Unsubscribe(),
             timestamp: $this->clock->now(),
             sessionId: $this->session->sessionId,
             subscriptionId: $id,
@@ -238,28 +261,28 @@ final class ARCPClient
         $this->session->transport->send($env);
     }
 
-    public function cancelJob(\Arcp\Ids\JobId $jobId, string $reason = 'user_aborted', int $deadlineMs = 5000): void
+    public function cancelJob(JobId $jobId, string $reason = 'user_aborted', int $deadlineMs = 5000): void
     {
         $env = new Envelope(
             id: MessageId::random(),
-            payload: new \Arcp\Messages\Control\Cancel('job', (string) $jobId, $reason, $deadlineMs),
+            payload: new Cancel('job', (string) $jobId, $reason, $deadlineMs),
             timestamp: $this->clock->now(),
             sessionId: $this->session->sessionId,
         );
         $this->session->transport->send($env);
     }
 
-    public function ping(?string $nonce = null, float $deadlineSeconds = 5.0): \Arcp\Messages\Control\Pong
+    public function ping(?string $nonce = null, float $deadlineSeconds = 5.0): Pong
     {
         $id = MessageId::random();
         $env = new Envelope(
             id: $id,
-            payload: new \Arcp\Messages\Control\Ping($nonce),
+            payload: new Ping($nonce),
             timestamp: $this->clock->now(),
             sessionId: $this->session->sessionId,
         );
         $this->session->transport->send($env);
-        /** @var \Arcp\Messages\Control\Pong $resp */
+        /** @var Pong $resp */
         $resp = $this->pending->awaitResponse($id, $deadlineSeconds);
         return $resp;
     }
@@ -279,12 +302,12 @@ final class ARCPClient
         return $resp;
     }
 
-    public function fetchArtifact(\Arcp\Ids\ArtifactId $artifactId): string
+    public function fetchArtifact(ArtifactId $artifactId): string
     {
         $id = MessageId::random();
         $env = new Envelope(
             id: $id,
-            payload: new \Arcp\Messages\Artifacts\ArtifactFetch($artifactId),
+            payload: new ArtifactFetch($artifactId),
             timestamp: $this->clock->now(),
             sessionId: $this->session->sessionId,
         );
@@ -308,7 +331,7 @@ final class ARCPClient
         try {
             $this->session->transport->send(new Envelope(
                 id: MessageId::random(),
-                payload: new \Arcp\Messages\Session\SessionClose('client_close'),
+                payload: new SessionClose('client_close'),
                 timestamp: $this->clock->now(),
                 sessionId: $this->session->sessionId,
             ));
@@ -430,26 +453,26 @@ final class ARCPClient
         $perm = $err->details['permission'] ?? '?';
         $res  = $err->details['resource'] ?? '?';
         return match ($canonical) {
-            \Arcp\Errors\ErrorCode::PermissionDenied => new \Arcp\Errors\PermissionDeniedException(
+            ErrorCode::PermissionDenied => new PermissionDeniedException(
                 \is_string($perm) ? $perm : '?',
                 \is_string($res) ? $res : '?',
                 $err->message,
             ),
-            \Arcp\Errors\ErrorCode::Unimplemented => new \Arcp\Errors\UnimplementedException('?', $err->message),
-            \Arcp\Errors\ErrorCode::DeadlineExceeded => new \Arcp\Errors\DeadlineExceededException($err->message),
-            \Arcp\Errors\ErrorCode::Cancelled => new \Arcp\Errors\CancelledException($err->message),
-            \Arcp\Errors\ErrorCode::NotFound => new \Arcp\Errors\NotFoundException($err->message),
-            \Arcp\Errors\ErrorCode::AlreadyExists => new \Arcp\Errors\AlreadyExistsException($err->message),
-            \Arcp\Errors\ErrorCode::ResourceExhausted => new \Arcp\Errors\ResourceExhaustedException($err->message),
-            \Arcp\Errors\ErrorCode::FailedPrecondition => new \Arcp\Errors\FailedPreconditionException($err->message),
-            \Arcp\Errors\ErrorCode::InvalidArgument => new \Arcp\Errors\InvalidArgumentException($err->message),
-            \Arcp\Errors\ErrorCode::Internal => new \Arcp\Errors\InternalException($err->message),
-            \Arcp\Errors\ErrorCode::Unavailable => new \Arcp\Errors\UnavailableException($err->message),
-            \Arcp\Errors\ErrorCode::DataLoss => new \Arcp\Errors\DataLossException($err->message),
-            \Arcp\Errors\ErrorCode::Unauthenticated => new \Arcp\Errors\UnauthenticatedException($err->message),
-            \Arcp\Errors\ErrorCode::Aborted => new \Arcp\Errors\AbortedException($err->message),
-            \Arcp\Errors\ErrorCode::OutOfRange => new \Arcp\Errors\OutOfRangeException($err->message),
-            \Arcp\Errors\ErrorCode::BackpressureOverflow => new \Arcp\Errors\BackpressureOverflowException($err->message),
+            ErrorCode::Unimplemented => new UnimplementedException('?', $err->message),
+            ErrorCode::DeadlineExceeded => new DeadlineExceededException($err->message),
+            ErrorCode::Cancelled => new CancelledException($err->message),
+            ErrorCode::NotFound => new NotFoundException($err->message),
+            ErrorCode::AlreadyExists => new AlreadyExistsException($err->message),
+            ErrorCode::ResourceExhausted => new ResourceExhaustedException($err->message),
+            ErrorCode::FailedPrecondition => new FailedPreconditionException($err->message),
+            ErrorCode::InvalidArgument => new InvalidArgumentException($err->message),
+            ErrorCode::Internal => new InternalException($err->message),
+            ErrorCode::Unavailable => new UnavailableException($err->message),
+            ErrorCode::DataLoss => new DataLossException($err->message),
+            ErrorCode::Unauthenticated => new UnauthenticatedException($err->message),
+            ErrorCode::Aborted => new AbortedException($err->message),
+            ErrorCode::OutOfRange => new OutOfRangeException($err->message),
+            ErrorCode::BackpressureOverflow => new BackpressureOverflowException($err->message),
             default => new UnknownException($err->code, $err->message),
         };
     }

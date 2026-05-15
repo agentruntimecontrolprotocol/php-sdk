@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace Arcp\Cli;
 
+use Arcp\Errors\InvalidArgumentException;
+use Arcp\Json\EnvelopeSerializer;
+use Arcp\Envelope\MessageCatalog;
+use Arcp\Version;
+use Revolt\EventLoop;
 use function Amp\Websocket\Client\connect;
 
 use Amp\Websocket\Client\WebsocketHandshake;
@@ -33,17 +38,17 @@ final class TailCommand extends Command
     {
         $rawUri = $input->getArgument('uri');
         if (!\is_string($rawUri) || $rawUri === '') {
-            throw new \Arcp\Errors\InvalidArgumentException('uri is required');
+            throw new InvalidArgumentException('uri is required');
         }
         $uri = $rawUri;
         $connection = connect(new WebsocketHandshake($uri));
-        $serializer = new \Arcp\Json\EnvelopeSerializer(\Arcp\Envelope\MessageCatalog::create());
+        $serializer = new EnvelopeSerializer(MessageCatalog::create());
         $transport = new WebSocketTransport($connection, $serializer);
 
         $client = new ARCPClient($transport);
         $client->open(
             Auth::none(),
-            new PeerInfo('arcp-tail', \Arcp\Version::IMPL_VERSION),
+            new PeerInfo('arcp-tail', Version::IMPL_VERSION),
             new Capabilities(subscriptions: true, anonymous: true),
         );
 
@@ -54,7 +59,7 @@ final class TailCommand extends Command
             },
         );
 
-        \Revolt\EventLoop::run();
+        EventLoop::run();
         return Command::SUCCESS;
     }
 }

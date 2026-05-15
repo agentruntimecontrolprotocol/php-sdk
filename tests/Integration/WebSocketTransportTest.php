@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Arcp\Tests\Integration;
 
+use Amp\Http\Server\Response;
+use Amp\Http\Server\DefaultErrorHandler;
 use Amp\Http\Server\Request;
 use Amp\Http\Server\SocketHttpServer;
 
@@ -37,15 +39,15 @@ final class WebSocketTransportTest extends TestCase
         $http = SocketHttpServer::createForDirectAccess($logger);
         $http->expose('127.0.0.1:0');
 
-        $clientHandler = new class ($runtime, $serializer) implements WebsocketClientHandler {
+        $clientHandler = new readonly class ($runtime, $serializer) implements WebsocketClientHandler {
             public function __construct(
-                private readonly ARCPRuntime $runtime,
-                private readonly EnvelopeSerializer $serializer,
+                private ARCPRuntime $runtime,
+                private EnvelopeSerializer $serializer,
             ) {
             }
 
             #[\Override]
-            public function handleClient(WebsocketClient $client, Request $request, \Amp\Http\Server\Response $response): void
+            public function handleClient(WebsocketClient $client, Request $request, Response $response): void
             {
                 $transport = new WebSocketTransport($client, $this->serializer);
                 $this->runtime->serve($transport);
@@ -53,7 +55,7 @@ final class WebSocketTransportTest extends TestCase
         };
 
         $websocket = new Websocket($http, $logger, new Rfc6455Acceptor(), $clientHandler);
-        $http->start($websocket, new \Amp\Http\Server\DefaultErrorHandler());
+        $http->start($websocket, new DefaultErrorHandler());
 
         $address = $http->getServers()[0]->getAddress();
         // SocketAddress can be either Internet (host+port) or Unix (path);

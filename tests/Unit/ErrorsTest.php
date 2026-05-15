@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Arcp\Tests\Unit;
 
+use Arcp\Ids\TraceId;
 use Arcp\Errors\AbortedException;
 use Arcp\Errors\AlreadyExistsException;
 use Arcp\Errors\ARCPException;
@@ -207,7 +208,7 @@ final class ErrorsTest extends TestCase
             message: 'outer',
             details: ['k' => 'v'],
             cause: $cause,
-            traceId: new \Arcp\Ids\TraceId('trace_x'),
+            traceId: new TraceId('trace_x'),
         );
         $arr = $payload->toArray();
         self::assertSame('INTERNAL', $arr['code']);

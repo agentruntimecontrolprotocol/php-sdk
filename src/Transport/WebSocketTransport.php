@@ -17,11 +17,11 @@ use Arcp\Json\EnvelopeSerializer;
  * Sidecar binary frames are deferred to v0.2; v0.1 advertises only
  * `binary_encoding: ["base64"]`, so binary streams travel inline.
  */
-final class WebSocketTransport implements Transport
+final readonly class WebSocketTransport implements Transport
 {
     public function __construct(
-        private readonly WebsocketClient $ws,
-        private readonly EnvelopeSerializer $serializer,
+        private WebsocketClient $ws,
+        private EnvelopeSerializer $serializer,
     ) {
     }
 

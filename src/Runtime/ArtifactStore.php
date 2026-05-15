@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Arcp\Runtime;
 
+use Arcp\Errors\InvalidArgumentException;
 use Arcp\Clock\ClockInterface;
 use Arcp\Clock\SystemClock;
 use Arcp\Errors\NotFoundException;
@@ -38,14 +39,14 @@ final class ArtifactStore
 
     public function put(Session $session, string $mediaType, string $bytes, ?int $retentionSeconds = null): ArtifactRef
     {
-        $sessionId = (string) ($session->sessionId ?? throw new \Arcp\Errors\InvalidArgumentException('session has no id'));
+        $sessionId = (string) ($session->sessionId ?? throw new InvalidArgumentException('session has no id'));
         $retention = $retentionSeconds ?? $this->defaultRetentionSeconds;
         $retention = min($retention, $this->maxRetentionSeconds);
         $id = ArtifactId::random();
         $expiresAt = $this->clock->now()->modify('+' . $retention . ' seconds');
         $ref = new ArtifactRef(
             artifactId: $id,
-            uri: 'arcp://session/' . $sessionId . '/artifact/' . (string) $id,
+            uri: 'arcp://session/' . $sessionId . '/artifact/' . $id->value,
             mediaType: $mediaType,
             size: \strlen($bytes),
             sha256: hash('sha256', $bytes),

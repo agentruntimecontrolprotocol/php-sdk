@@ -11,10 +11,10 @@ use Arcp\Messages\Session\PeerInfo;
  * Opaque bearer-token verification (RFC §8.2). The runtime keeps a token
  * → principal mapping; presence of the token grants the principal.
  */
-final class BearerAuth implements AuthScheme
+final readonly class BearerAuth implements AuthScheme
 {
     /** @param array<string, string> $tokens token → principal */
-    public function __construct(private readonly array $tokens)
+    public function __construct(private array $tokens)
     {
     }
 

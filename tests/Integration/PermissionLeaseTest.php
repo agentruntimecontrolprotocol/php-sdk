@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Arcp\Tests\Integration;
 
+use Arcp\Client\Handlers\PermissionHandler;
 use Amp\Cancellation;
 use Arcp\Auth\AuthRouter;
 use Arcp\Auth\NoneAuth;
@@ -61,7 +62,7 @@ final class PermissionLeaseTest extends TestCase
 
     public function testPermissionDenyRaisesException(): void
     {
-        $denyHandler = new class () implements \Arcp\Client\Handlers\PermissionHandler {
+        $denyHandler = new class () implements PermissionHandler {
             #[\Override]
             public function onPermissionRequest(PermissionRequest $req): PermissionDeny
             {

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Arcp\Runtime;
 
+use Arcp\Errors\PermissionDeniedException;
 use Arcp\Clock\ClockInterface;
 use Arcp\Clock\SystemClock;
 use Arcp\Errors\LeaseExpiredException;
@@ -51,7 +52,7 @@ final class LeaseManager
     {
         $lease = $this->get($id);
         if ($lease->permission !== $permission || $lease->resource !== $resource || $lease->operation !== $operation) {
-            throw new \Arcp\Errors\PermissionDeniedException($permission, $resource, 'lease scope mismatch');
+            throw new PermissionDeniedException($permission, $resource, 'lease scope mismatch');
         }
         return $lease;
     }

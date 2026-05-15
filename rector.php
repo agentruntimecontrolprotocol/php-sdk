@@ -2,30 +2,27 @@
 
 declare(strict_types=1);
 
-use Rector\CodeQuality\Rector\Class_\InlineConstructorDefaultToPropertyRector;
 use Rector\Config\RectorConfig;
-use Rector\Set\ValueObject\LevelSetList;
+use Rector\DeadCode\Rector\ClassMethod\RemoveUnusedPrivateMethodParameterRector;
+use Rector\DeadCode\Rector\ClassMethod\RemoveUnusedPublicMethodParameterRector;
 use Rector\Set\ValueObject\SetList;
 
 return RectorConfig::configure()
     ->withPaths([
         __DIR__ . '/src',
         __DIR__ . '/tests',
-        __DIR__ . '/samples',
-        __DIR__ . '/bin',
     ])
     ->withSkip([
         __DIR__ . '/vendor',
-        InlineConstructorDefaultToPropertyRector::class,
+        // Removing "unused" parameters on a public SDK is a BC break.
+        // The signatures are the contract — they outlast any one impl.
+        RemoveUnusedPublicMethodParameterRector::class,
+        RemoveUnusedPrivateMethodParameterRector::class,
     ])
     ->withPhpSets(php83: true)
     ->withSets([
-        SetList::CODE_QUALITY,
+        // Phase 3 active set — toggle one at a time, commit each.
         SetList::DEAD_CODE,
-        SetList::TYPE_DECLARATION,
-        SetList::EARLY_RETURN,
-        SetList::PRIVATIZATION,
-        SetList::INSTANCEOF,
     ])
     ->withImportNames(
         importNames: true,

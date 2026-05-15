@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Arcp\Tests\Unit;
 
+use Arcp\Errors\InvalidArgumentException;
 use Arcp\Auth\AuthRouter;
 use Arcp\Auth\BearerAuth;
 use Arcp\Auth\JwtAuth;
@@ -167,7 +168,7 @@ final class AuthTest extends TestCase
 
     public function testAuthRequiresScheme(): void
     {
-        $this->expectException(\Arcp\Errors\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         new Auth('');
     }
 }

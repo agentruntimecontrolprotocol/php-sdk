@@ -99,10 +99,10 @@ final class RelayScenarioTest extends TestCase
                 $logger = new NullLogger();
                 $http = SocketHttpServer::createForDirectAccess($logger);
                 $http->expose('127.0.0.1:0');
-                $clientHandler = new class ($runtime, $serializer) implements WebsocketClientHandler {
+                $clientHandler = new readonly class ($runtime, $serializer) implements WebsocketClientHandler {
                     public function __construct(
-                        private readonly ARCPRuntime $runtime,
-                        private readonly EnvelopeSerializer $serializer,
+                        private ARCPRuntime $runtime,
+                        private EnvelopeSerializer $serializer,
                     ) {
                     }
 

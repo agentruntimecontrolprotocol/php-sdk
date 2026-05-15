@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Arcp\Transport;
 
+use Arcp\Errors\InvalidArgumentException;
 use Amp\ByteStream\ReadableResourceStream;
 use Amp\ByteStream\ReadableStream;
 use Amp\ByteStream\WritableResourceStream;
@@ -36,7 +37,7 @@ final class StdioTransport implements Transport
     public static function fromResources(mixed $readResource, mixed $writeResource, EnvelopeSerializer $serializer): self
     {
         if (!\is_resource($readResource) || !\is_resource($writeResource)) {
-            throw new \Arcp\Errors\InvalidArgumentException('stdio transport requires open resources');
+            throw new InvalidArgumentException('stdio transport requires open resources');
         }
         return new self(
             new ReadableResourceStream($readResource),
@@ -48,9 +49,7 @@ final class StdioTransport implements Transport
     /** Wire the local process's stdin/stdout. */
     public static function localProcess(EnvelopeSerializer $serializer): self
     {
-        /** @var resource $in */
         $in = \STDIN;
-        /** @var resource $out */
         $out = \STDOUT;
         return self::fromResources($in, $out, $serializer);
     }

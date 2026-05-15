@@ -20,7 +20,7 @@ use Arcp\Envelope\Envelope;
 final class MemoryTransport implements Transport
 {
     /** @var \SplQueue<Envelope> */
-    private \SplQueue $inbox;
+    private readonly \SplQueue $inbox;
 
     /** @var list<DeferredFuture<Envelope|null>> */
     private array $waiters = [];
@@ -115,7 +115,7 @@ final class MemoryTransport implements Transport
         }
         $this->closed = true;
         foreach ($this->waiters as $w) {
-            $w->complete(null);
+            $w->complete();
         }
         $this->waiters = [];
         if ($this->peer !== null && !$this->peer->closed) {
@@ -125,7 +125,7 @@ final class MemoryTransport implements Transport
             $peer->peer = null;
             // Wake any waiters on the peer with null so reads return a clean EOF.
             foreach ($peer->waiters as $w) {
-                $w->complete(null);
+                $w->complete();
             }
             $peer->waiters = [];
             $peer->closed = true;

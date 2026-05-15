@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Arcp\Json;
 
+use Arcp\Ids\Id;
 use Arcp\Envelope\Envelope;
 use Arcp\Envelope\MessageType;
 use Arcp\Envelope\MessageTypeRegistry;
@@ -28,11 +29,11 @@ use Arcp\Ids\TraceId;
  * specific enough that a dedicated serializer is cleaner than reflection
  * config. {@see MessageTypeRegistry} owns type-name → class mapping.
  */
-final class EnvelopeSerializer
+final readonly class EnvelopeSerializer
 {
     public function __construct(
-        private readonly MessageTypeRegistry $registry,
-        private readonly ?ExtensionRegistry $extensions = null,
+        private MessageTypeRegistry $registry,
+        private ?ExtensionRegistry $extensions = null,
     ) {
     }
 
@@ -268,7 +269,7 @@ final class EnvelopeSerializer
      *
      * @return T|null
      */
-    private function optionalId(array $data, string $key, string $idClass): ?\Arcp\Ids\Id
+    private function optionalId(array $data, string $key, string $idClass): ?Id
     {
         if (!isset($data[$key])) {
             return null;

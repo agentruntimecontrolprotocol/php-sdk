@@ -11,9 +11,9 @@ use Arcp\Messages\Session\PeerInfo;
  * `none` scheme (RFC §8.2). Only valid if the client requested
  * `capabilities.anonymous: true` AND the runtime advertises it.
  */
-final class NoneAuth implements AuthScheme
+final readonly class NoneAuth implements AuthScheme
 {
-    public function __construct(private readonly string $defaultPrincipal = 'anonymous')
+    public function __construct(private string $defaultPrincipal = 'anonymous')
     {
     }
 
