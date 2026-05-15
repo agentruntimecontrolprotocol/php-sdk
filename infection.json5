@@ -1,0 +1,28 @@
+{
+    "$schema": "vendor/infection/infection/resources/schema.json",
+    "source": {
+        "directories": [
+            "src/Errors",
+            "src/Envelope",
+            "src/Ids",
+            "src/Json",
+            "src/Clock",
+        ],
+        "excludes": [
+            "Cli",
+        ],
+    },
+    "timeout": 30,
+    "logs": {
+        "text": "infection.log",
+        "html": "infection.html",
+        "summary": "infection-summary.log",
+    },
+    "tmpDir": ".infection",
+    "minMsi": 80,
+    "minCoveredMsi": 80,
+    "mutators": {
+        "@default": true,
+    },
+    "testFrameworkOptions": "--testsuite=unit",
+}
