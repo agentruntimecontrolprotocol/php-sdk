@@ -13,7 +13,7 @@ namespace Arcp\Errors;
  * RFC §18.1 defines the wire shape; this class is the in-process
  * representation that round-trips through {@see Arcp\Json\EnvelopeSerializer}.
  */
-abstract class ARCPException extends \RuntimeException
+abstract class ARCPException extends \RuntimeException implements ARCPExceptionInterface
 {
     /**
      * @param array<string, mixed> $details Optional structured context attached
@@ -28,12 +28,10 @@ abstract class ARCPException extends \RuntimeException
         parent::__construct($message, 0, $previous);
     }
 
+    #[\Override]
     abstract public function code(): ErrorCode;
 
-    /**
-     * Effective retryability — explicit override wins, otherwise the
-     * RFC §18.3 default for this code.
-     */
+    #[\Override]
     public function isRetryable(): bool
     {
         return $this->retryable ?? $this->code()->defaultRetryable();
