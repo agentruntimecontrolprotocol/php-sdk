@@ -7,11 +7,9 @@ namespace Arcp\Json;
 use Arcp\Envelope\Envelope;
 use Arcp\Envelope\MessageType;
 use Arcp\Envelope\MessageTypeRegistry;
-use Arcp\Envelope\Priority;
 use Arcp\Errors\InvalidArgumentException;
 use Arcp\Errors\UnimplementedException;
 use Arcp\Extensions\ExtensionRegistry;
-use Arcp\Ids\Id;
 use Arcp\Ids\IdempotencyKey;
 use Arcp\Ids\JobId;
 use Arcp\Ids\MessageId;
@@ -20,6 +18,7 @@ use Arcp\Ids\SpanId;
 use Arcp\Ids\StreamId;
 use Arcp\Ids\SubscriptionId;
 use Arcp\Ids\TraceId;
+use Arcp\Internal\Json\EnvelopeMetadataCodec;
 
 /**
  * JSON encode/decode for {@see Envelope} (RFC §6.1).
@@ -28,13 +27,18 @@ use Arcp\Ids\TraceId;
  * protocol surface is small enough and the polymorphism rules are
  * specific enough that a dedicated serializer is cleaner than reflection
  * config. {@see MessageTypeRegistry} owns type-name → class mapping.
+ * Metadata array <-> object plumbing lives in
+ * {@see EnvelopeMetadataCodec} so this class stays within the size cap.
  */
 final readonly class EnvelopeSerializer
 {
+    private EnvelopeMetadataCodec $metadata;
+
     public function __construct(
         private MessageTypeRegistry $registry,
         private ?ExtensionRegistry $extensions = null,
     ) {
+        $this->metadata = new EnvelopeMetadataCodec();
     }
 
     public function encode(Envelope $env): string
@@ -59,58 +63,10 @@ final readonly class EnvelopeSerializer
      */
     public function envelopeToArray(Envelope $env): array
     {
-        $out = [
-            'arcp' => $env->arcp,
-            'id' => (string) $env->id,
-            'type' => $env->type(),
-            'timestamp' => $env->timestamp->format('Y-m-d\\TH:i:s.up'),
+        return [
+            ...$this->metadata->envelopeToArray($env),
             'payload' => $env->payload->toArray(),
         ];
-
-        if ($env->priority !== Priority::Normal) {
-            $out['priority'] = $env->priority->value;
-        }
-        if ($env->sessionId instanceof SessionId) {
-            $out['session_id'] = (string) $env->sessionId;
-        }
-        if ($env->jobId instanceof JobId) {
-            $out['job_id'] = (string) $env->jobId;
-        }
-        if ($env->streamId instanceof StreamId) {
-            $out['stream_id'] = (string) $env->streamId;
-        }
-        if ($env->subscriptionId instanceof SubscriptionId) {
-            $out['subscription_id'] = (string) $env->subscriptionId;
-        }
-        if ($env->traceId instanceof TraceId) {
-            $out['trace_id'] = (string) $env->traceId;
-        }
-        if ($env->spanId instanceof SpanId) {
-            $out['span_id'] = (string) $env->spanId;
-        }
-        if ($env->parentSpanId instanceof SpanId) {
-            $out['parent_span_id'] = (string) $env->parentSpanId;
-        }
-        if ($env->correlationId instanceof MessageId) {
-            $out['correlation_id'] = (string) $env->correlationId;
-        }
-        if ($env->causationId instanceof MessageId) {
-            $out['causation_id'] = (string) $env->causationId;
-        }
-        if ($env->idempotencyKey instanceof IdempotencyKey) {
-            $out['idempotency_key'] = (string) $env->idempotencyKey;
-        }
-        if ($env->source !== null) {
-            $out['source'] = $env->source;
-        }
-        if ($env->target !== null) {
-            $out['target'] = $env->target;
-        }
-        if ($env->extensions !== []) {
-            $out['extensions'] = $env->extensions;
-        }
-
-        return $out;
     }
 
     public function decode(string $json): Envelope
@@ -137,63 +93,32 @@ final readonly class EnvelopeSerializer
      */
     public function envelopeFromArray(array $data): Envelope
     {
-        $type = $this->requireString($data, 'type');
-        $idStr = $this->requireString($data, 'id');
-        $arcp = $this->requireString($data, 'arcp');
-        $tsStr = $this->requireString($data, 'timestamp');
-
-        try {
-            $timestamp = new \DateTimeImmutable($tsStr);
-        } catch (\Throwable $e) {
-            throw new InvalidArgumentException(
-                'envelope.timestamp must be RFC 3339',
-                ['timestamp' => $tsStr],
-                null,
-                $e,
-            );
-        }
-
+        $meta = $this->metadata;
+        $type = $meta->requireString($data, 'type');
+        $idStr = $meta->requireString($data, 'id');
+        $arcp = $meta->requireString($data, 'arcp');
+        $timestamp = $meta->parseTimestamp($meta->requireString($data, 'timestamp'));
         $payload = $this->decodePayload($type, $data);
-
-        $priority = Priority::Normal;
-        if (isset($data['priority'])) {
-            if (!\is_string($data['priority']) || Priority::tryFrom($data['priority']) === null) {
-                throw new InvalidArgumentException(
-                    'envelope.priority not recognized',
-                    ['priority' => $data['priority']],
-                );
-            }
-            $priority = Priority::from($data['priority']);
-        }
-
-        $extensions = [];
-        if (isset($data['extensions'])) {
-            if (!\is_array($data['extensions'])) {
-                throw new InvalidArgumentException('envelope.extensions must be object');
-            }
-            /** @var array<string, mixed> $extensions */
-            $extensions = $data['extensions'];
-        }
 
         return new Envelope(
             id: new MessageId($idStr),
             payload: $payload,
             timestamp: $timestamp,
-            priority: $priority,
-            sessionId: $this->optionalId($data, 'session_id', SessionId::class),
-            jobId: $this->optionalId($data, 'job_id', JobId::class),
-            streamId: $this->optionalId($data, 'stream_id', StreamId::class),
-            subscriptionId: $this->optionalId($data, 'subscription_id', SubscriptionId::class),
-            traceId: $this->optionalId($data, 'trace_id', TraceId::class),
-            spanId: $this->optionalId($data, 'span_id', SpanId::class),
-            parentSpanId: $this->optionalId($data, 'parent_span_id', SpanId::class),
-            correlationId: $this->optionalId($data, 'correlation_id', MessageId::class),
-            causationId: $this->optionalId($data, 'causation_id', MessageId::class),
-            idempotencyKey: $this->optionalId($data, 'idempotency_key', IdempotencyKey::class),
-            source: $this->optionalString($data, 'source'),
-            target: $this->optionalString($data, 'target'),
+            priority: $meta->parsePriority($data),
+            sessionId: $meta->optionalId($data, 'session_id', SessionId::class),
+            jobId: $meta->optionalId($data, 'job_id', JobId::class),
+            streamId: $meta->optionalId($data, 'stream_id', StreamId::class),
+            subscriptionId: $meta->optionalId($data, 'subscription_id', SubscriptionId::class),
+            traceId: $meta->optionalId($data, 'trace_id', TraceId::class),
+            spanId: $meta->optionalId($data, 'span_id', SpanId::class),
+            parentSpanId: $meta->optionalId($data, 'parent_span_id', SpanId::class),
+            correlationId: $meta->optionalId($data, 'correlation_id', MessageId::class),
+            causationId: $meta->optionalId($data, 'causation_id', MessageId::class),
+            idempotencyKey: $meta->optionalId($data, 'idempotency_key', IdempotencyKey::class),
+            source: $meta->optionalString($data, 'source'),
+            target: $meta->optionalString($data, 'target'),
             arcp: $arcp,
-            extensions: $extensions,
+            extensions: $meta->parseExtensions($data),
         );
     }
 
@@ -204,19 +129,7 @@ final readonly class EnvelopeSerializer
     {
         $class = $this->registry->classFor($type);
         if ($class === null) {
-            // Honor extension dispatch rules (RFC §21.3) when an extension
-            // registry is present. Without one, default to UNIMPLEMENTED.
-            if ($this->extensions instanceof ExtensionRegistry) {
-                $optional = $this->isOptionalExtension($envelopeData);
-                $disposition = $this->extensions->dispositionFor($type, $optional);
-                if ($disposition === 'drop' || $disposition === 'advertised') {
-                    throw new UnimplementedException(
-                        '§21',
-                        \sprintf('extension type %s has no registered class', $type),
-                    );
-                }
-            }
-            throw new UnimplementedException('§6.2', \sprintf('unknown message type %s', $type));
+            $this->rejectUnknownType($type, $envelopeData);
         }
 
         $payloadData = [];
@@ -233,6 +146,28 @@ final readonly class EnvelopeSerializer
 
     /**
      * @param array<string, mixed> $envelopeData
+     *
+     * @return never
+     */
+    private function rejectUnknownType(string $type, array $envelopeData): void
+    {
+        // Honor extension dispatch rules (RFC §21.3) when an extension
+        // registry is present. Without one, default to UNIMPLEMENTED.
+        if ($this->extensions instanceof ExtensionRegistry) {
+            $optional = $this->isOptionalExtension($envelopeData);
+            $disposition = $this->extensions->dispositionFor($type, $optional);
+            if ($disposition === 'drop' || $disposition === 'advertised') {
+                throw new UnimplementedException(
+                    '§21',
+                    \sprintf('extension type %s has no registered class', $type),
+                );
+            }
+        }
+        throw new UnimplementedException('§6.2', \sprintf('unknown message type %s', $type));
+    }
+
+    /**
+     * @param array<string, mixed> $envelopeData
      */
     private function isOptionalExtension(array $envelopeData): bool
     {
@@ -241,57 +176,5 @@ final readonly class EnvelopeSerializer
         }
         return isset($envelopeData['extensions']['optional'])
             && $envelopeData['extensions']['optional'] === true;
-    }
-
-    /**
-     * @param array<string, mixed> $data
-     */
-    private function requireString(array $data, string $key): string
-    {
-        if (!isset($data[$key])) {
-            throw new InvalidArgumentException(\sprintf('envelope.%s missing', $key));
-        }
-        if (!\is_string($data[$key])) {
-            throw new InvalidArgumentException(\sprintf('envelope.%s must be a string', $key));
-        }
-        if ($data[$key] === '') {
-            throw new InvalidArgumentException(\sprintf('envelope.%s must be non-empty', $key));
-        }
-        return $data[$key];
-    }
-
-    /**
-     * @param array<string, mixed> $data
-     */
-    private function optionalString(array $data, string $key): ?string
-    {
-        if (!isset($data[$key])) {
-            return null;
-        }
-        if (!\is_string($data[$key]) || $data[$key] === '') {
-            throw new InvalidArgumentException(
-                \sprintf('envelope.%s must be non-empty string', $key),
-            );
-        }
-        return $data[$key];
-    }
-
-    /**
-     * @template T of \Arcp\Ids\Id
-     *
-     * @param array<string, mixed> $data
-     * @param class-string<T> $idClass
-     *
-     * @return T|null
-     */
-    private function optionalId(array $data, string $key, string $idClass): ?Id
-    {
-        if (!isset($data[$key])) {
-            return null;
-        }
-        if (!\is_string($data[$key])) {
-            throw new InvalidArgumentException(\sprintf('envelope.%s must be a string', $key));
-        }
-        return new $idClass($data[$key]);
     }
 }
