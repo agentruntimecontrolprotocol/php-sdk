@@ -19,7 +19,9 @@ final readonly class LogEvent extends MessageType
         public array $attributes = [],
     ) {
         if (!\in_array($level, self::LEVELS, true)) {
-            throw new InvalidArgumentException('log.level must be one of ' . implode(',', self::LEVELS));
+            throw new InvalidArgumentException(
+                'log.level must be one of ' . implode(',', self::LEVELS),
+            );
         }
         if ($message === '') {
             throw new InvalidArgumentException('log.message must be non-empty');

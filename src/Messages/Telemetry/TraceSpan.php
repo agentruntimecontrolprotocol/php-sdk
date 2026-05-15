@@ -65,6 +65,12 @@ final readonly class TraceSpan extends MessageType
         if (isset($data['status']) && \is_string($data['status'])) {
             $status = $data['status'];
         }
-        return new self($name, new \DateTimeImmutable($start), new \DateTimeImmutable($end), $attrs, $status);
+        return new self(
+            $name,
+            new \DateTimeImmutable($start),
+            new \DateTimeImmutable($end),
+            $attrs,
+            $status,
+        );
     }
 }

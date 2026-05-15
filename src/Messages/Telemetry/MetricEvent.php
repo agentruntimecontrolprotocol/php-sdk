@@ -56,7 +56,8 @@ final readonly class MetricEvent extends MessageType
                 throw new InvalidArgumentException('dims must be object');
             }
             foreach ($data['dims'] as $k => $v) {
-                if (!\is_string($k) || (!\is_string($v) && !\is_int($v) && !\is_float($v) && !\is_bool($v))) {
+                $isScalar = \is_string($v) || \is_int($v) || \is_float($v) || \is_bool($v);
+                if (!\is_string($k) || !$isScalar) {
                     throw new InvalidArgumentException('dims entries must be string→scalar');
                 }
                 $dims[$k] = $v;

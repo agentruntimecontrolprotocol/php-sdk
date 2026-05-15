@@ -30,7 +30,8 @@ final readonly class SubscribeAccepted extends MessageType
     #[\Override]
     public static function fromArray(array $data): static
     {
-        $id = $data['subscription_id'] ?? throw new InvalidArgumentException('subscription_id missing');
+        $id = $data['subscription_id']
+            ?? throw new InvalidArgumentException('subscription_id missing');
         return new self(SubscriptionId::fromJson($id));
     }
 }

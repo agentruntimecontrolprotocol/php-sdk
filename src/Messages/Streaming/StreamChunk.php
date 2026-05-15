@@ -65,10 +65,16 @@ final readonly class StreamChunk extends MessageType
         return new self(
             sequence: $seq,
             data: $data['data'] ?? null,
-            contentType: isset($data['content_type']) && \is_string($data['content_type']) ? $data['content_type'] : null,
-            sha256: isset($data['sha256']) && \is_string($data['sha256']) ? $data['sha256'] : null,
+            contentType: isset($data['content_type']) && \is_string($data['content_type'])
+                ? $data['content_type']
+                : null,
+            sha256: isset($data['sha256']) && \is_string($data['sha256'])
+                ? $data['sha256']
+                : null,
             role: isset($data['role']) && \is_string($data['role']) ? $data['role'] : null,
-            content: isset($data['content']) && \is_string($data['content']) ? $data['content'] : null,
+            content: isset($data['content']) && \is_string($data['content'])
+                ? $data['content']
+                : null,
             redacted: isset($data['redacted']) && $data['redacted'] === true,
         );
     }

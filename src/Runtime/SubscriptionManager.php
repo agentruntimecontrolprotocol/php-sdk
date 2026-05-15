@@ -37,10 +37,11 @@ final class SubscriptionManager
         $types      = $this->extractStringList($msg->filter, 'types');
         $min = Priority::Low;
         if (isset($msg->filter['min_priority']) && \is_string($msg->filter['min_priority'])) {
-            $min = Priority::tryFrom($msg->filter['min_priority']) ?? throw new InvalidArgumentException(
-                'min_priority not recognized',
-                ['min_priority' => $msg->filter['min_priority']],
-            );
+            $min = Priority::tryFrom($msg->filter['min_priority'])
+                ?? throw new InvalidArgumentException(
+                    'min_priority not recognized',
+                    ['min_priority' => $msg->filter['min_priority']],
+                );
         }
         $sub = new Subscription(
             SubscriptionId::random(),

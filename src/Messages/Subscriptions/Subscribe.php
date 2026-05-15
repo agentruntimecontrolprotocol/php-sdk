@@ -11,7 +11,8 @@ use Arcp\Errors\InvalidArgumentException;
 final readonly class Subscribe extends MessageType
 {
     /**
-     * @param array<string, mixed> $filter Per RFC §13.2 (session_id, trace_id, job_id, stream_id, types, min_priority).
+     * @param array<string, mixed> $filter Per RFC §13.2 (session_id, trace_id, job_id,
+     *                                     stream_id, types, min_priority).
      */
     public function __construct(
         public array $filter,
@@ -43,7 +44,11 @@ final readonly class Subscribe extends MessageType
             throw new InvalidArgumentException('filter must be object');
         }
         $since = null;
-        if (isset($data['since']) && \is_array($data['since']) && isset($data['since']['after_message_id'])) {
+        if (
+            isset($data['since'])
+            && \is_array($data['since'])
+            && isset($data['since']['after_message_id'])
+        ) {
             $sm = $data['since']['after_message_id'];
             if (!\is_string($sm)) {
                 throw new InvalidArgumentException('since.after_message_id must be string');

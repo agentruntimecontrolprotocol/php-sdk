@@ -40,9 +40,17 @@ final readonly class EnvelopeSerializer
     public function encode(Envelope $env): string
     {
         try {
-            return json_encode($this->envelopeToArray($env), \JSON_THROW_ON_ERROR | \JSON_UNESCAPED_SLASHES);
+            return json_encode(
+                $this->envelopeToArray($env),
+                \JSON_THROW_ON_ERROR | \JSON_UNESCAPED_SLASHES,
+            );
         } catch (\JsonException $e) {
-            throw new InvalidArgumentException('envelope encode failed: ' . $e->getMessage(), [], null, $e);
+            throw new InvalidArgumentException(
+                'envelope encode failed: ' . $e->getMessage(),
+                [],
+                null,
+                $e,
+            );
         }
     }
 
@@ -110,7 +118,12 @@ final readonly class EnvelopeSerializer
         try {
             $data = json_decode($json, associative: true, flags: \JSON_THROW_ON_ERROR);
         } catch (\JsonException $e) {
-            throw new InvalidArgumentException('envelope decode failed: ' . $e->getMessage(), [], null, $e);
+            throw new InvalidArgumentException(
+                'envelope decode failed: ' . $e->getMessage(),
+                [],
+                null,
+                $e,
+            );
         }
         if (!\is_array($data)) {
             throw new InvalidArgumentException('envelope must decode to an object');
@@ -256,7 +269,9 @@ final readonly class EnvelopeSerializer
             return null;
         }
         if (!\is_string($data[$key]) || $data[$key] === '') {
-            throw new InvalidArgumentException(\sprintf('envelope.%s must be non-empty string', $key));
+            throw new InvalidArgumentException(
+                \sprintf('envelope.%s must be non-empty string', $key),
+            );
         }
         return $data[$key];
     }

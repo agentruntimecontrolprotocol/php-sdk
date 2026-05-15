@@ -83,10 +83,17 @@ final class JobContext
      * Open a `text`/`event`/`log`/`thought` stream and return its id and a
      * helper to push chunks. `binary` is supported as base64 only.
      *
-     * @return array{0: StreamId, 1: \Closure(string|array<string, mixed>|null, ?string=): void, 2: \Closure(?int=): void}
+     * @return array{
+     *     0: StreamId,
+     *     1: \Closure(string|array<string, mixed>|null, ?string=): void,
+     *     2: \Closure(?int=): void
+     * }
      */
-    public function openStream(StreamKind $kind, ?string $contentType = null, ?string $encoding = null): array
-    {
+    public function openStream(
+        StreamKind $kind,
+        ?string $contentType = null,
+        ?string $encoding = null,
+    ): array {
         $sid = StreamId::random();
         $this->runtime->emit($this->session, new StreamOpen($kind, $contentType, $encoding), [
             'job_id' => $this->jobId,
@@ -95,7 +102,10 @@ final class JobContext
         ]);
 
         $sequence = 0;
-        $emitChunk = function (string|array|null $body, ?string $extraContentType = null) use ($sid, &$sequence): void {
+        $emitChunk = function (
+            string|array|null $body,
+            ?string $extraContentType = null,
+        ) use ($sid, &$sequence): void {
             $payload = match (true) {
                 \is_string($body) => new StreamChunk(
                     sequence: $sequence++,
@@ -145,7 +155,10 @@ final class JobContext
             'trace_id' => $this->traceId,
             'priority' => Priority::High,
         ]);
-        $deadline = max(0.001, $expiresAt->getTimestamp() - $this->runtime->clock->now()->getTimestamp());
+        $deadline = max(
+            0.001,
+            $expiresAt->getTimestamp() - $this->runtime->clock->now()->getTimestamp(),
+        );
         try {
             /** @var HumanInputResponse $response */
             $response = $this->runtime->pending->awaitResponse($msgId, $deadline, $cancellation);
@@ -176,7 +189,10 @@ final class JobContext
             'trace_id' => $this->traceId,
             'priority' => Priority::High,
         ]);
-        $deadline = max(0.001, $expiresAt->getTimestamp() - $this->runtime->clock->now()->getTimestamp());
+        $deadline = max(
+            0.001,
+            $expiresAt->getTimestamp() - $this->runtime->clock->now()->getTimestamp(),
+        );
         /** @var HumanChoiceResponse $response */
         $response = $this->runtime->pending->awaitResponse($msgId, $deadline, $cancellation);
         return $response;
@@ -190,21 +206,36 @@ final class JobContext
         int $requestedLeaseSeconds = 300,
         ?Cancellation $cancellation = null,
     ): LeaseId {
-        $req = new PermissionRequest($permission, $resource, $operation, $reason, $requestedLeaseSeconds);
+        $req = new PermissionRequest(
+            $permission,
+            $resource,
+            $operation,
+            $reason,
+            $requestedLeaseSeconds,
+        );
         $msgId = $this->runtime->emit($this->session, $req, [
             'job_id' => $this->jobId,
             'trace_id' => $this->traceId,
             'priority' => Priority::Critical,
         ]);
-        $response = $this->runtime->pending->awaitResponse($msgId, (float) $requestedLeaseSeconds + 60.0, $cancellation);
+        $response = $this->runtime->pending->awaitResponse(
+            $msgId,
+            (float) $requestedLeaseSeconds + 60.0,
+            $cancellation,
+        );
         if ($response instanceof PermissionDeny) {
             throw new PermissionDeniedException($permission, $resource);
         }
         if (!$response instanceof PermissionGrant) {
-            throw new PermissionDeniedException($permission, $resource, 'unexpected response type ' . $response::class);
+            throw new PermissionDeniedException(
+                $permission,
+                $resource,
+                'unexpected response type ' . $response::class,
+            );
         }
         $leaseId = LeaseId::random();
-        $expiresAt = $this->runtime->clock->now()->modify('+' . ($response->leaseSeconds ?? $requestedLeaseSeconds) . ' seconds');
+        $leaseSeconds = $response->leaseSeconds ?? $requestedLeaseSeconds;
+        $expiresAt = $this->runtime->clock->now()->modify('+' . $leaseSeconds . ' seconds');
         $granted = new LeaseGranted(
             leaseId: $leaseId,
             permission: $permission,
@@ -220,9 +251,17 @@ final class JobContext
         return $leaseId;
     }
 
-    public function putArtifact(string $mediaType, string $bytes, ?int $retentionSeconds = null): ArtifactRef
-    {
-        return $this->runtime->artifacts->put($this->session, $mediaType, $bytes, $retentionSeconds);
+    public function putArtifact(
+        string $mediaType,
+        string $bytes,
+        ?int $retentionSeconds = null,
+    ): ArtifactRef {
+        return $this->runtime->artifacts->put(
+            $this->session,
+            $mediaType,
+            $bytes,
+            $retentionSeconds,
+        );
     }
 
     /**

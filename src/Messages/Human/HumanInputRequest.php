@@ -49,10 +49,13 @@ final readonly class HumanInputRequest extends MessageType
     public static function fromArray(array $data): static
     {
         $prompt = $data['prompt'] ?? throw new InvalidArgumentException('prompt missing');
-        $schema = $data['response_schema'] ?? throw new InvalidArgumentException('response_schema missing');
+        $schema = $data['response_schema']
+            ?? throw new InvalidArgumentException('response_schema missing');
         $exp = $data['expires_at'] ?? throw new InvalidArgumentException('expires_at missing');
         if (!\is_string($prompt) || !\is_array($schema) || !\is_string($exp)) {
-            throw new InvalidArgumentException('prompt/response_schema/expires_at have wrong types');
+            throw new InvalidArgumentException(
+                'prompt/response_schema/expires_at have wrong types',
+            );
         }
         $default = null;
         if (isset($data['default'])) {

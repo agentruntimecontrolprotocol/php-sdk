@@ -20,5 +20,9 @@ interface ToolHandler
     /**
      * @param array<string, mixed> $arguments
      */
-    public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed;
+    public function invoke(
+        array $arguments,
+        JobContext $ctx,
+        ?Cancellation $cancellation = null,
+    ): mixed;
 }

@@ -58,7 +58,12 @@ final readonly class HumanChoiceRequest extends MessageType
         }
         $coerced = [];
         foreach ($opts as $opt) {
-            if (!\is_array($opt) || !isset($opt['id'], $opt['label']) || !\is_string($opt['id']) || !\is_string($opt['label'])) {
+            if (
+                !\is_array($opt)
+                || !isset($opt['id'], $opt['label'])
+                || !\is_string($opt['id'])
+                || !\is_string($opt['label'])
+            ) {
                 throw new InvalidArgumentException('option must be {id: string, label: string}');
             }
             $coerced[] = ['id' => $opt['id'], 'label' => $opt['label']];

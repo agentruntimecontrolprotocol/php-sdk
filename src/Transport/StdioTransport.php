@@ -35,8 +35,11 @@ final class StdioTransport implements Transport
     ) {
     }
 
-    public static function fromResources(mixed $readResource, mixed $writeResource, EnvelopeSerializer $serializer): self
-    {
+    public static function fromResources(
+        mixed $readResource,
+        mixed $writeResource,
+        EnvelopeSerializer $serializer,
+    ): self {
         if (!\is_resource($readResource) || !\is_resource($writeResource)) {
             throw new InvalidArgumentException('stdio transport requires open resources');
         }

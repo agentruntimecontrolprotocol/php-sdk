@@ -36,7 +36,9 @@ final readonly class SessionAccepted extends MessageType
             $out['runtime'] = $this->runtime->toArray();
         }
         if ($this->leaseExpiresAt instanceof \DateTimeImmutable) {
-            $out['lease'] = ['expires_at' => $this->leaseExpiresAt->format(\DateTimeInterface::RFC3339_EXTENDED)];
+            $out['lease'] = [
+                'expires_at' => $this->leaseExpiresAt->format(\DateTimeInterface::RFC3339_EXTENDED),
+            ];
         }
         return $out;
     }
@@ -72,6 +74,11 @@ final readonly class SessionAccepted extends MessageType
             $leaseExp = new \DateTimeImmutable($expStr);
         }
 
-        return new self(SessionId::fromJson($sid), Capabilities::fromArray($caps), $runtime, $leaseExp);
+        return new self(
+            SessionId::fromJson($sid),
+            Capabilities::fromArray($caps),
+            $runtime,
+            $leaseExp,
+        );
     }
 }

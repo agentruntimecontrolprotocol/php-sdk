@@ -43,7 +43,8 @@ final readonly class JobHeartbeat extends MessageType
     public static function fromArray(array $data): static
     {
         $seq = $data['sequence'] ?? throw new InvalidArgumentException('sequence missing');
-        $deadline = $data['deadline_ms'] ?? throw new InvalidArgumentException('deadline_ms missing');
+        $deadline = $data['deadline_ms']
+            ?? throw new InvalidArgumentException('deadline_ms missing');
         if (!\is_int($seq) || !\is_int($deadline)) {
             throw new InvalidArgumentException('sequence/deadline_ms must be ints');
         }

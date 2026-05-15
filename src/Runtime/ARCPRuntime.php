@@ -206,7 +206,9 @@ final class ARCPRuntime
             if ($auth->scheme !== 'none' || !$open->capabilities->anonymous) {
                 $this->sendNoSession(
                     $session,
-                    new SessionUnauthenticated(new ErrorPayload('UNAUTHENTICATED', 'no auth router configured')),
+                    new SessionUnauthenticated(
+                        new ErrorPayload('UNAUTHENTICATED', 'no auth router configured'),
+                    ),
                     $env->id,
                 );
                 $session->state = SessionState::Rejected;
@@ -246,10 +248,15 @@ final class ARCPRuntime
         $session->capabilities = $open->capabilities;
         $session->state = SessionState::Authenticated;
 
+        $defaultRuntime = new PeerInfo(
+            Version::IMPL_KIND,
+            Version::IMPL_VERSION,
+            trustLevel: 'trusted',
+        );
         $accepted = new SessionAccepted(
             sessionId: $session->sessionId,
             capabilities: $this->advertisedCapabilities,
-            runtime: $this->runtimeIdentity ?? new PeerInfo(Version::IMPL_KIND, Version::IMPL_VERSION, trustLevel: 'trusted'),
+            runtime: $this->runtimeIdentity ?? $defaultRuntime,
         );
         $this->emit($session, $accepted, ['correlation_id' => $env->id]);
     }
@@ -295,7 +302,10 @@ final class ARCPRuntime
             try {
                 $this->dispatch($session, $env);
             } catch (\Throwable $e) {
-                $this->logger->warning('dispatch failed', ['type' => $env->type(), 'error' => $e->getMessage()]);
+                $this->logger->warning(
+                    'dispatch failed',
+                    ['type' => $env->type(), 'error' => $e->getMessage()],
+                );
                 if (!($e instanceof ARCPException)) {
                     $e = new InternalException($e->getMessage(), [], null, $e);
                 }
@@ -312,7 +322,10 @@ final class ARCPRuntime
 
         // Pending await routing: any envelope whose correlation id matches
         // an outstanding waiter is delivered there first (RFC §6.3).
-        if ($env->correlationId instanceof MessageId && $this->pending->resolve($env->correlationId, $msg)) {
+        if (
+            $env->correlationId instanceof MessageId
+            && $this->pending->resolve($env->correlationId, $msg)
+        ) {
             return;
         }
 
@@ -371,7 +384,10 @@ final class ARCPRuntime
         }
         // Logical idempotency replay (RFC §6.4).
         if ($env->idempotencyKey instanceof IdempotencyKey && $session->principal !== null) {
-            $prior = $this->eventLog->lookupIdempotent($session->principal, (string) $env->idempotencyKey);
+            $prior = $this->eventLog->lookupIdempotent(
+                $session->principal,
+                (string) $env->idempotencyKey,
+            );
             if ($prior !== null) {
                 $this->emit($session, new Ack('replay'), [
                     'correlation_id' => $env->id,
@@ -401,7 +417,11 @@ final class ARCPRuntime
             $ctx = new JobContext($this, $session, $job->id, $sid, $env->traceId);
             $ctx->cancellation = $job->cancellation;
             try {
-                $value = $handler->invoke($msg->arguments, $ctx, $job->cancellation->getCancellation());
+                $value = $handler->invoke(
+                    $msg->arguments,
+                    $ctx,
+                    $job->cancellation->getCancellation(),
+                );
                 $this->jobs->transition($job, JobState::Completed);
                 $this->emit($session, new ToolResult($value), [
                     'correlation_id' => $env->id,
@@ -412,10 +432,12 @@ final class ARCPRuntime
                     'job_id' => $job->id,
                     'trace_id' => $env->traceId,
                 ]);
-                if ($env->idempotencyKey instanceof IdempotencyKey && $session->principal !== null) {
+                $idemKey = $env->idempotencyKey;
+                $principal = $session->principal;
+                if ($idemKey instanceof IdempotencyKey && $principal !== null) {
                     $this->eventLog->rememberIdempotent(
-                        $session->principal,
-                        (string) $env->idempotencyKey,
+                        $principal,
+                        (string) $idemKey,
                         (string) $env->id,
                         $this->clock->now()->modify('+24 hours'),
                     );
@@ -507,12 +529,22 @@ final class ARCPRuntime
         if (\is_array($requested)) {
             foreach ($requested as $r) {
                 if ($sid !== null && \is_string($r) && $r !== $sid) {
-                    $this->nack($session, $env, 'PERMISSION_DENIED', 'subscription session_id outside scope');
+                    $this->nack(
+                        $session,
+                        $env,
+                        'PERMISSION_DENIED',
+                        'subscription session_id outside scope',
+                    );
                     return;
                 }
             }
         } elseif (\is_string($requested) && $sid !== null && $requested !== $sid) {
-            $this->nack($session, $env, 'PERMISSION_DENIED', 'subscription session_id outside scope');
+            $this->nack(
+                $session,
+                $env,
+                'PERMISSION_DENIED',
+                'subscription session_id outside scope',
+            );
             return;
         }
 
@@ -594,10 +626,15 @@ final class ARCPRuntime
         $this->emit($session, $put, ['correlation_id' => $env->id]);
     }
 
-    private function handleArtifactRelease(Session $session, Envelope $env, ArtifactRelease $msg): void
-    {
+    private function handleArtifactRelease(
+        Session $session,
+        Envelope $env,
+        ArtifactRelease $msg,
+    ): void {
         $ok = $this->artifacts->release($msg->artifactId);
-        $this->emit($session, new Ack($ok ? 'released' : 'unknown'), ['correlation_id' => $env->id]);
+        $this->emit($session, new Ack($ok ? 'released' : 'unknown'), [
+            'correlation_id' => $env->id,
+        ]);
     }
 
     private function handleResume(Session $session, Envelope $env, Resume $msg): void
@@ -612,7 +649,9 @@ final class ARCPRuntime
                 $session->transport->send($past);
             }
         } catch (InvalidArgumentException) {
-            $this->emit($session, new ToolError(new ErrorPayload('DATA_LOSS', 'after_message_id retention expired')), [
+            $this->emit($session, new ToolError(
+                new ErrorPayload('DATA_LOSS', 'after_message_id retention expired'),
+            ), [
                 'correlation_id' => $env->id,
             ]);
             return;
@@ -645,7 +684,14 @@ final class ARCPRuntime
     /**
      * Build, log, send, and return the message id for an outbound envelope.
      *
-     * @param array{correlation_id?: MessageId, job_id?: JobId|null, stream_id?: StreamId|null, subscription_id?: SubscriptionId|null, trace_id?: TraceId|null, priority?: Priority} $hints
+     * @param array{
+     *     correlation_id?: MessageId,
+     *     job_id?: JobId|null,
+     *     stream_id?: StreamId|null,
+     *     subscription_id?: SubscriptionId|null,
+     *     trace_id?: TraceId|null,
+     *     priority?: Priority
+     * } $hints
      */
     public function emit(Session $session, MessageType $payload, array $hints = []): MessageId
     {
@@ -672,8 +718,11 @@ final class ARCPRuntime
      * Send a no-session envelope (handshake responses before a session id
      * has been assigned).
      */
-    private function sendNoSession(Session $session, MessageType $payload, MessageId $correlationId): void
-    {
+    private function sendNoSession(
+        Session $session,
+        MessageType $payload,
+        MessageId $correlationId,
+    ): void {
         $env = new Envelope(
             id: MessageId::random(),
             payload: $payload,

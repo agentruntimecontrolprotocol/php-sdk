@@ -22,8 +22,18 @@ final class ReplayCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addArgument('database', InputArgument::REQUIRED, 'Path to the SQLite event log database')
-            ->addOption('after', 'a', InputOption::VALUE_REQUIRED, 'Replay after this message id', '');
+            ->addArgument(
+                'database',
+                InputArgument::REQUIRED,
+                'Path to the SQLite event log database',
+            )
+            ->addOption(
+                'after',
+                'a',
+                InputOption::VALUE_REQUIRED,
+                'Replay after this message id',
+                '',
+            );
     }
 
     #[\Override]

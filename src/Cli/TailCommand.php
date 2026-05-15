@@ -30,7 +30,11 @@ final class TailCommand extends Command
     #[\Override]
     protected function configure(): void
     {
-        $this->addArgument('uri', InputArgument::REQUIRED, 'WebSocket URI, e.g. ws://localhost:8765/');
+        $this->addArgument(
+            'uri',
+            InputArgument::REQUIRED,
+            'WebSocket URI, e.g. ws://localhost:8765/',
+        );
     }
 
     #[\Override]
@@ -55,7 +59,9 @@ final class TailCommand extends Command
         $client->subscribe(
             ['types' => []],
             function (Envelope $env) use ($output, $serializer): void {
-                $output->writeln(json_encode($serializer->envelopeToArray($env), \JSON_THROW_ON_ERROR));
+                $output->writeln(
+                    json_encode($serializer->envelopeToArray($env), \JSON_THROW_ON_ERROR),
+                );
             },
         );
 

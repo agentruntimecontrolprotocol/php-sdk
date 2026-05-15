@@ -37,9 +37,16 @@ final class ArtifactStore
     ) {
     }
 
-    public function put(Session $session, string $mediaType, string $bytes, ?int $retentionSeconds = null): ArtifactRef
-    {
-        $sessionId = (string) ($session->sessionId ?? throw new InvalidArgumentException('session has no id'));
+    public function put(
+        Session $session,
+        string $mediaType,
+        string $bytes,
+        ?int $retentionSeconds = null,
+    ): ArtifactRef {
+        $sessionId = (string) (
+            $session->sessionId
+            ?? throw new InvalidArgumentException('session has no id')
+        );
         $retention = $retentionSeconds ?? $this->defaultRetentionSeconds;
         $retention = min($retention, $this->maxRetentionSeconds);
         $id = ArtifactId::random();
@@ -62,8 +69,10 @@ final class ArtifactStore
 
     public function fetch(ArtifactId $id): string
     {
-        $row = $this->artifacts[(string) $id] ?? throw new NotFoundException(\sprintf('artifact %s not found', $id));
-        if (($row['ref']->expiresAt ?? null) !== null && $row['ref']->expiresAt <= $this->clock->now()) {
+        $row = $this->artifacts[(string) $id]
+            ?? throw new NotFoundException(\sprintf('artifact %s not found', $id));
+        $expiresAt = $row['ref']->expiresAt;
+        if ($expiresAt !== null && $expiresAt <= $this->clock->now()) {
             unset($this->artifacts[(string) $id]);
             throw new NotFoundException(\sprintf('artifact %s expired', $id));
         }
@@ -72,7 +81,8 @@ final class ArtifactStore
 
     public function ref(ArtifactId $id): ArtifactRef
     {
-        $row = $this->artifacts[(string) $id] ?? throw new NotFoundException(\sprintf('artifact %s not found', $id));
+        $row = $this->artifacts[(string) $id]
+            ?? throw new NotFoundException(\sprintf('artifact %s not found', $id));
         return $row['ref'];
     }
 

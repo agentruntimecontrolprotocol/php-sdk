@@ -50,7 +50,8 @@ final class ServeCommand extends Command
         $http->expose(\sprintf('%s:%d', $host, $port));
 
         $serializer = $runtime->serializer;
-        $clientHandler = new readonly class ($runtime, $serializer) implements WebsocketClientHandler {
+        $clientHandler = new readonly class ($runtime, $serializer) implements
+            WebsocketClientHandler {
             public function __construct(
                 private ARCPRuntime $runtime,
                 private EnvelopeSerializer $serializer,
@@ -58,8 +59,11 @@ final class ServeCommand extends Command
             }
 
             #[\Override]
-            public function handleClient(WebsocketClient $client, Request $request, Response $response): void
-            {
+            public function handleClient(
+                WebsocketClient $client,
+                Request $request,
+                Response $response,
+            ): void {
                 $transport = new WebSocketTransport($client, $this->serializer);
                 $this->runtime->serve($transport);
             }

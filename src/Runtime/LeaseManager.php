@@ -41,17 +41,26 @@ final class LeaseManager
         if (isset($this->revoked[$key])) {
             throw new LeaseRevokedException($id, $this->revoked[$key]);
         }
-        $lease = $this->byId[$key] ?? throw new NotFoundException(\sprintf('lease %s not found', $id));
+        $lease = $this->byId[$key]
+            ?? throw new NotFoundException(\sprintf('lease %s not found', $id));
         if ($lease->expiresAt <= $this->clock->now()) {
             throw new LeaseExpiredException($id, $lease->expiresAt);
         }
         return $lease;
     }
 
-    public function ensureUsable(LeaseId $id, string $permission, string $resource, string $operation): LeaseGranted
-    {
+    public function ensureUsable(
+        LeaseId $id,
+        string $permission,
+        string $resource,
+        string $operation,
+    ): LeaseGranted {
         $lease = $this->get($id);
-        if ($lease->permission !== $permission || $lease->resource !== $resource || $lease->operation !== $operation) {
+        if (
+            $lease->permission !== $permission
+            || $lease->resource !== $resource
+            || $lease->operation !== $operation
+        ) {
             throw new PermissionDeniedException($permission, $resource, 'lease scope mismatch');
         }
         return $lease;

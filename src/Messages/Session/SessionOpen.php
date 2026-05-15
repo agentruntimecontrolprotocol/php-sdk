@@ -37,7 +37,8 @@ final readonly class SessionOpen extends MessageType
     public static function fromArray(array $data): static
     {
         $auth = $data['auth'] ?? throw new InvalidArgumentException('session.open auth missing');
-        $client = $data['client'] ?? throw new InvalidArgumentException('session.open client missing');
+        $client = $data['client']
+            ?? throw new InvalidArgumentException('session.open client missing');
         $caps = $data['capabilities'] ?? [];
         if (!\is_array($auth) || !\is_array($client) || !\is_array($caps)) {
             throw new InvalidArgumentException('session.open fields must be objects');

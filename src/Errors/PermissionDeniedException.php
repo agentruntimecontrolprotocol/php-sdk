@@ -19,8 +19,11 @@ final class PermissionDeniedException extends ARCPException
         string $message = '',
         ?\Throwable $previous = null,
     ) {
+        $finalMessage = $message !== ''
+            ? $message
+            : \sprintf('permission denied: %s on %s', $permission, $resource);
         parent::__construct(
-            $message !== '' ? $message : \sprintf('permission denied: %s on %s', $permission, $resource),
+            $finalMessage,
             ['permission' => $permission, 'resource' => $resource],
             null,
             $previous,

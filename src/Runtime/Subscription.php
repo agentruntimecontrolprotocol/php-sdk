@@ -41,22 +41,26 @@ final readonly class Subscription
     public function matches(Envelope $env): bool
     {
         if ($this->sessionIds !== [] && (
-            !$env->sessionId instanceof SessionId || !\in_array((string) $env->sessionId, $this->sessionIds, true)
+            !$env->sessionId instanceof SessionId
+            || !\in_array((string) $env->sessionId, $this->sessionIds, true)
         )) {
             return false;
         }
         if ($this->traceIds !== [] && (
-            !$env->traceId instanceof TraceId || !\in_array((string) $env->traceId, $this->traceIds, true)
+            !$env->traceId instanceof TraceId
+            || !\in_array((string) $env->traceId, $this->traceIds, true)
         )) {
             return false;
         }
         if ($this->jobIds !== [] && (
-            !$env->jobId instanceof JobId || !\in_array((string) $env->jobId, $this->jobIds, true)
+            !$env->jobId instanceof JobId
+            || !\in_array((string) $env->jobId, $this->jobIds, true)
         )) {
             return false;
         }
         if ($this->streamIds !== [] && (
-            !$env->streamId instanceof StreamId || !\in_array((string) $env->streamId, $this->streamIds, true)
+            !$env->streamId instanceof StreamId
+            || !\in_array((string) $env->streamId, $this->streamIds, true)
         )) {
             return false;
         }

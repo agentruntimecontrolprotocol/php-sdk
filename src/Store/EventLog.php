@@ -47,13 +47,18 @@ final readonly class EventLog
         $this->pdo->exec($schema);
     }
 
-    public static function inMemory(EnvelopeSerializer $serializer, ?ClockInterface $clock = null): self
-    {
+    public static function inMemory(
+        EnvelopeSerializer $serializer,
+        ?ClockInterface $clock = null,
+    ): self {
         return new self(new \PDO('sqlite::memory:'), $serializer, $clock);
     }
 
-    public static function fromFile(string $path, EnvelopeSerializer $serializer, ?ClockInterface $clock = null): self
-    {
+    public static function fromFile(
+        string $path,
+        EnvelopeSerializer $serializer,
+        ?ClockInterface $clock = null,
+    ): self {
         return new self(new \PDO('sqlite:' . $path), $serializer, $clock);
     }
 
@@ -83,8 +88,12 @@ final readonly class EventLog
             ':trace_id' => $env->traceId instanceof TraceId ? (string) $env->traceId : null,
             ':type' => $env->type(),
             ':priority' => $env->priority->value,
-            ':correlation_id' => $env->correlationId instanceof MessageId ? (string) $env->correlationId : null,
-            ':idempotency_key' => $env->idempotencyKey instanceof IdempotencyKey ? (string) $env->idempotencyKey : null,
+            ':correlation_id' => $env->correlationId instanceof MessageId
+                ? (string) $env->correlationId
+                : null,
+            ':idempotency_key' => $env->idempotencyKey instanceof IdempotencyKey
+                ? (string) $env->idempotencyKey
+                : null,
             ':timestamp' => $env->timestamp->format(\DateTimeInterface::RFC3339_EXTENDED),
             ':payload_json' => $this->serializer->encode($env),
         ]);
@@ -158,7 +167,8 @@ final readonly class EventLog
             return $existing;
         }
         $stmt = $this->pdo->prepare(<<<'SQL'
-            INSERT INTO idempotency_cache (principal, idempotency_key, outcome_message_id, expires_at)
+            INSERT INTO idempotency_cache
+                (principal, idempotency_key, outcome_message_id, expires_at)
             VALUES (:principal, :key, :outcome, :expires)
             SQL);
         $stmt->execute([

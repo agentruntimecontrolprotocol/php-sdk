@@ -38,7 +38,8 @@ final readonly class EventEmit extends MessageType
     #[\Override]
     public static function fromArray(array $data): static
     {
-        $eventType = $data['type'] ?? throw new InvalidArgumentException('event.emit payload.type missing');
+        $eventType = $data['type']
+            ?? throw new InvalidArgumentException('event.emit payload.type missing');
         if (!\is_string($eventType)) {
             throw new InvalidArgumentException('event.emit payload.type must be string');
         }

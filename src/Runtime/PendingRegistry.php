@@ -38,21 +38,26 @@ final class PendingRegistry
         $timer = null;
         $timedOut = false;
         if ($deadlineSeconds !== null) {
-            $timer = EventLoop::delay($deadlineSeconds, function () use (&$timedOut, $deferred): void {
-                if (!$deferred->isComplete()) {
-                    $timedOut = true;
-                    $deferred->error(new TimeoutException('deadline exceeded'));
-                }
-            });
+            $timer = EventLoop::delay(
+                $deadlineSeconds,
+                function () use (&$timedOut, $deferred): void {
+                    if (!$deferred->isComplete()) {
+                        $timedOut = true;
+                        $deferred->error(new TimeoutException('deadline exceeded'));
+                    }
+                },
+            );
         }
 
         $cancelCallback = null;
         if ($cancellation instanceof Cancellation) {
-            $cancelCallback = $cancellation->subscribe(function (\Throwable $reason) use ($deferred): void {
-                if (!$deferred->isComplete()) {
-                    $deferred->error($reason);
-                }
-            });
+            $cancelCallback = $cancellation->subscribe(
+                function (\Throwable $reason) use ($deferred): void {
+                    if (!$deferred->isComplete()) {
+                        $deferred->error($reason);
+                    }
+                },
+            );
         }
 
         try {

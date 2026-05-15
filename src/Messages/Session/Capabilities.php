@@ -70,7 +70,9 @@ final readonly class Capabilities
             'binary_encoding' => $this->binaryEncodings,
             'extensions' => $this->extensions,
         ];
-        if ($this->artifactRetentionDefaultSeconds !== null || $this->artifactRetentionMaxSeconds !== null) {
+        $hasRetention = $this->artifactRetentionDefaultSeconds !== null
+            || $this->artifactRetentionMaxSeconds !== null;
+        if ($hasRetention) {
             $retention = [];
             if ($this->artifactRetentionDefaultSeconds !== null) {
                 $retention['default_seconds'] = $this->artifactRetentionDefaultSeconds;
@@ -91,7 +93,8 @@ final readonly class Capabilities
      */
     public static function fromArray(array $data): self
     {
-        $bool = static fn (string $k, bool $default = false): bool => isset($data[$k]) && $data[$k] === true;
+        $bool = static fn (string $k, bool $default = false): bool
+            => isset($data[$k]) && $data[$k] === true;
         $extensions = [];
         if (isset($data['extensions']) && \is_array($data['extensions'])) {
             foreach ($data['extensions'] as $ext) {
@@ -111,7 +114,10 @@ final readonly class Capabilities
         }
 
         $heartbeat = 30;
-        if (isset($data['heartbeat_interval_seconds']) && \is_int($data['heartbeat_interval_seconds'])) {
+        if (
+            isset($data['heartbeat_interval_seconds'])
+            && \is_int($data['heartbeat_interval_seconds'])
+        ) {
             $heartbeat = $data['heartbeat_interval_seconds'];
         }
 
@@ -123,11 +129,13 @@ final readonly class Capabilities
         $defaultRet = null;
         $maxRet = null;
         if (isset($data['artifact_retention']) && \is_array($data['artifact_retention'])) {
-            if (isset($data['artifact_retention']['default_seconds']) && \is_int($data['artifact_retention']['default_seconds'])) {
-                $defaultRet = $data['artifact_retention']['default_seconds'];
+            $defaultSec = $data['artifact_retention']['default_seconds'] ?? null;
+            if (\is_int($defaultSec)) {
+                $defaultRet = $defaultSec;
             }
-            if (isset($data['artifact_retention']['max_seconds']) && \is_int($data['artifact_retention']['max_seconds'])) {
-                $maxRet = $data['artifact_retention']['max_seconds'];
+            $maxSec = $data['artifact_retention']['max_seconds'] ?? null;
+            if (\is_int($maxSec)) {
+                $maxRet = $maxSec;
             }
         }
 

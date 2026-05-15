@@ -46,7 +46,9 @@ final readonly class Resume extends MessageType
         if (isset($data['checkpoint_id']) && \is_string($data['checkpoint_id'])) {
             $checkpoint = $data['checkpoint_id'];
         }
-        $include = isset($data['include_open_streams']) ? $data['include_open_streams'] === true : true;
+        $include = isset($data['include_open_streams'])
+            ? $data['include_open_streams'] === true
+            : true;
         return new self($after, $checkpoint, $include);
     }
 }

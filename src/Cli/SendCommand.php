@@ -32,7 +32,13 @@ final class SendCommand extends Command
         $this
             ->addArgument('uri', InputArgument::REQUIRED, 'WebSocket URI')
             ->addArgument('tool', InputArgument::REQUIRED, 'Tool name to invoke')
-            ->addOption('arguments', 'a', InputOption::VALUE_REQUIRED, 'JSON arguments object', '{}');
+            ->addOption(
+                'arguments',
+                'a',
+                InputOption::VALUE_REQUIRED,
+                'JSON arguments object',
+                '{}',
+            );
     }
 
     #[\Override]

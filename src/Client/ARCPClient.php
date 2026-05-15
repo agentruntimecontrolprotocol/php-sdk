@@ -157,7 +157,9 @@ final class ARCPClient
             throw new UnimplementedException('§7', $msg->error->message);
         }
         if (!$msg instanceof SessionAccepted) {
-            throw new UnauthenticatedException('handshake: unexpected response ' . $response->type());
+            throw new UnauthenticatedException(
+                'handshake: unexpected response ' . $response->type(),
+            );
         }
         $this->session->sessionId = $msg->sessionId;
         $this->session->capabilities = $msg->capabilities;
@@ -240,7 +242,10 @@ final class ARCPClient
                 try {
                     $onEvent($bufferedEnv);
                 } catch (\Throwable $e) {
-                    $this->logger->warning('subscription callback error during drain', ['error' => $e->getMessage()]);
+                    $this->logger->warning(
+                        'subscription callback error during drain',
+                        ['error' => $e->getMessage()],
+                    );
                 }
             }
             unset($this->pendingSubscriptionEvents[$key]);
@@ -261,8 +266,11 @@ final class ARCPClient
         $this->session->transport->send($env);
     }
 
-    public function cancelJob(JobId $jobId, string $reason = 'user_aborted', int $deadlineMs = 5000): void
-    {
+    public function cancelJob(
+        JobId $jobId,
+        string $reason = 'user_aborted',
+        int $deadlineMs = 5000,
+    ): void {
         $env = new Envelope(
             id: MessageId::random(),
             payload: new Cancel('job', (string) $jobId, $reason, $deadlineMs),
@@ -287,8 +295,11 @@ final class ARCPClient
         return $resp;
     }
 
-    public function putArtifact(string $mediaType, string $bytes, ?int $retentionSeconds = null): ArtifactRef
-    {
+    public function putArtifact(
+        string $mediaType,
+        string $bytes,
+        ?int $retentionSeconds = null,
+    ): ArtifactRef {
         $id = MessageId::random();
         $env = new Envelope(
             id: $id,
@@ -320,7 +331,9 @@ final class ARCPClient
             throw new InvalidArgumentException('expected artifact.put as fetch response');
         }
         $bytes = base64_decode($resp->data, strict: true);
-        return $bytes !== false ? $bytes : throw new InvalidArgumentException('artifact data not base64');
+        return $bytes !== false
+            ? $bytes
+            : throw new InvalidArgumentException('artifact data not base64');
     }
 
     public function close(): void
@@ -371,7 +384,10 @@ final class ARCPClient
     {
         $msg = $env->payload;
 
-        if ($env->correlationId instanceof MessageId && $this->pending->resolve($env->correlationId, $msg)) {
+        if (
+            $env->correlationId instanceof MessageId
+            && $this->pending->resolve($env->correlationId, $msg)
+        ) {
             return;
         }
 
@@ -382,14 +398,20 @@ final class ARCPClient
                 try {
                     $inner = $this->serializer->envelopeFromArray($msg->event);
                 } catch (\Throwable $e) {
-                    $this->logger->warning('subscription decode error', ['error' => $e->getMessage()]);
+                    $this->logger->warning(
+                        'subscription decode error',
+                        ['error' => $e->getMessage()],
+                    );
                     return;
                 }
                 if (isset($this->subscribers[$key])) {
                     try {
                         ($this->subscribers[$key])($inner);
                     } catch (\Throwable $e) {
-                        $this->logger->warning('subscription handler error', ['error' => $e->getMessage()]);
+                        $this->logger->warning(
+                            'subscription handler error',
+                            ['error' => $e->getMessage()],
+                        );
                     }
                 } else {
                     $this->pendingSubscriptionEvents[$key][] = $inner;
@@ -398,7 +420,10 @@ final class ARCPClient
             return;
         }
 
-        if ($msg instanceof HumanInputRequest && $this->humanInputHandler instanceof HumanInputHandler) {
+        if (
+            $msg instanceof HumanInputRequest
+            && $this->humanInputHandler instanceof HumanInputHandler
+        ) {
             $response = $this->humanInputHandler->onInputRequest($msg);
             $this->session->transport->send(new Envelope(
                 id: MessageId::random(),
@@ -413,7 +438,10 @@ final class ARCPClient
             return;
         }
 
-        if ($msg instanceof HumanChoiceRequest && $this->humanInputHandler instanceof HumanInputHandler) {
+        if (
+            $msg instanceof HumanChoiceRequest
+            && $this->humanInputHandler instanceof HumanInputHandler
+        ) {
             $response = $this->humanInputHandler->onChoiceRequest($msg);
             $this->session->transport->send(new Envelope(
                 id: MessageId::random(),
@@ -428,7 +456,10 @@ final class ARCPClient
             return;
         }
 
-        if ($msg instanceof PermissionRequest && $this->permissionHandler instanceof PermissionHandler) {
+        if (
+            $msg instanceof PermissionRequest
+            && $this->permissionHandler instanceof PermissionHandler
+        ) {
             $decision = $this->permissionHandler->onPermissionRequest($msg);
             $this->session->transport->send(new Envelope(
                 id: MessageId::random(),

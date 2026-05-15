@@ -41,7 +41,8 @@ final class JobManager
 
     public function get(JobId $id): Job
     {
-        return $this->jobs[(string) $id] ?? throw new NotFoundException(\sprintf('job %s not found', $id));
+        return $this->jobs[(string) $id]
+            ?? throw new NotFoundException(\sprintf('job %s not found', $id));
     }
 
     public function tryGet(JobId $id): ?Job
