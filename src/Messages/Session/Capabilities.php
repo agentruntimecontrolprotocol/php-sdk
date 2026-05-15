@@ -159,6 +159,7 @@ final readonly class Capabilities
     /**
      * @param array<string, mixed> $data
      * @param list<string> $default
+     *
      * @return list<string>
      */
     private static function stringListField(array $data, string $key, array $default): array
@@ -177,6 +178,7 @@ final readonly class Capabilities
 
     /**
      * @param array<string, mixed> $data
+     *
      * @return array{0: ?int, 1: ?int}
      */
     private static function retentionFromArray(array $data): array
@@ -194,6 +196,7 @@ final readonly class Capabilities
 
     /**
      * @param array<string, mixed> $data
+     *
      * @return array<string, mixed>
      */
     private static function extraFromArray(array $data): array

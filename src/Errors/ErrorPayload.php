@@ -113,6 +113,7 @@ final readonly class ErrorPayload
 
     /**
      * @param array<string, mixed> $data
+     *
      * @return array{0: string, 1: string}
      */
     private static function requiredStrings(array $data): array
@@ -140,6 +141,7 @@ final readonly class ErrorPayload
 
     /**
      * @param array<string, mixed> $data
+     *
      * @return array<string, mixed>
      */
     private static function detailsFromArray(array $data): array
