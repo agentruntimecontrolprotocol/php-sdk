@@ -160,7 +160,7 @@ final class EnvelopeTest extends TestCase
 
     public function testEnvelopeRejectsBlankSource(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         new Envelope(
             id: new MessageId('msg_x'),
             payload: new EventEmit('demo'),
@@ -171,7 +171,7 @@ final class EnvelopeTest extends TestCase
 
     public function testEnvelopeRejectsBlankTarget(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         new Envelope(
             id: new MessageId('msg_x'),
             payload: new EventEmit('demo'),
@@ -182,7 +182,7 @@ final class EnvelopeTest extends TestCase
 
     public function testEnvelopeRejectsBlankArcpVersion(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         new Envelope(
             id: new MessageId('msg_x'),
             payload: new EventEmit('demo'),

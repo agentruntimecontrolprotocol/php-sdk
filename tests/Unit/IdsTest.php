@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Arcp\Tests\Unit;
 
+use Arcp\Errors\InvalidArgumentException;
 use Arcp\Ids\ArtifactId;
 use Arcp\Ids\Id;
 use Arcp\Ids\IdempotencyKey;
@@ -22,13 +23,13 @@ final class IdsTest extends TestCase
 {
     public function testEmptyValueRejected(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         new SessionId('');
     }
 
     public function testWhitespaceOnlyValueRejected(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         new SessionId("   \t\n");
     }
 
@@ -60,7 +61,7 @@ final class IdsTest extends TestCase
 
     public function testFromJsonRejectsNonString(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         SessionId::fromJson(42);
     }
 

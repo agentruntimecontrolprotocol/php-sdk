@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Arcp\Ids;
 
+use Arcp\Errors\InvalidArgumentException;
+
 /**
  * Common shape for the typed ID newtypes that wrap envelope ids.
  *
@@ -19,7 +21,7 @@ abstract readonly class Id implements \Stringable, \JsonSerializable
     final public function __construct(public string $value)
     {
         if (trim($value) === '') {
-            throw new \InvalidArgumentException(static::class . ' cannot be empty');
+            throw new InvalidArgumentException(static::class . ' cannot be empty');
         }
     }
 
@@ -47,7 +49,7 @@ abstract readonly class Id implements \Stringable, \JsonSerializable
     public static function fromJson(mixed $value): static
     {
         if (!\is_string($value)) {
-            throw new \InvalidArgumentException(static::class . ' expects a JSON string');
+            throw new InvalidArgumentException(static::class . ' expects a JSON string');
         }
         return new static($value);
     }

@@ -190,13 +190,13 @@ final class ErrorsTest extends TestCase
 
     public function testErrorPayloadRequiresNonEmptyCodeAndMessage(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         new ErrorPayload('', 'msg');
     }
 
     public function testErrorPayloadRejectsEmptyMessage(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         new ErrorPayload('OK', '');
     }
 
@@ -226,37 +226,37 @@ final class ErrorsTest extends TestCase
 
     public function testErrorPayloadFromArrayRequiresCode(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         ErrorPayload::fromArray(['message' => 'no code']);
     }
 
     public function testErrorPayloadFromArrayRequiresMessage(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         ErrorPayload::fromArray(['code' => 'OK']);
     }
 
     public function testErrorPayloadFromArrayRejectsNonStringCode(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         ErrorPayload::fromArray(['code' => 42, 'message' => 'm']);
     }
 
     public function testErrorPayloadFromArrayRejectsNonBoolRetryable(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         ErrorPayload::fromArray(['code' => 'OK', 'message' => 'm', 'retryable' => 'yes']);
     }
 
     public function testErrorPayloadFromArrayRejectsNonObjectDetails(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         ErrorPayload::fromArray(['code' => 'OK', 'message' => 'm', 'details' => 'not-an-object']);
     }
 
     public function testErrorPayloadFromArrayRejectsNonObjectCause(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         ErrorPayload::fromArray(['code' => 'OK', 'message' => 'm', 'cause' => 'not-an-object']);
     }
 }

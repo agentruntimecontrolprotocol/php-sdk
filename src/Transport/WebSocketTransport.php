@@ -8,6 +8,7 @@ use Amp\Cancellation;
 use Amp\Websocket\WebsocketClient;
 use Amp\Websocket\WebsocketMessage;
 use Arcp\Envelope\Envelope;
+use Arcp\Errors\TransportClosedException;
 use Arcp\Json\EnvelopeSerializer;
 
 /**
@@ -30,7 +31,7 @@ final readonly class WebSocketTransport implements Transport
     public function send(Envelope $env, ?Cancellation $cancellation = null): void
     {
         if ($this->ws->isClosed()) {
-            throw new \RuntimeException('websocket closed');
+            throw new TransportClosedException('websocket closed');
         }
         $this->ws->sendText($this->serializer->encode($env));
     }

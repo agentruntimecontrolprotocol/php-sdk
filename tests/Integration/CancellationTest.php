@@ -8,10 +8,10 @@ use function Amp\async;
 
 use Amp\Cancellation;
 use Amp\DeferredFuture;
-use Amp\NullCancellation;
 
 use function Amp\delay;
 
+use Amp\NullCancellation;
 use Arcp\Auth\AuthRouter;
 use Arcp\Auth\NoneAuth;
 use Arcp\Client\ARCPClient;

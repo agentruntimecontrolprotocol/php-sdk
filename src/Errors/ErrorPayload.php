@@ -30,10 +30,10 @@ final readonly class ErrorPayload
         public ?TraceId $traceId = null,
     ) {
         if ($code === '') {
-            throw new \InvalidArgumentException('error code must be non-empty');
+            throw new InvalidArgumentException('error code must be non-empty');
         }
         if ($message === '') {
-            throw new \InvalidArgumentException('error message must be non-empty');
+            throw new InvalidArgumentException('error message must be non-empty');
         }
     }
 
@@ -100,16 +100,16 @@ final readonly class ErrorPayload
      */
     public static function fromArray(array $data): self
     {
-        $code = $data['code'] ?? throw new \InvalidArgumentException('error.code missing');
-        $message = $data['message'] ?? throw new \InvalidArgumentException('error.message missing');
+        $code = $data['code'] ?? throw new InvalidArgumentException('error.code missing');
+        $message = $data['message'] ?? throw new InvalidArgumentException('error.message missing');
         if (!\is_string($code) || !\is_string($message)) {
-            throw new \InvalidArgumentException('error.code/message must be strings');
+            throw new InvalidArgumentException('error.code/message must be strings');
         }
 
         $retryable = null;
         if (\array_key_exists('retryable', $data)) {
             if (!\is_bool($data['retryable'])) {
-                throw new \InvalidArgumentException('error.retryable must be bool');
+                throw new InvalidArgumentException('error.retryable must be bool');
             }
             $retryable = $data['retryable'];
         }
@@ -117,7 +117,7 @@ final readonly class ErrorPayload
         $details = [];
         if (isset($data['details'])) {
             if (!\is_array($data['details'])) {
-                throw new \InvalidArgumentException('error.details must be an object');
+                throw new InvalidArgumentException('error.details must be an object');
             }
             /** @var array<string, mixed> $details */
             $details = $data['details'];
@@ -126,7 +126,7 @@ final readonly class ErrorPayload
         $cause = null;
         if (isset($data['cause'])) {
             if (!\is_array($data['cause'])) {
-                throw new \InvalidArgumentException('error.cause must be an object');
+                throw new InvalidArgumentException('error.cause must be an object');
             }
             /** @var array<string, mixed> $causeData */
             $causeData = $data['cause'];

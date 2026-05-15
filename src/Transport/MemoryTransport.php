@@ -10,6 +10,7 @@ use Amp\Cancellation;
 use Amp\DeferredFuture;
 use Amp\Future;
 use Arcp\Envelope\Envelope;
+use Arcp\Errors\TransportClosedException;
 
 /**
  * In-process loopback transport. A single call to {@see MemoryTransport::pair()}
@@ -51,9 +52,9 @@ final class MemoryTransport implements Transport
     public function send(Envelope $env, ?Cancellation $cancellation = null): void
     {
         if ($this->closed) {
-            throw new \RuntimeException('memory transport closed');
+            throw new TransportClosedException('memory transport closed');
         }
-        $peer = $this->peer ?? throw new \RuntimeException('memory transport unpaired');
+        $peer = $this->peer ?? throw new TransportClosedException('memory transport unpaired');
         $peer->deliver($env);
     }
 

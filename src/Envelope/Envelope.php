@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Arcp\Envelope;
 
+use Arcp\Errors\InvalidArgumentException;
 use Arcp\Ids\IdempotencyKey;
 use Arcp\Ids\JobId;
 use Arcp\Ids\MessageId;
@@ -52,13 +53,13 @@ final readonly class Envelope
         public array $extensions = [],
     ) {
         if (trim($this->arcp) === '') {
-            throw new \InvalidArgumentException('envelope.arcp must be non-empty');
+            throw new InvalidArgumentException('envelope.arcp must be non-empty');
         }
         if ($this->source !== null && trim($this->source) === '') {
-            throw new \InvalidArgumentException('envelope.source must be non-empty when present');
+            throw new InvalidArgumentException('envelope.source must be non-empty when present');
         }
         if ($this->target !== null && trim($this->target) === '') {
-            throw new \InvalidArgumentException('envelope.target must be non-empty when present');
+            throw new InvalidArgumentException('envelope.target must be non-empty when present');
         }
     }
 

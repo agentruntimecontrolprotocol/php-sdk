@@ -11,6 +11,7 @@ use Amp\ByteStream\WritableStream;
 use Amp\Cancellation;
 use Arcp\Envelope\Envelope;
 use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\TransportClosedException;
 use Arcp\Json\EnvelopeSerializer;
 
 /**
@@ -58,7 +59,7 @@ final class StdioTransport implements Transport
     public function send(Envelope $env, ?Cancellation $cancellation = null): void
     {
         if ($this->closed) {
-            throw new \RuntimeException('stdio transport closed');
+            throw new TransportClosedException('stdio transport closed');
         }
         $line = $this->serializer->encode($env) . "\n";
         $this->writer->write($line);
