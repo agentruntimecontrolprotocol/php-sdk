@@ -158,8 +158,8 @@ final class RelayScenarioTest extends TestCase
     {
         [$runtime, $clientT, $cleanup] = $factory();
         $relay = new CallbackHumanInputHandler(
-            onInput: fn (HumanInputRequest $r) => new HumanInputResponse(null),
-            onChoice: fn (HumanChoiceRequest $r) => new HumanChoiceResponse('fix', 'relay:slack', new \DateTimeImmutable()),
+            onInput: fn (HumanInputRequest $r): HumanInputResponse => new HumanInputResponse(null),
+            onChoice: fn (HumanChoiceRequest $r): HumanChoiceResponse => new HumanChoiceResponse('fix', 'relay:slack', new \DateTimeImmutable()),
         );
         $client = new ARCPClient($clientT, humanInputHandler: $relay);
         $client->open(Auth::none(), new PeerInfo('e2e', '0.1'), new Capabilities(humanInput: true, anonymous: true));

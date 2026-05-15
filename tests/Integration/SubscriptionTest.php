@@ -100,7 +100,7 @@ final class SubscriptionTest extends TestCase
 
         $caught = null;
         try {
-            $client->subscribe(['session_id' => ['sess_someoneElse']], fn () => null);
+            $client->subscribe(['session_id' => ['sess_someoneElse']], fn (): null => null);
         } catch (PermissionDeniedException $e) {
             $caught = $e;
         } finally {

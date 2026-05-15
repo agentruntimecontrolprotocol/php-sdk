@@ -44,12 +44,12 @@ final class HumanInputTest extends TestCase
         $client = new ARCPClient(
             $clientT,
             humanInputHandler: new CallbackHumanInputHandler(
-                onInput: fn (HumanInputRequest $r) => new HumanInputResponse(
+                onInput: fn (HumanInputRequest $r): HumanInputResponse => new HumanInputResponse(
                     ['branch' => 'fix/jwt'],
                     'cli',
                     new \DateTimeImmutable(),
                 ),
-                onChoice: fn (HumanChoiceRequest $r) => new HumanChoiceResponse('first'),
+                onChoice: fn (HumanChoiceRequest $r): HumanChoiceResponse => new HumanChoiceResponse('first'),
             ),
         );
         $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(humanInput: true, anonymous: true));
@@ -80,8 +80,8 @@ final class HumanInputTest extends TestCase
         $client = new ARCPClient(
             $clientT,
             humanInputHandler: new CallbackHumanInputHandler(
-                onInput: fn (HumanInputRequest $r) => new HumanInputResponse(null),
-                onChoice: fn (HumanChoiceRequest $r) => new HumanChoiceResponse('b', 'cli', new \DateTimeImmutable()),
+                onInput: fn (HumanInputRequest $r): HumanInputResponse => new HumanInputResponse(null),
+                onChoice: fn (HumanChoiceRequest $r): HumanChoiceResponse => new HumanChoiceResponse('b', 'cli', new \DateTimeImmutable()),
             ),
         );
         $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(humanInput: true, anonymous: true));

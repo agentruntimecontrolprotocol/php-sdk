@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Arcp\Tests\Integration;
 
+use Arcp\Messages\Execution\ToolResult;
 use function Amp\async;
 
 use Amp\Cancellation;
@@ -53,7 +54,7 @@ final class CancellationTest extends TestCase
         $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(anonymous: true));
 
         // Issue the tool invocation in a background fiber so we can cancel.
-        $invocation = async(fn () => $client->invokeTool('block'));
+        $invocation = async(fn (): ToolResult => $client->invokeTool('block'));
 
         /** @var JobId $jobId */
         $jobId = $started->getFuture()->await();
