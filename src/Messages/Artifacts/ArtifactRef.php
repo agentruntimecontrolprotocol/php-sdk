@@ -11,6 +11,7 @@ use Arcp\Ids\ArtifactId;
 /** RFC §16.1 — canonical pointer to an artifact. */
 final readonly class ArtifactRef extends MessageType
 {
+    /** @size-check-suppress Wire-shape DTO mapping to RFC §16.1. */
     public function __construct(
         public ArtifactId $artifactId,
         public string $uri,

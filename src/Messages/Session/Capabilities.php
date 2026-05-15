@@ -21,6 +21,8 @@ final readonly class Capabilities
      * @param list<string> $extensions Advertised extension type-namespaces.
      * @param list<string> $binaryEncodings Per RFC §11.3 (`base64`, `sidecar`).
      * @param ExtraMap $extra
+     *
+     * @size-check-suppress Wire-shape DTO mapping to RFC §7.
      */
     public function __construct(
         public bool $streaming = false,

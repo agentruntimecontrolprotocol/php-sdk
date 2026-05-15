@@ -36,6 +36,7 @@ $hard = [
     'class_lines' => 300,
     'func_body_lines' => 30,
     'func_params' => 4,
+    'ctor_params' => 6,
     'line_length' => 100,
 ];
 $soft = [
@@ -43,6 +44,7 @@ $soft = [
     'class_lines' => 150,
     'func_body_lines' => 15,
     'func_params' => 4,
+    'ctor_params' => 4,
     'line_length' => 80,
 ];
 
@@ -117,39 +119,63 @@ function checkFile(string $file, array $limits): array
     }
     $count = count($tokens);
 
-    $i = 0;
-    while ($i < $count) {
+    for ($i = 0; $i < $count; $i++) {
         $t = $tokens[$i];
 
         if ($t->id === T_FUNCTION) {
-            [$end, $issue] = checkFunction($tokens, $i, $count, $rel, $limits);
+            [, $issue] = checkFunction($tokens, $i, $count, $rel, $limits);
             if ($issue !== null) {
                 $issues[] = $issue;
             }
-            $i = $end + 1;
             continue;
         }
 
         if ($t->id === T_CLASS) {
             $prev = $i - 1;
-            while ($prev >= 0 && in_array($tokens[$prev]->id, [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT, T_ABSTRACT, T_FINAL, T_READONLY], true)) {
+            while ($prev >= 0 && in_array($tokens[$prev]->id, [
+                T_WHITESPACE, T_COMMENT, T_DOC_COMMENT,
+                T_ABSTRACT, T_FINAL, T_READONLY,
+            ], true)) {
                 $prev--;
             }
             if ($prev >= 0 && $tokens[$prev]->id === T_NEW) {
-                $i++;
                 continue;
             }
-            [$end, $issue] = checkClass($tokens, $i, $count, $rel, $limits);
+            [, $issue] = checkClass($tokens, $i, $count, $rel, $limits);
             if ($issue !== null) {
                 $issues[] = $issue;
             }
-            $i = $end + 1;
-            continue;
         }
-        $i++;
     }
 
     return $issues;
+}
+
+/**
+ * Returns true if the preceding docblock contains a
+ * `@size-check-suppress(reason: …)` tag — used to silence the
+ * parameter-count check for wire-shape DTOs whose param list maps 1:1
+ * to the protocol and cannot be collapsed without breaking the
+ * public API. The `reason:` argument is required and human-readable.
+ *
+ * @param list<PhpToken> $tokens
+ */
+function hasSuppression(array $tokens, int $i): bool
+{
+    for ($k = $i - 1; $k >= 0; $k--) {
+        $id = $tokens[$k]->id;
+        if (in_array($id, [
+            T_WHITESPACE, T_ABSTRACT, T_FINAL, T_PUBLIC, T_PROTECTED,
+            T_PRIVATE, T_STATIC, T_READONLY, T_ATTRIBUTE,
+        ], true)) {
+            continue;
+        }
+        if ($id === T_DOC_COMMENT) {
+            return str_contains($tokens[$k]->text, '@size-check-suppress');
+        }
+        return false;
+    }
+    return false;
 }
 
 /**
@@ -199,14 +225,17 @@ function checkFunction(array $tokens, int $i, int $count, string $rel, array $li
     if ($hasParam) {
         $params++;
     }
-    if ($params > $limits['func_params']) {
+    $isCtor = $name === '__construct';
+    $paramLimit = $isCtor ? $limits['ctor_params'] : $limits['func_params'];
+    if ($params > $paramLimit && !hasSuppression($tokens, $i)) {
         $issues = sprintf(
-            '%s:%d — function %s has %d parameters (limit %d)',
+            '%s:%d — %s %s has %d parameters (limit %d)',
             $rel,
             $startLine,
+            $isCtor ? 'constructor' : 'function',
             $name ?? '<anon>',
             $params,
-            $limits['func_params'],
+            $paramLimit,
         );
     }
 

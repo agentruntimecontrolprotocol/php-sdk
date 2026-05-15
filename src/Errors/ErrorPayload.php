@@ -20,6 +20,8 @@ final readonly class ErrorPayload
 {
     /**
      * @param ErrorDetails $details Optional structured context (RFC §18.1).
+     *
+     * @size-check-suppress Wire-shape DTO mapping to RFC §18.1.
      */
     public function __construct(
         public string $code,

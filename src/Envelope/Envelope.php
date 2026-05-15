@@ -31,6 +31,8 @@ final readonly class Envelope
 {
     /**
      * @param ExtensionMap $extensions
+     *
+     * @size-check-suppress Wire-shape DTO mapping to RFC §6.1.
      */
     public function __construct(
         public MessageId $id,

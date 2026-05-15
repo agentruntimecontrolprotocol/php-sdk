@@ -10,6 +10,7 @@ use Arcp\Errors\InvalidArgumentException;
 /** RFC §11 — incremental stream payload. */
 final readonly class StreamChunk extends MessageType
 {
+    /** @size-check-suppress Wire-shape DTO mapping to RFC §11. */
     public function __construct(
         public int $sequence,
         public mixed $data = null,
