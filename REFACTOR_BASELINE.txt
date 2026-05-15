@@ -1,0 +1,239 @@
+# REFACTOR BASELINE — captured 2026-05-15
+
+Baseline state of every static-analysis and quality tool, run from a clean
+checkout against `main` before any refactor commits land. Refactor work
+drives every count here to zero (or to the targets in PHP_SDK_GUIDE.md).
+
+## Tool versions
+
+- PHP: 8.4.21
+- PHPStan: vendor/bin/phpstan (level: max, strict rules)
+- Psalm: vendor/bin/psalm (errorLevel: 1)
+- PHP-CS-Fixer: 3.95.1
+- PHPUnit: 11.x
+- Rector: NOT INSTALLED
+- Infection: NOT INSTALLED
+
+## Test suite
+
+```
+$ vendor/bin/phpunit --no-coverage --testdox
+OK (264 tests, 598 assertions)
+```
+
+Coverage: not measured at baseline (no run with coverage driver in this
+session). Targeted measurement in Phase 8.
+
+## PHPStan (level: max, strict rules)
+
+```
+$ vendor/bin/phpstan analyze --memory-limit=1G
+ 202/202 100%
+[exit 0] — 0 errors
+```
+
+## Psalm (errorLevel: 1)
+
+```
+$ vendor/bin/psalm --no-cache --no-progress
+2 errors found
+```
+
+Both in `tests/Integration/CancellationTest.php`:
+
+1. `:41:108  InvalidReturnType` — anonymous tool handler declared `mixed`
+   return but has no return statements.
+2. `:60:15  RedundantConditionGivenDocblockType` — `assertNotNull($jobId)`
+   on a value typed `JobId` (never null).
+
+99.6% of codebase has inferred types.
+
+## PHP-CS-Fixer
+
+```
+$ vendor/bin/php-cs-fixer fix --dry-run --diff
+[exit 0] — no files would change
+```
+
+## declare(strict_types=1)
+
+```
+$ find src tests -name "*.php" -exec grep -L "declare(strict_types=1)" {} \;
+(empty)
+```
+
+Every file already has it. ✓
+
+## Size violations (PHP_SDK_GUIDE.md §14)
+
+### Files over 400-line hard limit
+
+```
+687 src/Runtime/ARCPRuntime.php
+456 src/Client/ARCPClient.php
+```
+
+### Files over 200-line aspirational limit
+
+```
+687 src/Runtime/ARCPRuntime.php
+456 src/Client/ARCPClient.php
+281 src/Json/EnvelopeSerializer.php
+241 src/Runtime/JobContext.php
+212 src/Store/EventLog.php
+```
+
+### Classes over 300-line hard limit
+
+```
+603 src/Runtime/ARCPRuntime.php::ARCPRuntime
+389 src/Client/ARCPClient.php::ARCPClient
+```
+
+### Classes over 150-line aspirational limit
+
+```
+603 src/Runtime/ARCPRuntime.php::ARCPRuntime
+389 src/Client/ARCPClient.php::ARCPClient
+250 src/Json/EnvelopeSerializer.php::EnvelopeSerializer
+204 src/Runtime/JobContext.php::JobContext
+184 src/Store/EventLog.php::EventLog
+168 src/Messages/Session/Capabilities.php::Capabilities
+```
+
+### Functions over 30-line hard limit (body lines, excluding braces)
+
+```
+ 99 src/Runtime/ARCPRuntime.php::handleToolInvoke          L355
+ 79 src/Runtime/ARCPRuntime.php::doHandshake               L169
+ 76 src/Client/ARCPClient.php::handle                      L347
+ 73 src/Messages/Session/Capabilities.php::fromArray       L92
+ 58 src/Json/EnvelopeSerializer.php::envelopeFromArray     L124
+ 54 src/Runtime/ARCPRuntime.php::handleSubscribe           L496
+ 52 src/Json/EnvelopeSerializer.php::envelopeToArray       L51
+ 48 src/Runtime/PendingRegistry.php::awaitResponse         L24
+ 39 src/Errors/ErrorPayload.php::fromArray                 L101
+ 36 src/Runtime/JobContext.php::openStream                 L83
+ 34 src/Cli/ServeCommand.php::execute                      L39
+ 32 src/Client/ARCPClient.php::open                        L109
+ 32 src/Store/EventLog.php::replayAfter                    L107
+ 31 src/Messages/Session/Capabilities.php::toArray         L54
+```
+
+### Functions over 4-parameter limit (31 total, broken down)
+
+DTO constructors (acceptable per guide §2 for value objects, but flagged):
+- 22 message/value-object `__construct` signatures with 5–8 params.
+  These are immutable DTOs; the guide allows but recommends parameter
+  objects. Marked for review.
+
+Real violations (non-DTO):
+```
+9 src/Runtime/ARCPRuntime.php::__construct             (constructor — config DTO)
+7 src/Client/ARCPClient.php::__construct               (constructor — config DTO)
+6 src/Runtime/JobContext.php::__construct              (constructor)
+6 src/Runtime/JobContext.php::requestHumanInput
+5 src/Runtime/JobContext.php::requestHumanChoice
+7 src/Runtime/JobContext.php::requestPermission
+5 src/Runtime/JobManager.php::start
+5 src/Store/EventLog.php::rememberIdempotent
+5 src/Client/ARCPClient.php::open
+7 src/Client/ARCPClient.php::invokeTool
+5 src/Client/ARCPClient.php::subscribe
+```
+
+These need parameter objects or config DTOs.
+
+### Lines over 100-character hard limit
+
+```
+100 occurrences
+```
+
+Worst: `src/Messages/Session/Capabilities.php:126` at 131 chars.
+
+## Exception hierarchy violations (PHP_SDK_GUIDE.md §5)
+
+### Direct throws of SPL exceptions in library code
+
+```
+src/Transport/StdioTransport.php:62    throw new \RuntimeException(...)
+src/Transport/WebSocketTransport.php:32 throw new \RuntimeException(...)
+src/Transport/MemoryTransport.php:54    throw new \RuntimeException(...)
+src/Transport/MemoryTransport.php:56    throw new \RuntimeException(...)
+```
+
+### Root marker shape mismatch
+
+- `Arcp\Errors\ARCPException` is an **abstract class** extending
+  `\RuntimeException`. Guide §5 wants an **interface** extending
+  `\Throwable` so consumers can catch one type and concrete exceptions
+  can extend any SPL parent (or none) appropriate to their nature.
+
+## Anti-pattern scan (PHP_SDK_GUIDE.md §18)
+
+- echo / print / die / exit / var_dump / error_log in `src/`: **none**
+- `ini_set` at module level: **none**
+- singletons / `getInstance`: **none**
+- global state / static mutables: **none observed**
+- magic methods (`__get`, `__set`, `__call`): **none observed**
+
+## Missing tooling (PHP_SDK_GUIDE.md §10)
+
+- `rector/rector` not in composer.json
+- `infection/infection` not in composer.json
+- `phpstan-strict-rules` already present ✓
+- `composer audit` not in scripts block
+- composer scripts missing: `rector`, `infection`, `all`
+- No size-limit / function-length check enforced in CI
+- No CHANGELOG/UPGRADE round-trip CI
+
+## Composer hygiene (PHP_SDK_GUIDE.md §16)
+
+- `support` block missing
+- `bin` populated ✓
+- `autoload`/`autoload-dev` PSR-4 only ✓
+- minimum-stability: stable ✓
+
+## Inventory: top 20 source files by LOC
+
+```
+687 src/Runtime/ARCPRuntime.php
+456 src/Client/ARCPClient.php
+281 src/Json/EnvelopeSerializer.php
+241 src/Runtime/JobContext.php
+212 src/Store/EventLog.php
+186 src/Messages/Session/Capabilities.php
+143 src/Errors/ErrorPayload.php
+140 src/Transport/MemoryTransport.php
+130 src/Runtime/SubscriptionManager.php
+121 src/Transport/StdioTransport.php
+113 src/Envelope/MessageCatalog.php
+106 src/Runtime/ArtifactStore.php
+103 src/Runtime/PendingRegistry.php
+ 98 src/Envelope/Envelope.php
+ 93 src/Runtime/LeaseManager.php
+ 85 src/Messages/Session/PeerInfo.php
+ 83 src/Runtime/JobManager.php
+ 81 src/Extensions/ExtensionNamespace.php
+ 77 src/Messages/Session/SessionAccepted.php
+ 76 src/Messages/Artifacts/ArtifactRef.php
+```
+
+Total src/: 150 files, 8654 lines.
+Total tests/: 25 files, 3014 lines.
+
+## Drive-to-zero targets
+
+| Tool                            | Current | Target |
+|---------------------------------|---------|--------|
+| PHPStan errors (max)            | 0       | 0      |
+| Psalm errors (errorLevel 1)     | 2       | 0      |
+| PHP-CS-Fixer diff               | 0       | 0      |
+| Files > 400 LOC                 | 2       | 0      |
+| Classes > 300 LOC               | 2       | 0      |
+| Functions > 30 LOC body         | 14      | 0      |
+| Functions > 4 params (non-DTO)  | 11      | 0      |
+| Lines > 100 chars               | 100     | 0      |
+| Direct SPL exception throws     | 4       | 0      |
+| Missing `declare(strict_types)` | 0       | 0      |
