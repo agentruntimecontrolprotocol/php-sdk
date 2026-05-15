@@ -49,6 +49,6 @@ final readonly class LeaseGranted extends MessageType
         if (!\is_string($p) || !\is_string($r) || !\is_string($o) || !\is_string($exp)) {
             throw new InvalidArgumentException('field types wrong');
         }
-        return new static(LeaseId::fromJson($id), $p, $r, $o, new \DateTimeImmutable($exp));
+        return new self(LeaseId::fromJson($id), $p, $r, $o, new \DateTimeImmutable($exp));
     }
 }

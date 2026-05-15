@@ -56,6 +56,6 @@ final readonly class ArtifactPut extends MessageType
         if (isset($data['sha256']) && \is_string($data['sha256'])) {
             $sha = $data['sha256'];
         }
-        return new static($mt, $body, $ret, $sha);
+        return new self($mt, $body, $ret, $sha);
     }
 }

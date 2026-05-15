@@ -119,7 +119,7 @@ final class JobLifecycleTest extends TestCase
         // the next response, which on replay is an ack — we don't assert
         // a value, only that no second execution happened.
         try {
-            $client->invokeTool('once', [], idempotencyKey: $key, deadlineSeconds: 0.5);
+            $client->invokeTool('once', [], deadlineSeconds: 0.5, idempotencyKey: $key);
         } catch (DeadlineExceededException) {
             // Expected: ack is not a ToolResult, so awaitResponse times out.
         } catch (InvalidArgumentException) {

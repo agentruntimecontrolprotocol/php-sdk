@@ -63,6 +63,6 @@ final readonly class HumanChoiceRequest extends MessageType
             }
             $coerced[] = ['id' => $opt['id'], 'label' => $opt['label']];
         }
-        return new static($prompt, $coerced, new \DateTimeImmutable($exp));
+        return new self($prompt, $coerced, new \DateTimeImmutable($exp));
     }
 }

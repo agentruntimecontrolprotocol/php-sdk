@@ -53,6 +53,6 @@ final readonly class Backpressure extends MessageType
         if (isset($data['reason']) && \is_string($data['reason'])) {
             $reason = $data['reason'];
         }
-        return new static($rate, $buf, $reason);
+        return new self($rate, $buf, $reason);
     }
 }

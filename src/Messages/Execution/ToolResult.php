@@ -30,6 +30,6 @@ final readonly class ToolResult extends MessageType
     public static function fromArray(array $data): static
     {
         $value = $data['value'] ?? null;
-        return new static($value);
+        return new self($value);
     }
 }

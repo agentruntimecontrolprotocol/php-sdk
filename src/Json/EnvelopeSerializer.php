@@ -62,34 +62,34 @@ final readonly class EnvelopeSerializer
         if ($env->priority !== Priority::Normal) {
             $out['priority'] = $env->priority->value;
         }
-        if ($env->sessionId !== null) {
+        if ($env->sessionId instanceof SessionId) {
             $out['session_id'] = (string) $env->sessionId;
         }
-        if ($env->jobId !== null) {
+        if ($env->jobId instanceof JobId) {
             $out['job_id'] = (string) $env->jobId;
         }
-        if ($env->streamId !== null) {
+        if ($env->streamId instanceof StreamId) {
             $out['stream_id'] = (string) $env->streamId;
         }
-        if ($env->subscriptionId !== null) {
+        if ($env->subscriptionId instanceof SubscriptionId) {
             $out['subscription_id'] = (string) $env->subscriptionId;
         }
-        if ($env->traceId !== null) {
+        if ($env->traceId instanceof TraceId) {
             $out['trace_id'] = (string) $env->traceId;
         }
-        if ($env->spanId !== null) {
+        if ($env->spanId instanceof SpanId) {
             $out['span_id'] = (string) $env->spanId;
         }
-        if ($env->parentSpanId !== null) {
+        if ($env->parentSpanId instanceof SpanId) {
             $out['parent_span_id'] = (string) $env->parentSpanId;
         }
-        if ($env->correlationId !== null) {
+        if ($env->correlationId instanceof MessageId) {
             $out['correlation_id'] = (string) $env->correlationId;
         }
-        if ($env->causationId !== null) {
+        if ($env->causationId instanceof MessageId) {
             $out['causation_id'] = (string) $env->causationId;
         }
-        if ($env->idempotencyKey !== null) {
+        if ($env->idempotencyKey instanceof IdempotencyKey) {
             $out['idempotency_key'] = (string) $env->idempotencyKey;
         }
         if ($env->source !== null) {
@@ -193,7 +193,7 @@ final readonly class EnvelopeSerializer
         if ($class === null) {
             // Honor extension dispatch rules (RFC §21.3) when an extension
             // registry is present. Without one, default to UNIMPLEMENTED.
-            if ($this->extensions !== null) {
+            if ($this->extensions instanceof ExtensionRegistry) {
                 $optional = $this->isOptionalExtension($envelopeData);
                 $disposition = $this->extensions->dispositionFor($type, $optional);
                 if ($disposition === 'drop' || $disposition === 'advertised') {

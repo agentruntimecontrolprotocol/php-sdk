@@ -82,7 +82,7 @@ final class StdioTransportTest extends TestCase
         $writer->end();
 
         $ids = [];
-        while (($got = $transport->receive()) !== null) {
+        while (($got = $transport->receive()) instanceof Envelope) {
             $ids[] = (string) $got->id;
         }
         self::assertSame(['msg_1', 'msg_2', 'msg_3'], $ids);

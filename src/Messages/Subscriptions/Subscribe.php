@@ -51,6 +51,6 @@ final readonly class Subscribe extends MessageType
             $since = $sm;
         }
         /** @var array<string, mixed> $filter */
-        return new static($filter, $since);
+        return new self($filter, $since);
     }
 }

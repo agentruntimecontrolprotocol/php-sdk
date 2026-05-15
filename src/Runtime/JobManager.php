@@ -60,7 +60,7 @@ final class JobManager
     public function cancel(JobId $id, string $reason = 'user_aborted'): bool
     {
         $job = $this->tryGet($id);
-        if ($job === null || $job->state->isTerminal()) {
+        if (!$job instanceof Job || $job->state->isTerminal()) {
             return false;
         }
         $job->cancellation->cancel(new CancelledException(new \RuntimeException($reason)));

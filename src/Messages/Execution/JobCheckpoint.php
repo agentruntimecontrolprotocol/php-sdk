@@ -48,6 +48,6 @@ final readonly class JobCheckpoint extends MessageType
             /** @var array<string, mixed> $state */
             $state = $data['state'];
         }
-        return new static($id, $state);
+        return new self($id, $state);
     }
 }

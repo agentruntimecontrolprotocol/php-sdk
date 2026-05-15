@@ -29,6 +29,6 @@ final readonly class StreamError extends MessageType
     #[\Override]
     public static function fromArray(array $data): static
     {
-        return new static(ErrorPayload::fromArray($data));
+        return new self(ErrorPayload::fromArray($data));
     }
 }

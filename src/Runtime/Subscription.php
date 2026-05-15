@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace Arcp\Runtime;
 
+use Arcp\Ids\SessionId;
+use Arcp\Ids\TraceId;
+use Arcp\Ids\JobId;
+use Arcp\Ids\StreamId;
 use Arcp\Envelope\Envelope;
 use Arcp\Envelope\Priority;
 use Arcp\Ids\SubscriptionId;
@@ -37,31 +41,28 @@ final readonly class Subscription
     public function matches(Envelope $env): bool
     {
         if ($this->sessionIds !== [] && (
-            $env->sessionId === null || !\in_array((string) $env->sessionId, $this->sessionIds, true)
+            !$env->sessionId instanceof SessionId || !\in_array((string) $env->sessionId, $this->sessionIds, true)
         )) {
             return false;
         }
         if ($this->traceIds !== [] && (
-            $env->traceId === null || !\in_array((string) $env->traceId, $this->traceIds, true)
+            !$env->traceId instanceof TraceId || !\in_array((string) $env->traceId, $this->traceIds, true)
         )) {
             return false;
         }
         if ($this->jobIds !== [] && (
-            $env->jobId === null || !\in_array((string) $env->jobId, $this->jobIds, true)
+            !$env->jobId instanceof JobId || !\in_array((string) $env->jobId, $this->jobIds, true)
         )) {
             return false;
         }
         if ($this->streamIds !== [] && (
-            $env->streamId === null || !\in_array((string) $env->streamId, $this->streamIds, true)
+            !$env->streamId instanceof StreamId || !\in_array((string) $env->streamId, $this->streamIds, true)
         )) {
             return false;
         }
         if ($this->types !== [] && !\in_array($env->type(), $this->types, true)) {
             return false;
         }
-        if ($env->priority->weight() < $this->minPriority->weight()) {
-            return false;
-        }
-        return true;
+        return $env->priority->weight() >= $this->minPriority->weight();
     }
 }

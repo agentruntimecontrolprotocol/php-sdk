@@ -44,7 +44,7 @@ final readonly class ArtifactRef extends MessageType
         if ($this->sha256 !== null) {
             $out['sha256'] = $this->sha256;
         }
-        if ($this->expiresAt !== null) {
+        if ($this->expiresAt instanceof \DateTimeImmutable) {
             $out['expires_at'] = $this->expiresAt->format(\DateTimeInterface::RFC3339_EXTENDED);
         }
         return $out;
@@ -71,6 +71,6 @@ final readonly class ArtifactRef extends MessageType
         if (isset($data['expires_at']) && \is_string($data['expires_at'])) {
             $exp = new \DateTimeImmutable($data['expires_at']);
         }
-        return new static(ArtifactId::fromJson($id), $uri, $mt, $size, $sha, $exp);
+        return new self(ArtifactId::fromJson($id), $uri, $mt, $size, $sha, $exp);
     }
 }

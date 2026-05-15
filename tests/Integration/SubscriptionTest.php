@@ -39,10 +39,8 @@ final class SubscriptionTest extends TestCase
             ['types' => ['event.emit']],
             function (Envelope $env) use ($sawBackfillMarker): void {
                 $payload = $env->payload;
-                if ($payload instanceof EventEmit && $payload->eventType === 'subscription.backfill_complete') {
-                    if (!$sawBackfillMarker->isComplete()) {
-                        $sawBackfillMarker->complete(true);
-                    }
+                if ($payload instanceof EventEmit && $payload->eventType === 'subscription.backfill_complete' && !$sawBackfillMarker->isComplete()) {
+                    $sawBackfillMarker->complete(true);
                 }
             },
         );

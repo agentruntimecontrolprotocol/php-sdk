@@ -42,6 +42,6 @@ final readonly class JobSchedule extends MessageType
             /** @var array<string, mixed> $when */
             $when = $data['when'];
         }
-        return new static($job, $when);
+        return new self($job, $when);
     }
 }

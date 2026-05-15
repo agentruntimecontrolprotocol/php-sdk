@@ -51,6 +51,6 @@ final readonly class StreamOpen extends MessageType
         if (isset($data['encoding']) && \is_string($data['encoding'])) {
             $encoding = $data['encoding'];
         }
-        return new static(StreamKind::parse($kind), $contentType, $encoding);
+        return new self(StreamKind::parse($kind), $contentType, $encoding);
     }
 }

@@ -45,7 +45,7 @@ final readonly class SessionOpen extends MessageType
         /** @var array<string, mixed> $auth */
         /** @var array<string, mixed> $client */
         /** @var array<string, mixed> $caps */
-        return new static(
+        return new self(
             Auth::fromArray($auth),
             PeerInfo::fromArray($client),
             Capabilities::fromArray($caps),

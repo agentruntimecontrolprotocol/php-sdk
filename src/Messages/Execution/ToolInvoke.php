@@ -47,6 +47,6 @@ final readonly class ToolInvoke extends MessageType
             /** @var array<string, mixed> $args */
             $args = $data['arguments'];
         }
-        return new static($tool, $args);
+        return new self($tool, $args);
     }
 }

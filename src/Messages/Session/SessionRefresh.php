@@ -46,6 +46,6 @@ final readonly class SessionRefresh extends MessageType
             }
             $reason = $data['reason'];
         }
-        return new static(new \DateTimeImmutable($deadline), $reason);
+        return new self(new \DateTimeImmutable($deadline), $reason);
     }
 }

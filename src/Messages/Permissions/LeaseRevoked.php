@@ -41,6 +41,6 @@ final readonly class LeaseRevoked extends MessageType
         if (isset($data['reason']) && \is_string($data['reason'])) {
             $reason = $data['reason'];
         }
-        return new static(LeaseId::fromJson($id), $reason);
+        return new self(LeaseId::fromJson($id), $reason);
     }
 }

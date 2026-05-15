@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Arcp\Transport;
 
+use Amp\Websocket\WebsocketMessage;
 use Amp\Cancellation;
 use Amp\Websocket\WebsocketClient;
 use Arcp\Envelope\Envelope;
@@ -38,7 +39,7 @@ final readonly class WebSocketTransport implements Transport
     public function receive(?Cancellation $cancellation = null): ?Envelope
     {
         $message = $this->ws->receive($cancellation);
-        if ($message === null) {
+        if (!$message instanceof WebsocketMessage) {
             return null;
         }
         $payload = $message->buffer($cancellation);

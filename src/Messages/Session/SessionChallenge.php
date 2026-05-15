@@ -45,6 +45,6 @@ final readonly class SessionChallenge extends MessageType
             }
             $scheme = $data['scheme'];
         }
-        return new static($c, $scheme);
+        return new self($c, $scheme);
     }
 }

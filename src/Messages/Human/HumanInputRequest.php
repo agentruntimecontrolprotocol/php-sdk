@@ -63,6 +63,6 @@ final readonly class HumanInputRequest extends MessageType
             $default = $data['default'];
         }
         /** @var array<string, mixed> $schema */
-        return new static($prompt, $schema, new \DateTimeImmutable($exp), $default);
+        return new self($prompt, $schema, new \DateTimeImmutable($exp), $default);
     }
 }

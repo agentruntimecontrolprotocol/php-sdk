@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Arcp\Runtime;
 
+use Arcp\Ids\IdempotencyKey;
 use Amp\CancelledException;
 use Arcp\Messages\Human\HumanInputRequest;
 use Arcp\Messages\Subscriptions\SubscribeEvent;
@@ -173,7 +174,7 @@ final class ARCPRuntime
     private function doHandshake(Session $session, ?Cancellation $cancellation): void
     {
         $env = $session->transport->receive($cancellation);
-        if ($env === null) {
+        if (!$env instanceof Envelope) {
             $session->state = SessionState::Closed;
             return;
         }
@@ -200,7 +201,7 @@ final class ARCPRuntime
         }
 
         $router = $this->authRouter;
-        if ($router === null) {
+        if (!$router instanceof AuthRouter) {
             // No auth router: allow `none` if anonymous capability is requested.
             if ($auth->scheme !== 'none' || !$open->capabilities->anonymous) {
                 $this->sendNoSession(
@@ -277,7 +278,7 @@ final class ARCPRuntime
     {
         while (!$session->transport->isClosed()) {
             $env = $session->transport->receive($cancellation);
-            if ($env === null) {
+            if (!$env instanceof Envelope) {
                 return;
             }
             try {
@@ -311,7 +312,7 @@ final class ARCPRuntime
 
         // Pending await routing: any envelope whose correlation id matches
         // an outstanding waiter is delivered there first (RFC §6.3).
-        if ($env->correlationId !== null && $this->pending->resolve($env->correlationId, $msg)) {
+        if ($env->correlationId instanceof MessageId && $this->pending->resolve($env->correlationId, $msg)) {
             return;
         }
 
@@ -369,7 +370,7 @@ final class ARCPRuntime
             return;
         }
         // Logical idempotency replay (RFC §6.4).
-        if ($env->idempotencyKey !== null && $session->principal !== null) {
+        if ($env->idempotencyKey instanceof IdempotencyKey && $session->principal !== null) {
             $prior = $this->eventLog->lookupIdempotent($session->principal, (string) $env->idempotencyKey);
             if ($prior !== null) {
                 $this->emit($session, new Ack('replay'), [
@@ -411,7 +412,7 @@ final class ARCPRuntime
                     'job_id' => $job->id,
                     'trace_id' => $env->traceId,
                 ]);
-                if ($env->idempotencyKey !== null && $session->principal !== null) {
+                if ($env->idempotencyKey instanceof IdempotencyKey && $session->principal !== null) {
                     $this->eventLog->rememberIdempotent(
                         $session->principal,
                         (string) $env->idempotencyKey,
@@ -463,7 +464,7 @@ final class ARCPRuntime
     {
         if ($msg->target === 'job') {
             $job = $this->jobs->tryGet(new JobId($msg->targetId));
-            if ($job === null || $job->state->isTerminal()) {
+            if (!$job instanceof Job || $job->state->isTerminal()) {
                 $this->nack($session, $env, 'FAILED_PRECONDITION', 'job already terminal');
                 return;
             }
@@ -480,7 +481,7 @@ final class ARCPRuntime
     private function handleInterrupt(Session $session, Envelope $env, Interrupt $msg): void
     {
         $job = $this->jobs->tryGet(new JobId($msg->targetId));
-        if ($job === null || $job->state->isTerminal()) {
+        if (!$job instanceof Job || $job->state->isTerminal()) {
             $this->nack($session, $env, 'FAILED_PRECONDITION', 'job not interruptible');
             return;
         }
@@ -501,7 +502,7 @@ final class ARCPRuntime
     {
         // Authorization: a subscriber may only observe sessions they own
         // (their own session id, in the current single-tenant model).
-        $sid = $session->sessionId !== null ? (string) $session->sessionId : null;
+        $sid = $session->sessionId instanceof SessionId ? (string) $session->sessionId : null;
         $requested = $msg->filter['session_id'] ?? null;
         if (\is_array($requested)) {
             foreach ($requested as $r) {
@@ -534,9 +535,9 @@ final class ARCPRuntime
                         $this->serializer->envelopeToArray($past),
                     ),
                     timestamp: $this->clock->now(),
+                    priority: $past->priority,
                     sessionId: $session->sessionId,
                     subscriptionId: $sub->id,
-                    priority: $past->priority,
                 ));
             }
         } catch (\Throwable $e) {
@@ -557,7 +558,7 @@ final class ARCPRuntime
 
     private function handleUnsubscribe(Session $session, Envelope $env): void
     {
-        if ($env->subscriptionId === null) {
+        if (!$env->subscriptionId instanceof SubscriptionId) {
             $this->nack($session, $env, 'INVALID_ARGUMENT', 'unsubscribe missing subscription_id');
             return;
         }

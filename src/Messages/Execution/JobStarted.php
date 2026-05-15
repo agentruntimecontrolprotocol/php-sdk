@@ -22,7 +22,7 @@ final readonly class JobStarted extends MessageType
     #[\Override]
     public function toArray(): array
     {
-        return $this->startedAt !== null
+        return $this->startedAt instanceof \DateTimeImmutable
             ? ['started_at' => $this->startedAt->format(\DateTimeInterface::RFC3339_EXTENDED)]
             : [];
     }
@@ -34,6 +34,6 @@ final readonly class JobStarted extends MessageType
         if (isset($data['started_at']) && \is_string($data['started_at'])) {
             $started = new \DateTimeImmutable($data['started_at']);
         }
-        return new static($started);
+        return new self($started);
     }
 }

@@ -88,9 +88,9 @@ final class SubscriptionManager
                     id: MessageId::random(),
                     payload: $wrapper,
                     timestamp: new \DateTimeImmutable('now', new \DateTimeZone('UTC')),
+                    priority: $env->priority,
                     sessionId: $session->sessionId,
                     subscriptionId: $sub->id,
-                    priority: $env->priority,
                 ));
             } catch (\Throwable) {
                 $this->close($sub->id);

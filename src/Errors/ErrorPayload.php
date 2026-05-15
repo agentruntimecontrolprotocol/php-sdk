@@ -61,7 +61,7 @@ final readonly class ErrorPayload
     public function isNamespaced(): bool
     {
         return preg_match('/^[a-z][a-z0-9-]*\.[A-Za-z0-9_.-]+$/', $this->code) === 1
-            && $this->canonical() === null;
+            && !$this->canonical() instanceof ErrorCode;
     }
 
     /**
@@ -86,10 +86,10 @@ final readonly class ErrorPayload
         if ($this->details !== []) {
             $out['details'] = $this->details;
         }
-        if ($this->cause !== null) {
+        if ($this->cause instanceof \Arcp\Errors\ErrorPayload) {
             $out['cause'] = $this->cause->toArray();
         }
-        if ($this->traceId !== null) {
+        if ($this->traceId instanceof TraceId) {
             $out['trace_id'] = (string) $this->traceId;
         }
         return $out;

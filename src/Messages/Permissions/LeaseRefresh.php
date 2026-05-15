@@ -41,6 +41,6 @@ final readonly class LeaseRefresh extends MessageType
         if (isset($data['extend_seconds']) && \is_int($data['extend_seconds'])) {
             $ext = $data['extend_seconds'];
         }
-        return new static(LeaseId::fromJson($id), $ext);
+        return new self(LeaseId::fromJson($id), $ext);
     }
 }

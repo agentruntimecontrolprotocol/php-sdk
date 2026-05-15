@@ -233,7 +233,7 @@ final class JobContext
     public function heartbeat(int $deadlineMs = 60000, string $state = 'running'): void
     {
         $job = $this->runtime->jobs->tryGet($this->jobId);
-        if ($job === null) {
+        if (!$job instanceof Job) {
             return;
         }
         $sequence = ++$job->heartbeatSequence;

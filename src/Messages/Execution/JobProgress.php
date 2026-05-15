@@ -49,6 +49,6 @@ final readonly class JobProgress extends MessageType
         if (isset($data['message']) && \is_string($data['message'])) {
             $message = $data['message'];
         }
-        return new static($percent, $message);
+        return new self($percent, $message);
     }
 }

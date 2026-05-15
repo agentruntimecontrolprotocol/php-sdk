@@ -28,6 +28,6 @@ final readonly class JobCompleted extends MessageType
     #[\Override]
     public static function fromArray(array $data): static
     {
-        return new static($data['value'] ?? null);
+        return new self($data['value'] ?? null);
     }
 }

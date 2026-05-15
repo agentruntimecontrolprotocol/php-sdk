@@ -36,6 +36,6 @@ final readonly class CheckpointRestore extends MessageType
         if (!\is_string($id)) {
             throw new InvalidArgumentException('checkpoint_id must be string');
         }
-        return new static($id);
+        return new self($id);
     }
 }

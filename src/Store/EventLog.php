@@ -4,6 +4,12 @@ declare(strict_types=1);
 
 namespace Arcp\Store;
 
+use Arcp\Ids\SessionId;
+use Arcp\Ids\JobId;
+use Arcp\Ids\StreamId;
+use Arcp\Ids\TraceId;
+use Arcp\Ids\MessageId;
+use Arcp\Ids\IdempotencyKey;
 use Arcp\Clock\ClockInterface;
 use Arcp\Clock\SystemClock;
 use Arcp\Envelope\Envelope;
@@ -71,14 +77,14 @@ final readonly class EventLog
 
         $stmt->execute([
             ':message_id' => (string) $env->id,
-            ':session_id' => $env->sessionId !== null ? (string) $env->sessionId : null,
-            ':job_id' => $env->jobId !== null ? (string) $env->jobId : null,
-            ':stream_id' => $env->streamId !== null ? (string) $env->streamId : null,
-            ':trace_id' => $env->traceId !== null ? (string) $env->traceId : null,
+            ':session_id' => $env->sessionId instanceof SessionId ? (string) $env->sessionId : null,
+            ':job_id' => $env->jobId instanceof JobId ? (string) $env->jobId : null,
+            ':stream_id' => $env->streamId instanceof StreamId ? (string) $env->streamId : null,
+            ':trace_id' => $env->traceId instanceof TraceId ? (string) $env->traceId : null,
             ':type' => $env->type(),
             ':priority' => $env->priority->value,
-            ':correlation_id' => $env->correlationId !== null ? (string) $env->correlationId : null,
-            ':idempotency_key' => $env->idempotencyKey !== null ? (string) $env->idempotencyKey : null,
+            ':correlation_id' => $env->correlationId instanceof MessageId ? (string) $env->correlationId : null,
+            ':idempotency_key' => $env->idempotencyKey instanceof IdempotencyKey ? (string) $env->idempotencyKey : null,
             ':timestamp' => $env->timestamp->format(\DateTimeInterface::RFC3339_EXTENDED),
             ':payload_json' => $this->serializer->encode($env),
         ]);

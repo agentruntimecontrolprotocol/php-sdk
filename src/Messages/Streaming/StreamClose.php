@@ -32,6 +32,6 @@ final readonly class StreamClose extends MessageType
         if (isset($data['total_chunks']) && \is_int($data['total_chunks'])) {
             $total = $data['total_chunks'];
         }
-        return new static($total);
+        return new self($total);
     }
 }

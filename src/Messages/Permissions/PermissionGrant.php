@@ -54,6 +54,6 @@ final readonly class PermissionGrant extends MessageType
         if (isset($data['lease_seconds']) && \is_int($data['lease_seconds'])) {
             $lease = $data['lease_seconds'];
         }
-        return new static($p, $r, $o, $lease);
+        return new self($p, $r, $o, $lease);
     }
 }

@@ -54,6 +54,6 @@ final readonly class PermissionDeny extends MessageType
         if (isset($data['reason']) && \is_string($data['reason'])) {
             $reason = $data['reason'];
         }
-        return new static($p, $r, $o, $reason);
+        return new self($p, $r, $o, $reason);
     }
 }

@@ -38,6 +38,6 @@ final readonly class SubscribeEvent extends MessageType
             throw new InvalidArgumentException('event must be object');
         }
         /** @var array<string, mixed> $ev */
-        return new static($ev);
+        return new self($ev);
     }
 }

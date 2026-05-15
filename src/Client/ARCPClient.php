@@ -146,7 +146,7 @@ final class ARCPClient
         $this->session->transport->send($env);
 
         $response = $this->session->transport->receive($cancellation);
-        if ($response === null) {
+        if (!$response instanceof Envelope) {
             throw new UnauthenticatedException('handshake aborted: peer closed');
         }
         $msg = $response->payload;
@@ -341,7 +341,7 @@ final class ARCPClient
         $this->session->transport->close();
         $this->session->state = SessionState::Closed;
         $this->pending->failAll(new \RuntimeException('client closed'));
-        if ($this->readLoop !== null) {
+        if ($this->readLoop instanceof Future) {
             try {
                 $this->readLoop->await();
             } catch (\Throwable) {
@@ -355,7 +355,7 @@ final class ARCPClient
         try {
             while (!$this->session->transport->isClosed()) {
                 $env = $this->session->transport->receive($cancellation);
-                if ($env === null) {
+                if (!$env instanceof Envelope) {
                     break;
                 }
                 $this->handle($env);
@@ -371,13 +371,13 @@ final class ARCPClient
     {
         $msg = $env->payload;
 
-        if ($env->correlationId !== null && $this->pending->resolve($env->correlationId, $msg)) {
+        if ($env->correlationId instanceof MessageId && $this->pending->resolve($env->correlationId, $msg)) {
             return;
         }
 
         if ($msg instanceof SubscribeEvent) {
             $sid = $env->subscriptionId;
-            if ($sid !== null) {
+            if ($sid instanceof SubscriptionId) {
                 $key = (string) $sid;
                 try {
                     $inner = $this->serializer->envelopeFromArray($msg->event);
@@ -398,47 +398,47 @@ final class ARCPClient
             return;
         }
 
-        if ($msg instanceof HumanInputRequest && $this->humanInputHandler !== null) {
+        if ($msg instanceof HumanInputRequest && $this->humanInputHandler instanceof HumanInputHandler) {
             $response = $this->humanInputHandler->onInputRequest($msg);
             $this->session->transport->send(new Envelope(
                 id: MessageId::random(),
                 payload: $response,
                 timestamp: $this->clock->now(),
+                priority: Priority::High,
                 sessionId: $this->session->sessionId,
                 jobId: $env->jobId,
                 traceId: $env->traceId,
                 correlationId: $env->id,
-                priority: Priority::High,
             ));
             return;
         }
 
-        if ($msg instanceof HumanChoiceRequest && $this->humanInputHandler !== null) {
+        if ($msg instanceof HumanChoiceRequest && $this->humanInputHandler instanceof HumanInputHandler) {
             $response = $this->humanInputHandler->onChoiceRequest($msg);
             $this->session->transport->send(new Envelope(
                 id: MessageId::random(),
                 payload: $response,
                 timestamp: $this->clock->now(),
+                priority: Priority::High,
                 sessionId: $this->session->sessionId,
                 jobId: $env->jobId,
                 traceId: $env->traceId,
                 correlationId: $env->id,
-                priority: Priority::High,
             ));
             return;
         }
 
-        if ($msg instanceof PermissionRequest && $this->permissionHandler !== null) {
+        if ($msg instanceof PermissionRequest && $this->permissionHandler instanceof PermissionHandler) {
             $decision = $this->permissionHandler->onPermissionRequest($msg);
             $this->session->transport->send(new Envelope(
                 id: MessageId::random(),
                 payload: $decision,
                 timestamp: $this->clock->now(),
+                priority: Priority::Critical,
                 sessionId: $this->session->sessionId,
                 jobId: $env->jobId,
                 traceId: $env->traceId,
                 correlationId: $env->id,
-                priority: Priority::Critical,
             ));
             return;
         }

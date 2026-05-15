@@ -45,6 +45,6 @@ final readonly class JobCancelled extends MessageType
         if (isset($data['code']) && \is_string($data['code'])) {
             $code = $data['code'];
         }
-        return new static($reason, $code);
+        return new self($reason, $code);
     }
 }

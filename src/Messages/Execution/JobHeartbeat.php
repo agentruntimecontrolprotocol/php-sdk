@@ -51,6 +51,6 @@ final readonly class JobHeartbeat extends MessageType
         if (isset($data['state']) && \is_string($data['state'])) {
             $state = $data['state'];
         }
-        return new static($seq, $deadline, $state);
+        return new self($seq, $deadline, $state);
     }
 }

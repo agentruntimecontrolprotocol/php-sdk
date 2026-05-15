@@ -24,6 +24,6 @@ final readonly class Unsubscribe extends MessageType
     #[\Override]
     public static function fromArray(array $data): static
     {
-        return new static();
+        return new self();
     }
 }

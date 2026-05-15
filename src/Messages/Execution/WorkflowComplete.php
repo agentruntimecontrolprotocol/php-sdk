@@ -29,6 +29,6 @@ final readonly class WorkflowComplete extends MessageType
     #[\Override]
     public static function fromArray(array $data): static
     {
-        return new static($data);
+        return new self($data);
     }
 }

@@ -58,6 +58,6 @@ final readonly class LogEvent extends MessageType
             /** @var array<string, mixed> $attrs */
             $attrs = $data['attributes'];
         }
-        return new static($level, $msg, $attrs);
+        return new self($level, $msg, $attrs);
     }
 }

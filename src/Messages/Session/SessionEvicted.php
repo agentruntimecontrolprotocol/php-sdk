@@ -49,6 +49,6 @@ final readonly class SessionEvicted extends MessageType
             }
             $code = $data['code'];
         }
-        return new static($reason, $code);
+        return new self($reason, $code);
     }
 }

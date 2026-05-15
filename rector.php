@@ -22,7 +22,7 @@ return RectorConfig::configure()
     ->withPhpSets(php83: true)
     ->withSets([
         // Phase 3 active set — toggle one at a time, commit each.
-        SetList::DEAD_CODE,
+        SetList::CODE_QUALITY,
     ])
     ->withImportNames(
         importNames: true,

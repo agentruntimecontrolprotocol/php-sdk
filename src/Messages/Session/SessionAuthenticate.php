@@ -34,6 +34,6 @@ final readonly class SessionAuthenticate extends MessageType
             throw new InvalidArgumentException('auth must be object');
         }
         /** @var array<string, mixed> $auth */
-        return new static(Auth::fromArray($auth));
+        return new self(Auth::fromArray($auth));
     }
 }

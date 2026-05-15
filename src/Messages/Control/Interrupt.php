@@ -51,6 +51,6 @@ final readonly class Interrupt extends MessageType
         if (isset($data['prompt']) && \is_string($data['prompt'])) {
             $prompt = $data['prompt'];
         }
-        return new static($target, $tid, $prompt);
+        return new self($target, $tid, $prompt);
     }
 }

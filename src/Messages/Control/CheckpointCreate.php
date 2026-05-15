@@ -38,6 +38,6 @@ final readonly class CheckpointCreate extends MessageType
             /** @var array<string, mixed> $state */
             $state = $data['state'];
         }
-        return new static($state);
+        return new self($state);
     }
 }

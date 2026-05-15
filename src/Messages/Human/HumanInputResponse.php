@@ -30,7 +30,7 @@ final readonly class HumanInputResponse extends MessageType
         if ($this->respondedBy !== null) {
             $out['responded_by'] = $this->respondedBy;
         }
-        if ($this->respondedAt !== null) {
+        if ($this->respondedAt instanceof \DateTimeImmutable) {
             $out['responded_at'] = $this->respondedAt->format(\DateTimeInterface::RFC3339_EXTENDED);
         }
         return $out;
@@ -50,6 +50,6 @@ final readonly class HumanInputResponse extends MessageType
         if (isset($data['responded_at']) && \is_string($data['responded_at'])) {
             $at = new \DateTimeImmutable($data['responded_at']);
         }
-        return new static($data['value'], $by, $at);
+        return new self($data['value'], $by, $at);
     }
 }

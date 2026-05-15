@@ -36,6 +36,6 @@ final readonly class CancelRefused extends MessageType
         if (!\is_string($reason)) {
             throw new InvalidArgumentException('reason must be string');
         }
-        return new static($reason);
+        return new self($reason);
     }
 }

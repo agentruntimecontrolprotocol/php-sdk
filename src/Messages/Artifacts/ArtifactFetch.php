@@ -31,6 +31,6 @@ final readonly class ArtifactFetch extends MessageType
     public static function fromArray(array $data): static
     {
         $id = $data['artifact_id'] ?? throw new InvalidArgumentException('artifact_id missing');
-        return new static(ArtifactId::fromJson($id));
+        return new self(ArtifactId::fromJson($id));
     }
 }

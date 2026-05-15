@@ -50,7 +50,7 @@ final readonly class EventEmit extends MessageType
             /** @var EventBody $attributes */
             $attributes = $data['attributes'];
         }
-        return new static($eventType, $attributes);
+        return new self($eventType, $attributes);
     }
 
     #[\Override]

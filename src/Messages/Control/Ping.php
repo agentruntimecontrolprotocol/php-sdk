@@ -32,6 +32,6 @@ final readonly class Ping extends MessageType
         if (isset($data['nonce']) && \is_string($data['nonce'])) {
             $nonce = $data['nonce'];
         }
-        return new static($nonce);
+        return new self($nonce);
     }
 }

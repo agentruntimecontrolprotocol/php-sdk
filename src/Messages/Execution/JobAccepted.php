@@ -32,6 +32,6 @@ final readonly class JobAccepted extends MessageType
         if (isset($data['note']) && \is_string($data['note'])) {
             $note = $data['note'];
         }
-        return new static($note);
+        return new self($note);
     }
 }

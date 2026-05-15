@@ -160,7 +160,7 @@ final class MessageCatalogRoundTripTest extends TestCase
 
         yield 'stream.open.text' => [new StreamOpen(StreamKind::Text, 'text/plain', 'utf-8')];
         yield 'stream.open.thought' => [new StreamOpen(StreamKind::Thought)];
-        yield 'stream.chunk.text' => [new StreamChunk(0, content: 'hello', contentType: 'text/plain')];
+        yield 'stream.chunk.text' => [new StreamChunk(0, contentType: 'text/plain', content: 'hello')];
         yield 'stream.chunk.binary' => [new StreamChunk(1, data: 'base64data==', contentType: 'application/octet-stream')];
         yield 'stream.chunk.thought' => [new StreamChunk(2, role: 'assistant_thought', content: 'considering', redacted: false)];
         yield 'stream.close' => [new StreamClose(42)];

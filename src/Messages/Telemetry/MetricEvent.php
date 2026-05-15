@@ -62,6 +62,6 @@ final readonly class MetricEvent extends MessageType
                 $dims[$k] = $v;
             }
         }
-        return new static($name, $value, $unit, $dims);
+        return new self($name, $value, $unit, $dims);
     }
 }

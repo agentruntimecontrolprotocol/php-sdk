@@ -59,6 +59,6 @@ final readonly class Cancel extends MessageType
         if (isset($data['deadline_ms']) && \is_int($data['deadline_ms'])) {
             $deadline = $data['deadline_ms'];
         }
-        return new static($target, $targetId, $reason, $deadline);
+        return new self($target, $targetId, $reason, $deadline);
     }
 }

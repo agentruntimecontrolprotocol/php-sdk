@@ -62,6 +62,6 @@ final readonly class PermissionRequest extends MessageType
         if (isset($data['requested_lease_seconds']) && \is_int($data['requested_lease_seconds'])) {
             $lease = $data['requested_lease_seconds'];
         }
-        return new static($p, $r, $o, $reason, $lease);
+        return new self($p, $r, $o, $reason, $lease);
     }
 }

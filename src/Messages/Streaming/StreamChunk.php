@@ -62,7 +62,7 @@ final readonly class StreamChunk extends MessageType
         if (!\is_int($seq)) {
             throw new InvalidArgumentException('sequence must be int');
         }
-        return new static(
+        return new self(
             sequence: $seq,
             data: $data['data'] ?? null,
             contentType: isset($data['content_type']) && \is_string($data['content_type']) ? $data['content_type'] : null,

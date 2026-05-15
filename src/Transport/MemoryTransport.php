@@ -118,7 +118,7 @@ final class MemoryTransport implements Transport
             $w->complete();
         }
         $this->waiters = [];
-        if ($this->peer !== null && !$this->peer->closed) {
+        if ($this->peer instanceof \Arcp\Transport\MemoryTransport && !$this->peer->closed) {
             // Closing one end naturally signals the other on next receive().
             $peer = $this->peer;
             $this->peer = null;

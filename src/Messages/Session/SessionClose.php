@@ -32,6 +32,6 @@ final readonly class SessionClose extends MessageType
         if (isset($data['reason']) && \is_string($data['reason'])) {
             $reason = $data['reason'];
         }
-        return new static($reason);
+        return new self($reason);
     }
 }

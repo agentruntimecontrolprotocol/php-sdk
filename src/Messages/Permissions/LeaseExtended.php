@@ -40,6 +40,6 @@ final readonly class LeaseExtended extends MessageType
         if (!\is_string($exp)) {
             throw new InvalidArgumentException('expires_at must be string');
         }
-        return new static(LeaseId::fromJson($id), new \DateTimeImmutable($exp));
+        return new self(LeaseId::fromJson($id), new \DateTimeImmutable($exp));
     }
 }

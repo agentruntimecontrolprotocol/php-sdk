@@ -47,7 +47,7 @@ final class PendingRegistry
         }
 
         $cancelCallback = null;
-        if ($cancellation !== null) {
+        if ($cancellation instanceof Cancellation) {
             $cancelCallback = $cancellation->subscribe(function (\Throwable $reason) use ($deferred): void {
                 if (!$deferred->isComplete()) {
                     $deferred->error($reason);
@@ -70,7 +70,7 @@ final class PendingRegistry
             if ($timer !== null && !$timedOut) {
                 EventLoop::cancel($timer);
             }
-            if ($cancelCallback !== null && $cancellation !== null) {
+            if ($cancelCallback !== null && $cancellation instanceof Cancellation) {
                 $cancellation->unsubscribe($cancelCallback);
             }
             unset($this->waiters[(string) $id]);

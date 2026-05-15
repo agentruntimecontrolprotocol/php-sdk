@@ -47,6 +47,6 @@ final readonly class Resume extends MessageType
             $checkpoint = $data['checkpoint_id'];
         }
         $include = isset($data['include_open_streams']) ? $data['include_open_streams'] === true : true;
-        return new static($after, $checkpoint, $include);
+        return new self($after, $checkpoint, $include);
     }
 }

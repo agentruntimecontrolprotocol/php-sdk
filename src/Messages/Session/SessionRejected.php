@@ -35,6 +35,6 @@ final readonly class SessionRejected extends MessageType
             throw new InvalidArgumentException('error must be object');
         }
         /** @var array<string, mixed> $err */
-        return new static(ErrorPayload::fromArray($err));
+        return new self(ErrorPayload::fromArray($err));
     }
 }

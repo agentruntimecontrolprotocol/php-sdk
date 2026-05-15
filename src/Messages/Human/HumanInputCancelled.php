@@ -46,6 +46,6 @@ final readonly class HumanInputCancelled extends MessageType
         if (isset($data['reason']) && \is_string($data['reason'])) {
             $reason = $data['reason'];
         }
-        return new static($code, $reason);
+        return new self($code, $reason);
     }
 }
