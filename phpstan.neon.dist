@@ -22,15 +22,18 @@ parameters:
     excludePaths:
         - vendor
     ignoreErrors:
-        # PHPStan can't see PHPUnit setUp() initializing properties; the
-        # idiom is widely accepted and the runtime checks fail loudly if
-        # setUp isn't called.
-        -
-            identifier: property.uninitialized
-            path: tests/*
-        # Test data providers and fixtures legitimately probe array shapes
-        # that PHPStan considers uncertain; we use assertArrayHasKey before
-        # access where it matters and otherwise accept the looseness.
+        # Tests use stream_socket_pair() and similar helpers that return
+        # arrays whose shape (2 elements) is fixed by the platform; we
+        # narrow with assertCount() at the call site where it matters
+        # and accept the looseness for fixture-style probes.
         -
             identifier: offsetAccess.notFound
+            path: tests/*
+        # PHPUnit setUp() is the canonical place to initialize test
+        # properties. phpstan-phpunit acknowledges the pattern, but
+        # phpstan-strict's checkUninitializedProperties still flags it.
+        # We accept the idiom — failing setUp causes loud test errors,
+        # not silent corruption.
+        -
+            identifier: property.uninitialized
             path: tests/*
