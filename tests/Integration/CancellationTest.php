@@ -8,6 +8,7 @@ use function Amp\async;
 
 use Amp\Cancellation;
 use Amp\DeferredFuture;
+use Amp\NullCancellation;
 
 use function Amp\delay;
 
@@ -38,14 +39,19 @@ final class CancellationTest extends TestCase
             {
             }
 
+            /**
+             * @param array<string, mixed> $arguments
+             */
             #[\Override]
-            public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
+            public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): never
             {
                 $this->started->complete($ctx->jobId);
-                for (;;) {
-                    $cancellation?->throwIfRequested();
+                $cancellation ??= new NullCancellation();
+                while (!$cancellation->isRequested()) {
                     delay(0.01);
                 }
+                $cancellation->throwIfRequested();
+                throw new \LogicException('unreachable: throwIfRequested guarantees an exception');
             }
         });
         [$serverT, $clientT] = MemoryTransport::pair();
@@ -56,9 +62,7 @@ final class CancellationTest extends TestCase
         // Issue the tool invocation in a background fiber so we can cancel.
         $invocation = async(fn (): ToolResult => $client->invokeTool('block'));
 
-        /** @var JobId $jobId */
         $jobId = $started->getFuture()->await();
-        self::assertNotNull($jobId);
 
         // Allow the runtime to register the job, then issue cancel.
         delay(0.01);
