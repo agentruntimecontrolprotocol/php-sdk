@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Arcp\Cli;
 
-use Arcp\Errors\InvalidArgumentException;
 use Arcp\Envelope\MessageCatalog;
+use Arcp\Errors\InvalidArgumentException;
 use Arcp\Json\EnvelopeSerializer;
 use Arcp\Store\EventLog;
 use Symfony\Component\Console\Attribute\AsCommand;

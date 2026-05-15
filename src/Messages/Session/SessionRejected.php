@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Arcp\Messages\Session;
 
-use Arcp\Errors\InvalidArgumentException;
 use Arcp\Envelope\MessageType;
 use Arcp\Errors\ErrorPayload;
+use Arcp\Errors\InvalidArgumentException;
 
 /** RFC §8.1 — server refused the session for non-auth reasons (e.g. UNIMPLEMENTED). */
 final readonly class SessionRejected extends MessageType

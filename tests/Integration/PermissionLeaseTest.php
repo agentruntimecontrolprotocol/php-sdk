@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Arcp\Tests\Integration;
 
-use Arcp\Client\Handlers\PermissionHandler;
 use Amp\Cancellation;
 use Arcp\Auth\AuthRouter;
 use Arcp\Auth\NoneAuth;
 use Arcp\Client\ARCPClient;
 use Arcp\Client\Handlers\AutoApprovePermissionHandler;
+use Arcp\Client\Handlers\PermissionHandler;
 use Arcp\Errors\PermissionDeniedException;
 use Arcp\Messages\Permissions\PermissionDeny;
 use Arcp\Messages\Permissions\PermissionRequest;

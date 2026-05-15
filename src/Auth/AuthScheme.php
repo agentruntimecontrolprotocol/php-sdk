@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Arcp\Auth;
 
-use Arcp\Messages\Session\PeerInfo;
 use Arcp\Messages\Session\Auth;
+use Arcp\Messages\Session\PeerInfo;
 
 /**
  * Pluggable verification of an inbound `session.open` auth block (RFC §8.2).

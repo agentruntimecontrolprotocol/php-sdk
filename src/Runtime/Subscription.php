@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Arcp\Runtime;
 
-use Arcp\Ids\SessionId;
-use Arcp\Ids\TraceId;
-use Arcp\Ids\JobId;
-use Arcp\Ids\StreamId;
 use Arcp\Envelope\Envelope;
 use Arcp\Envelope\Priority;
+use Arcp\Ids\JobId;
+use Arcp\Ids\SessionId;
+use Arcp\Ids\StreamId;
 use Arcp\Ids\SubscriptionId;
+use Arcp\Ids\TraceId;
 
 /**
  * Compiled subscription filter (RFC §13.2). All conditions are AND'd;

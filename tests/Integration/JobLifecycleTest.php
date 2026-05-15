@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Arcp\Tests\Integration;
 
-use Arcp\Errors\InvalidArgumentException;
-use Arcp\Errors\NotFoundException;
-use Arcp\Ids\IdempotencyKey;
-use Arcp\Errors\DeadlineExceededException;
 use Amp\Cancellation;
 use Arcp\Auth\AuthRouter;
 use Arcp\Auth\NoneAuth;
 use Arcp\Client\ARCPClient;
+use Arcp\Errors\DeadlineExceededException;
+use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\NotFoundException;
+use Arcp\Ids\IdempotencyKey;
 use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\Capabilities;
 use Arcp\Messages\Session\PeerInfo;

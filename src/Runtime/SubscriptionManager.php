@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Arcp\Runtime;
 
-use Arcp\Messages\Subscriptions\SubscribeEvent;
-use Arcp\Ids\MessageId;
 use Arcp\Envelope\Envelope;
 use Arcp\Envelope\Priority;
 use Arcp\Errors\InvalidArgumentException;
+use Arcp\Ids\MessageId;
 use Arcp\Ids\SubscriptionId;
 use Arcp\Json\EnvelopeSerializer;
 use Arcp\Messages\Subscriptions\Subscribe;
+use Arcp\Messages\Subscriptions\SubscribeEvent;
 
 /**
  * Holds active subscriptions and dispatches matching envelopes through

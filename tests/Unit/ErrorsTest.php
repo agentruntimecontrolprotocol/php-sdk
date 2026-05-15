@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Arcp\Tests\Unit;
 
-use Arcp\Ids\TraceId;
 use Arcp\Errors\AbortedException;
 use Arcp\Errors\AlreadyExistsException;
 use Arcp\Errors\ARCPException;
@@ -30,6 +29,7 @@ use Arcp\Errors\UnimplementedException;
 use Arcp\Errors\UnknownException;
 use Arcp\Ids\JobId;
 use Arcp\Ids\LeaseId;
+use Arcp\Ids\TraceId;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 

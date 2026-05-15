@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Arcp\Tests\Integration;
 
-use Arcp\Messages\Execution\ToolResult;
 use function Amp\async;
 
 use Amp\Cancellation;
@@ -16,6 +15,7 @@ use Arcp\Auth\AuthRouter;
 use Arcp\Auth\NoneAuth;
 use Arcp\Client\ARCPClient;
 use Arcp\Ids\JobId;
+use Arcp\Messages\Execution\ToolResult;
 use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\Capabilities;
 use Arcp\Messages\Session\PeerInfo;

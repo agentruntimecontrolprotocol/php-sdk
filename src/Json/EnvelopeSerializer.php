@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Arcp\Json;
 
-use Arcp\Ids\Id;
 use Arcp\Envelope\Envelope;
 use Arcp\Envelope\MessageType;
 use Arcp\Envelope\MessageTypeRegistry;
@@ -12,6 +11,7 @@ use Arcp\Envelope\Priority;
 use Arcp\Errors\InvalidArgumentException;
 use Arcp\Errors\UnimplementedException;
 use Arcp\Extensions\ExtensionRegistry;
+use Arcp\Ids\Id;
 use Arcp\Ids\IdempotencyKey;
 use Arcp\Ids\JobId;
 use Arcp\Ids\MessageId;

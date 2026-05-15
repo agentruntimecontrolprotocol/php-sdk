@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Arcp\Runtime;
 
-use Amp\TimeoutException;
 use Amp\Cancellation;
 use Amp\DeferredFuture;
+use Amp\TimeoutException;
 use Arcp\Envelope\MessageType;
 use Arcp\Errors\DeadlineExceededException;
 use Arcp\Ids\MessageId;

@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Arcp\Tests\Unit;
 
-use Arcp\Errors\InvalidArgumentException;
 use Arcp\Auth\AuthRouter;
 use Arcp\Auth\BearerAuth;
 use Arcp\Auth\JwtAuth;
 use Arcp\Auth\NoneAuth;
+use Arcp\Errors\InvalidArgumentException;
 use Arcp\Errors\UnimplementedException;
 use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\PeerInfo;

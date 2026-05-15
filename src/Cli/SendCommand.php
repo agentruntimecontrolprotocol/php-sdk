@@ -4,18 +4,18 @@ declare(strict_types=1);
 
 namespace Arcp\Cli;
 
-use Arcp\Errors\InvalidArgumentException;
-use Arcp\Json\EnvelopeSerializer;
-use Arcp\Envelope\MessageCatalog;
-use Arcp\Version;
 use function Amp\Websocket\Client\connect;
 
 use Amp\Websocket\Client\WebsocketHandshake;
 use Arcp\Client\ARCPClient;
+use Arcp\Envelope\MessageCatalog;
+use Arcp\Errors\InvalidArgumentException;
+use Arcp\Json\EnvelopeSerializer;
 use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\Capabilities;
 use Arcp\Messages\Session\PeerInfo;
 use Arcp\Transport\WebSocketTransport;
+use Arcp\Version;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;

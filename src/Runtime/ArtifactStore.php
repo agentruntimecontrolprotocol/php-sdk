@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Arcp\Runtime;
 
-use Arcp\Errors\InvalidArgumentException;
 use Arcp\Clock\ClockInterface;
 use Arcp\Clock\SystemClock;
+use Arcp\Errors\InvalidArgumentException;
 use Arcp\Errors\NotFoundException;
 use Arcp\Ids\ArtifactId;
 use Arcp\Messages\Artifacts\ArtifactRef;

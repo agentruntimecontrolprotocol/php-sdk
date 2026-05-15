@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Arcp\Runtime;
 
-use Arcp\Errors\PermissionDeniedException;
 use Arcp\Clock\ClockInterface;
 use Arcp\Clock\SystemClock;
 use Arcp\Errors\LeaseExpiredException;
 use Arcp\Errors\LeaseRevokedException;
 use Arcp\Errors\NotFoundException;
+use Arcp\Errors\PermissionDeniedException;
 use Arcp\Ids\LeaseId;
 use Arcp\Messages\Permissions\LeaseGranted;
 use Arcp\Messages\Permissions\LeaseRevoked;

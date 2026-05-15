@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Arcp\Tests\Integration;
 
-use Arcp\Messages\Telemetry\EventEmit;
-use Arcp\Errors\PermissionDeniedException;
 use Amp\Cancellation;
 use Amp\DeferredFuture;
 
@@ -15,9 +13,11 @@ use Arcp\Auth\AuthRouter;
 use Arcp\Auth\NoneAuth;
 use Arcp\Client\ARCPClient;
 use Arcp\Envelope\Envelope;
+use Arcp\Errors\PermissionDeniedException;
 use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\Capabilities;
 use Arcp\Messages\Session\PeerInfo;
+use Arcp\Messages\Telemetry\EventEmit;
 use Arcp\Runtime\ARCPRuntime;
 use Arcp\Runtime\JobContext;
 use Arcp\Runtime\ToolHandler;

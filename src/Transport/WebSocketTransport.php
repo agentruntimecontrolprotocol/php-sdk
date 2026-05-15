@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Arcp\Transport;
 
-use Amp\Websocket\WebsocketMessage;
 use Amp\Cancellation;
 use Amp\Websocket\WebsocketClient;
+use Amp\Websocket\WebsocketMessage;
 use Arcp\Envelope\Envelope;
 use Arcp\Json\EnvelopeSerializer;
 

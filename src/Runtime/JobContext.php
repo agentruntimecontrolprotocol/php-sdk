@@ -4,14 +4,10 @@ declare(strict_types=1);
 
 namespace Arcp\Runtime;
 
-use Arcp\Messages\Telemetry\LogEvent;
-use Arcp\Messages\Telemetry\MetricEvent;
-use Arcp\Errors\DeadlineExceededException;
-use Arcp\Messages\Human\HumanInputCancelled;
-use Arcp\Messages\Execution\JobHeartbeat;
 use Amp\Cancellation;
 use Amp\DeferredCancellation;
 use Arcp\Envelope\Priority;
+use Arcp\Errors\DeadlineExceededException;
 use Arcp\Errors\PermissionDeniedException;
 use Arcp\Ids\JobId;
 use Arcp\Ids\LeaseId;
@@ -19,9 +15,11 @@ use Arcp\Ids\SessionId;
 use Arcp\Ids\StreamId;
 use Arcp\Ids\TraceId;
 use Arcp\Messages\Artifacts\ArtifactRef;
+use Arcp\Messages\Execution\JobHeartbeat;
 use Arcp\Messages\Execution\JobProgress;
 use Arcp\Messages\Human\HumanChoiceRequest;
 use Arcp\Messages\Human\HumanChoiceResponse;
+use Arcp\Messages\Human\HumanInputCancelled;
 use Arcp\Messages\Human\HumanInputRequest;
 use Arcp\Messages\Human\HumanInputResponse;
 use Arcp\Messages\Permissions\LeaseGranted;
@@ -32,6 +30,8 @@ use Arcp\Messages\Streaming\StreamChunk;
 use Arcp\Messages\Streaming\StreamClose;
 use Arcp\Messages\Streaming\StreamKind;
 use Arcp\Messages\Streaming\StreamOpen;
+use Arcp\Messages\Telemetry\LogEvent;
+use Arcp\Messages\Telemetry\MetricEvent;
 
 /**
  * Handle passed to a {@see ToolHandler} to interact with the runtime

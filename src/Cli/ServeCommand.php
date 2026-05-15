@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Arcp\Cli;
 
-use Revolt\EventLoop;
 use Amp\Http\Server\DefaultErrorHandler;
 use Amp\Http\Server\Request;
 use Amp\Http\Server\Response;
@@ -19,6 +18,7 @@ use Arcp\Json\EnvelopeSerializer;
 use Arcp\Runtime\ARCPRuntime;
 use Arcp\Transport\WebSocketTransport;
 use Psr\Log\NullLogger;
+use Revolt\EventLoop;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
