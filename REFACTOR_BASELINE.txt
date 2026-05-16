@@ -1,5 +1,33 @@
 # REFACTOR BASELINE — captured 2026-05-15
 
+## FINAL (after refactor)
+
+```
+src/    173 PHP files, 10251 lines  (was 150 / 8654)
+tests/   32 PHP files,  3958 lines  (was  25 / 3014)
+PHPStan max     : 0 errors      (was 0)
+Psalm L1        : 0 errors      (was 2 in tests)
+PHP-CS-Fixer    : no diff       (was no diff)
+Rector dry-run  : no diff       (was 127 files would change)
+size-check      : OK            (was 4 file/class + 14 fn-body + 11 fn-param
+                                       + 4 SPL throws + 100 long lines)
+Line coverage   : 89.63%        (was unmeasured; target ≥85%)
+Tests           : 293 pass      (was 264)
+composer audit  : no advisories (was no advisories)
+```
+
+The 23-file growth in `src/` is the new `Arcp\Internal\…` namespace
+plus the parameter-object DTOs (RuntimeConfig, ClientConfig, etc.)
+introduced during the size-violation collapse. Line count grew because
+extracted helpers carry their own docblocks, but no method body in src/
+exceeds 30 lines and no class exceeds 300.
+
+The original baseline is preserved below.
+
+---
+
+
+
 Baseline state of every static-analysis and quality tool, run from a clean
 checkout against `main` before any refactor commits land. Refactor work
 drives every count here to zero (or to the targets in PHP_SDK_GUIDE.md).
