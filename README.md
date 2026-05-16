@@ -146,6 +146,28 @@ to keep the example self-contained:
 5. `05_observer_subscription.php` — passive observer.
 6. `06_relay_human_in_the_loop.php` — multi-channel HITL relay.
 
+## Docs
+
+Topic guides under [docs/](docs/):
+
+- [docs/authentication.md](docs/authentication.md) — built-in schemes,
+  AuthRouter wiring, custom schemes, failure semantics.
+- [docs/errors.md](docs/errors.md) — full exception hierarchy, retry
+  defaults, code-driven dispatch.
+- [docs/retries.md](docs/retries.md) — when to retry, backoff with
+  jitter, idempotency keys.
+- [docs/subscriptions.md](docs/subscriptions.md) — subscribe API,
+  filter shape, backfill markers, backpressure.
+
+## Supported PHP versions
+
+PHP 8.4 and newer. Older minors are not supported.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md). Major-version migration notes live
+in [UPGRADE.md](UPGRADE.md).
+
 ## What's not implemented in v0.1
 
 See [PLAN.md §7](PLAN.md#7-out-of-scope-for-v01-explicit) for the full

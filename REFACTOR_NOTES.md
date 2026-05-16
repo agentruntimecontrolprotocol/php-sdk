@@ -50,3 +50,36 @@ the callers.
   ARCPRuntime deps).
 - `src/Runtime/SubscriptionFilter.php` — `__construct` (7 params; mirrors
   RFC §13.2 filter fields).
+
+## Phase 8 deferred test coverage (2026-05-15)
+
+Line coverage on `src/` is **89.6%** — above the 85% PHP_SDK_GUIDE §9
+target. Two files still sit in the 73–75% range; the remaining lines
+require either deliberately faulty handlers or hand-crafted malformed
+wire data that the public API doesn't expose:
+
+- `src/Internal/Runtime/Dispatcher.php` (74.7%) — uncovered: the
+  `shouldDispatch` exception path (corrupt-event-log mid-flight), the
+  `dispatchOne` catch-all wrap for non-ARCPException throwables (current
+  sub-handlers throw only typed errors), and the `null`-envelope return
+  after `Transport::receive()` returns null (only on transport teardown).
+- `src/Internal/Client/ResponseRouter.php` (73.6%) — uncovered: the
+  subscription-buffer drain after late-register and the malformed-event
+  / decoder-failure paths.
+
+Lift to 95%+ requires the v0.2 fuzz/property-test harness.
+
+## Phase 8 deferred Infection MSI (2026-05-15)
+
+`composer infection` was not driven to MSI ≥ 80% in this session for two
+reasons:
+
+1. The default `infection.json5` covers `Arcp\Errors`, `Arcp\Envelope`,
+   `Arcp\Ids`, `Arcp\Json`, `Arcp\Clock` — the pure domain layer.
+   Running infection there requires a long second pass over the
+   coverage data and tuning the mutator allowlist. Logged as a v0.2
+   follow-up.
+2. The runtime + transport layers are dominated by Amp fibers and
+   in-process loops; Infection's default mutators produce many false
+   positives in those code paths. A targeted mutator list will land
+   alongside the v0.2 fuzz harness.
