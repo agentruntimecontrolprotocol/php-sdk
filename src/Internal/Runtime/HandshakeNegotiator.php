@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Arcp\Internal\Runtime;
 
+use Amp\Cancellation;
 use Arcp\Auth\AuthRouter;
 use Arcp\Envelope\Envelope;
 use Arcp\Errors\ErrorPayload;
@@ -27,17 +28,17 @@ use Arcp\Version;
  *
  * @internal
  */
-final class HandshakeNegotiator
+final readonly class HandshakeNegotiator
 {
     public function __construct(
-        private readonly ARCPRuntime $runtime,
-        private readonly LifecycleHandler $lifecycle,
-        private readonly ?AuthRouter $authRouter,
-        private readonly ?PeerInfo $runtimeIdentity,
+        private ARCPRuntime $runtime,
+        private LifecycleHandler $lifecycle,
+        private ?AuthRouter $authRouter,
+        private ?PeerInfo $runtimeIdentity,
     ) {
     }
 
-    public function negotiate(Session $session, ?\Amp\Cancellation $cancellation): void
+    public function negotiate(Session $session, ?Cancellation $cancellation): void
     {
         $env = $session->transport->receive($cancellation);
         if (!$env instanceof Envelope) {

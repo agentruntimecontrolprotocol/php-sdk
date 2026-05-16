@@ -13,6 +13,7 @@ use Arcp\Ids\SessionId;
 use Arcp\Json\EnvelopeSerializer;
 use Arcp\Messages\Telemetry\EventEmit;
 use Arcp\Store\EventLog;
+use Arcp\Store\IdempotencyRecord;
 use PHPUnit\Framework\TestCase;
 
 final class EventLogTest extends TestCase
@@ -107,13 +108,13 @@ final class EventLogTest extends TestCase
         $expires = $this->clock->now()->modify('+1 hour');
         self::assertNull(
             $this->log->rememberIdempotent(
-                new \Arcp\Store\IdempotencyRecord('alice', 'refund-1', 'msg_outcome_a', $expires),
+                new IdempotencyRecord('alice', 'refund-1', 'msg_outcome_a', $expires),
             ),
         );
         self::assertSame(
             'msg_outcome_a',
             $this->log->rememberIdempotent(
-                new \Arcp\Store\IdempotencyRecord('alice', 'refund-1', 'msg_outcome_b', $expires),
+                new IdempotencyRecord('alice', 'refund-1', 'msg_outcome_b', $expires),
             ),
             'a second remember with the same key returns the prior outcome, not the new one',
         );
@@ -124,7 +125,7 @@ final class EventLogTest extends TestCase
     {
         $expires = $this->clock->now()->modify('+5 seconds');
         $this->log->rememberIdempotent(
-            new \Arcp\Store\IdempotencyRecord('alice', 'refund-1', 'msg_x', $expires),
+            new IdempotencyRecord('alice', 'refund-1', 'msg_x', $expires),
         );
 
         $this->clock->advance(10);
@@ -136,7 +137,7 @@ final class EventLogTest extends TestCase
         // After lazy GC, a fresh remember succeeds with the new outcome.
         $newExpires = $this->clock->now()->modify('+1 hour');
         self::assertNull($this->log->rememberIdempotent(
-            new \Arcp\Store\IdempotencyRecord('alice', 'refund-1', 'msg_y', $newExpires),
+            new IdempotencyRecord('alice', 'refund-1', 'msg_y', $newExpires),
         ));
         self::assertSame('msg_y', $this->log->lookupIdempotent('alice', 'refund-1'));
     }
@@ -145,10 +146,10 @@ final class EventLogTest extends TestCase
     {
         $expires = $this->clock->now()->modify('+1 hour');
         $this->log->rememberIdempotent(
-            new \Arcp\Store\IdempotencyRecord('alice', 'refund-1', 'msg_a', $expires),
+            new IdempotencyRecord('alice', 'refund-1', 'msg_a', $expires),
         );
         $this->log->rememberIdempotent(
-            new \Arcp\Store\IdempotencyRecord('bob', 'refund-1', 'msg_b', $expires),
+            new IdempotencyRecord('bob', 'refund-1', 'msg_b', $expires),
         );
 
         self::assertSame('msg_a', $this->log->lookupIdempotent('alice', 'refund-1'));

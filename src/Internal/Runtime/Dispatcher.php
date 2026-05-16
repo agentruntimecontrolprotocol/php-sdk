@@ -39,14 +39,14 @@ use Arcp\Runtime\Session;
  *
  * @internal
  */
-final class Dispatcher
+final readonly class Dispatcher
 {
     public function __construct(
-        private readonly ARCPRuntime $runtime,
-        private readonly LifecycleHandler $lifecycle,
-        private readonly ToolInvocationHandler $toolInvocation,
-        private readonly SubscriptionRouter $subscriptions,
-        private readonly ArtifactDispatcher $artifacts,
+        private ARCPRuntime $runtime,
+        private LifecycleHandler $lifecycle,
+        private ToolInvocationHandler $toolInvocation,
+        private SubscriptionRouter $subscriptions,
+        private ArtifactDispatcher $artifacts,
     ) {
     }
 

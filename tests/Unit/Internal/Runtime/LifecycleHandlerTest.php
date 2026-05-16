@@ -5,10 +5,14 @@ declare(strict_types=1);
 namespace Arcp\Tests\Unit\Internal\Runtime;
 
 use Amp\Cancellation;
+
+use function Amp\delay;
+
 use Amp\Future;
 use Arcp\Auth\AuthRouter;
 use Arcp\Auth\NoneAuth;
 use Arcp\Client\ARCPClient;
+use Arcp\Client\Handlers\HumanInputHandler;
 use Arcp\Envelope\Envelope;
 use Arcp\Ids\JobId;
 use Arcp\Ids\LeaseId;
@@ -20,7 +24,11 @@ use Arcp\Messages\Control\Interrupt;
 use Arcp\Messages\Control\Nack;
 use Arcp\Messages\Control\Resume;
 use Arcp\Messages\Execution\ToolError;
+use Arcp\Messages\Execution\ToolInvoke;
+use Arcp\Messages\Human\HumanChoiceRequest;
+use Arcp\Messages\Human\HumanChoiceResponse;
 use Arcp\Messages\Human\HumanInputRequest;
+use Arcp\Messages\Human\HumanInputResponse;
 use Arcp\Messages\Permissions\LeaseExtended;
 use Arcp\Messages\Permissions\LeaseGranted;
 use Arcp\Messages\Permissions\LeaseRefresh;
@@ -93,7 +101,7 @@ final class LifecycleHandlerTest extends TestCase
             {
                 // Block until cancelled.
                 $cancellation?->throwIfRequested();
-                \Amp\delay(0.5, cancellation: $cancellation);
+                delay(0.5, cancellation: $cancellation);
                 return null;
             }
         });
@@ -102,7 +110,7 @@ final class LifecycleHandlerTest extends TestCase
         $invokeId = MessageId::random();
         $invokeEnv = new Envelope(
             id: $invokeId,
-            payload: new \Arcp\Messages\Execution\ToolInvoke('slow', []),
+            payload: new ToolInvoke('slow', []),
             timestamp: new \DateTimeImmutable(),
             sessionId: $client->session->sessionId,
         );
@@ -117,7 +125,7 @@ final class LifecycleHandlerTest extends TestCase
                 $jobId = $all[0]->id;
                 break;
             }
-            \Amp\delay(0.01);
+            delay(0.01);
         }
         self::assertInstanceOf(JobId::class, $jobId);
 
@@ -162,29 +170,29 @@ final class LifecycleHandlerTest extends TestCase
             #[\Override]
             public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
             {
-                \Amp\delay(0.4, cancellation: $cancellation);
+                delay(0.4, cancellation: $cancellation);
                 return null;
             }
         });
 
         // Capture HumanInputRequest envelopes by overriding the human handler.
         $sawHumanInput = false;
-        $client->humanInputHandler = new class ($sawHumanInput) implements \Arcp\Client\Handlers\HumanInputHandler {
+        $client->humanInputHandler = new class ($sawHumanInput) implements HumanInputHandler {
             public function __construct(public bool &$saw)
             {
             }
 
             #[\Override]
-            public function onInputRequest(\Arcp\Messages\Human\HumanInputRequest $req): \Arcp\Messages\Human\HumanInputResponse
+            public function onInputRequest(HumanInputRequest $req): HumanInputResponse
             {
                 $this->saw = true;
-                return new \Arcp\Messages\Human\HumanInputResponse(['note' => 'k'], 'user', new \DateTimeImmutable());
+                return new HumanInputResponse(['note' => 'k'], 'user', new \DateTimeImmutable());
             }
 
             #[\Override]
-            public function onChoiceRequest(\Arcp\Messages\Human\HumanChoiceRequest $req): \Arcp\Messages\Human\HumanChoiceResponse
+            public function onChoiceRequest(HumanChoiceRequest $req): HumanChoiceResponse
             {
-                return new \Arcp\Messages\Human\HumanChoiceResponse(
+                return new HumanChoiceResponse(
                     $req->options[0]['id'] ?? '0',
                     'user',
                     new \DateTimeImmutable(),
@@ -196,7 +204,7 @@ final class LifecycleHandlerTest extends TestCase
         $invokeId = MessageId::random();
         $client->session->transport->send(new Envelope(
             id: $invokeId,
-            payload: new \Arcp\Messages\Execution\ToolInvoke('slow', []),
+            payload: new ToolInvoke('slow', []),
             timestamp: new \DateTimeImmutable(),
             sessionId: $client->session->sessionId,
         ));
@@ -210,7 +218,7 @@ final class LifecycleHandlerTest extends TestCase
                 $jobId = $all[0]->id;
                 break;
             }
-            \Amp\delay(0.01);
+            delay(0.01);
         }
         self::assertInstanceOf(JobId::class, $jobId);
 
@@ -226,7 +234,7 @@ final class LifecycleHandlerTest extends TestCase
         self::assertInstanceOf(Ack::class, $response);
 
         // Give the HumanInputRequest a moment to arrive at the client.
-        \Amp\delay(0.05);
+        delay(0.05);
         self::assertTrue($sawHumanInput, 'expected human input request to arrive at the client');
 
         $client->close();
@@ -307,7 +315,7 @@ final class LifecycleHandlerTest extends TestCase
         $msgId = MessageId::random();
         $env = new Envelope(
             id: $msgId,
-            payload: new LeaseRefresh($lease->leaseId, null),
+            payload: new LeaseRefresh($lease->leaseId),
             timestamp: new \DateTimeImmutable(),
             sessionId: $client->session->sessionId,
         );

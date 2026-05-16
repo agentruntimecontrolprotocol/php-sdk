@@ -25,11 +25,11 @@ use Arcp\Version;
  *
  * @internal
  */
-final class SubscriptionRouter
+final readonly class SubscriptionRouter
 {
     public function __construct(
-        private readonly ARCPRuntime $runtime,
-        private readonly LifecycleHandler $lifecycle,
+        private ARCPRuntime $runtime,
+        private LifecycleHandler $lifecycle,
     ) {
     }
 

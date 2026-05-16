@@ -12,6 +12,7 @@ use Arcp\Errors\PermissionDeniedException;
 use Arcp\Ids\LeaseId;
 use Arcp\Messages\Permissions\LeaseGranted;
 use Arcp\Runtime\LeaseManager;
+use Arcp\Runtime\LeaseScope;
 use PHPUnit\Framework\TestCase;
 
 final class LeaseManagerTest extends TestCase
@@ -75,7 +76,7 @@ final class LeaseManagerTest extends TestCase
         $this->expectException(PermissionDeniedException::class);
         $mgr->ensureUsable(
             $lease->leaseId,
-            new \Arcp\Runtime\LeaseScope('permission.write', 'resource:DIFFERENT', 'op'),
+            new LeaseScope('permission.write', 'resource:DIFFERENT', 'op'),
         );
     }
 

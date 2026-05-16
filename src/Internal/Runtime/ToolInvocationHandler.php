@@ -36,17 +36,11 @@ use Arcp\Store\IdempotencyRecord;
  *
  * @internal
  */
-final class ToolInvocationHandler
+final readonly class ToolInvocationHandler
 {
-    /** @var \Closure(string): ?ToolHandler */
-    private readonly \Closure $resolveTool;
-
     /** @param \Closure(string): ?ToolHandler $resolveTool */
-    public function __construct(
-        private readonly ARCPRuntime $runtime,
-        \Closure $resolveTool,
-    ) {
-        $this->resolveTool = $resolveTool;
+    public function __construct(private ARCPRuntime $runtime, private \Closure $resolveTool)
+    {
     }
 
     public function handle(Session $session, Envelope $env, ToolInvoke $msg): void

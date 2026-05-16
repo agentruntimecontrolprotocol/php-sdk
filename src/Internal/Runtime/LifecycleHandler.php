@@ -38,9 +38,9 @@ use Arcp\Runtime\SessionState;
  *
  * @internal
  */
-final class LifecycleHandler
+final readonly class LifecycleHandler
 {
-    public function __construct(private readonly ARCPRuntime $runtime)
+    public function __construct(private ARCPRuntime $runtime)
     {
     }
 

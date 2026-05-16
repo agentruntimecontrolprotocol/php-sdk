@@ -12,6 +12,7 @@ use Arcp\Envelope\Envelope;
 use Arcp\Errors\PermissionDeniedException;
 use Arcp\Ids\MessageId;
 use Arcp\Messages\Control\Ack;
+use Arcp\Messages\Control\Nack;
 use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\Capabilities;
 use Arcp\Messages\Session\PeerInfo;
@@ -79,7 +80,7 @@ final class SubscriptionRouterTest extends TestCase
         );
         $client->session->transport->send($env);
         $response = $client->pending->awaitResponse($msgId, 5.0);
-        self::assertInstanceOf(\Arcp\Messages\Control\Nack::class, $response);
+        self::assertInstanceOf(Nack::class, $response);
         self::assertSame('INVALID_ARGUMENT', $response->error->code);
 
         $client->close();

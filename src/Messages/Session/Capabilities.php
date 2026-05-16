@@ -52,7 +52,7 @@ final readonly class Capabilities
         }
     }
 
-    private const KNOWN_KEYS = [
+    private const array KNOWN_KEYS = [
         'streaming', 'durable_jobs', 'checkpoints', 'binary_streams', 'agent_handoff',
         'human_input', 'artifacts', 'subscriptions', 'scheduled_jobs', 'interrupt',
         'anonymous', 'heartbeat_interval_seconds', 'heartbeat_recovery',

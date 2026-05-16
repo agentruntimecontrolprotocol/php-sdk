@@ -20,11 +20,11 @@ use Arcp\Runtime\Session;
  *
  * @internal
  */
-final class ArtifactDispatcher
+final readonly class ArtifactDispatcher
 {
     public function __construct(
-        private readonly ARCPRuntime $runtime,
-        private readonly LifecycleHandler $lifecycle,
+        private ARCPRuntime $runtime,
+        private LifecycleHandler $lifecycle,
     ) {
     }
 

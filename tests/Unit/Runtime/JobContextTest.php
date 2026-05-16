@@ -29,7 +29,7 @@ final class JobContextTest extends TestCase
         [$serverT, $clientT] = MemoryTransport::pair();
         $serverFuture = $runtime->serveAsync($serverT);
         $client = new ARCPClient($clientT);
-        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(anonymous: true, streaming: true));
+        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(streaming: true, anonymous: true));
         return [$runtime, $client, $serverFuture];
     }
 

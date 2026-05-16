@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Arcp\Tests\Unit\Internal\Runtime;
 
+use Arcp\Auth\AuthRouter;
+use Arcp\Auth\NoneAuth;
 use Arcp\Client\ARCPClient;
 use Arcp\Errors\UnauthenticatedException;
 use Arcp\Errors\UnimplementedException;
@@ -106,7 +108,7 @@ final class HandshakeNegotiatorTest extends TestCase
     {
         // AuthRouter does not register mtls scheme; mtls is reserved -> UnimplementedException.
         $runtime = new ARCPRuntime(
-            authRouter: new \Arcp\Auth\AuthRouter([new \Arcp\Auth\NoneAuth()]),
+            authRouter: new AuthRouter([new NoneAuth()]),
         );
         [$serverT, $clientT] = MemoryTransport::pair();
         $serverFuture = $runtime->serveAsync($serverT);
