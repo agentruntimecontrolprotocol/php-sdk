@@ -6,6 +6,7 @@ namespace Arcp\Internal\Runtime;
 
 use Amp\Cancellation;
 use Arcp\Envelope\Envelope;
+use Arcp\Envelope\MessageType;
 use Arcp\Errors\ARCPException;
 use Arcp\Errors\ErrorPayload;
 use Arcp\Errors\InternalException;
@@ -111,33 +112,69 @@ final class Dispatcher
         ) {
             return;
         }
+        if ($this->routeLifecycle($session, $env, $msg)) {
+            return;
+        }
+        if ($this->routeWork($session, $env, $msg)) {
+            return;
+        }
+        $this->routeFallback($session, $env, $msg);
+    }
 
+    private function routeLifecycle(Session $session, Envelope $env, MessageType $msg): bool
+    {
         match (true) {
             $msg instanceof Ping => $this->lifecycle->handlePing($session, $env, $msg),
             $msg instanceof Pong, $msg instanceof Ack => null,
             $msg instanceof SessionClose => $this->lifecycle->handleSessionClose($session),
-            $msg instanceof ToolInvoke => $this->toolInvocation->handle($session, $env, $msg),
             $msg instanceof Cancel => $this->lifecycle->handleCancel($session, $env, $msg),
             $msg instanceof Interrupt => $this->lifecycle->handleInterrupt($session, $env, $msg),
+            $msg instanceof Resume => $this->lifecycle->handleResume($session, $env, $msg),
+            $msg instanceof LeaseRefresh
+                => $this->lifecycle->handleLeaseRefresh($session, $env, $msg),
+            default => null,
+        };
+        return $msg instanceof Ping
+            || $msg instanceof Pong
+            || $msg instanceof Ack
+            || $msg instanceof SessionClose
+            || $msg instanceof Cancel
+            || $msg instanceof Interrupt
+            || $msg instanceof Resume
+            || $msg instanceof LeaseRefresh;
+    }
+
+    private function routeWork(Session $session, Envelope $env, MessageType $msg): bool
+    {
+        match (true) {
+            $msg instanceof ToolInvoke => $this->toolInvocation->handle($session, $env, $msg),
             $msg instanceof Subscribe => $this->subscriptions->subscribe($session, $env, $msg),
             $msg instanceof Unsubscribe => $this->subscriptions->unsubscribe($session, $env),
             $msg instanceof ArtifactPut => $this->artifacts->put($session, $env, $msg),
             $msg instanceof ArtifactFetch => $this->artifacts->fetch($session, $env, $msg),
             $msg instanceof ArtifactRelease => $this->artifacts->release($session, $env, $msg),
-            $msg instanceof Resume => $this->lifecycle->handleResume($session, $env, $msg),
-            $msg instanceof LeaseRefresh
-                => $this->lifecycle->handleLeaseRefresh($session, $env, $msg),
-            // Unimplemented surfaces — nack with UNIMPLEMENTED.
-            $msg instanceof JobSchedule, $msg instanceof WorkflowStart,
-            $msg instanceof AgentDelegate, $msg instanceof AgentHandoff
-                => $this->lifecycle->nack(
-                    $session,
-                    $env,
-                    'UNIMPLEMENTED',
-                    'feature deferred to v0.2',
-                ),
-            // Pong, ack, etc. with no waiter: silently drop.
-            default => $this->runtime->logger->debug('unhandled message', ['type' => $msg::class]),
+            default => null,
         };
+        return $msg instanceof ToolInvoke
+            || $msg instanceof Subscribe
+            || $msg instanceof Unsubscribe
+            || $msg instanceof ArtifactPut
+            || $msg instanceof ArtifactFetch
+            || $msg instanceof ArtifactRelease;
+    }
+
+    private function routeFallback(Session $session, Envelope $env, MessageType $msg): void
+    {
+        if (
+            $msg instanceof JobSchedule
+            || $msg instanceof WorkflowStart
+            || $msg instanceof AgentDelegate
+            || $msg instanceof AgentHandoff
+        ) {
+            $this->lifecycle->nack($session, $env, 'UNIMPLEMENTED', 'feature deferred to v0.2');
+            return;
+        }
+        // Pong, ack, etc. with no waiter: silently drop.
+        $this->runtime->logger->debug('unhandled message', ['type' => $msg::class]);
     }
 }

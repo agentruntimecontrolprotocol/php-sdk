@@ -6,21 +6,15 @@ namespace Arcp\Internal\Client;
 
 use Arcp\Client\Handlers\HumanInputHandler;
 use Arcp\Client\Handlers\PermissionHandler;
-use Arcp\Clock\ClockInterface;
 use Arcp\Envelope\Envelope;
 use Arcp\Envelope\MessageType;
 use Arcp\Envelope\Priority;
 use Arcp\Ids\MessageId;
 use Arcp\Ids\SubscriptionId;
-use Arcp\Json\EnvelopeSerializer;
 use Arcp\Messages\Human\HumanChoiceRequest;
 use Arcp\Messages\Human\HumanInputRequest;
 use Arcp\Messages\Permissions\PermissionRequest;
 use Arcp\Messages\Subscriptions\SubscribeEvent;
-use Arcp\Runtime\PendingRegistry;
-use Arcp\Runtime\Session;
-use Arcp\Transport\Transport;
-use Psr\Log\LoggerInterface;
 
 /**
  * Dispatches inbound envelopes for {@see \Arcp\Client\ARCPClient}.
@@ -39,12 +33,7 @@ final class ResponseRouter
     private array $pendingSubscriptionEvents = [];
 
     public function __construct(
-        private readonly Transport $transport,
-        private readonly Session $session,
-        private readonly PendingRegistry $pending,
-        private readonly EnvelopeSerializer $serializer,
-        private readonly ClockInterface $clock,
-        private readonly LoggerInterface $logger,
+        private readonly ResponseRouterDeps $deps,
         private readonly HumanHandlers $handlers,
     ) {
     }
@@ -70,7 +59,7 @@ final class ResponseRouter
 
         if (
             $env->correlationId instanceof MessageId
-            && $this->pending->resolve($env->correlationId, $msg)
+            && $this->deps->pending->resolve($env->correlationId, $msg)
         ) {
             return;
         }
@@ -92,9 +81,9 @@ final class ResponseRouter
         }
         $key = (string) $sid;
         try {
-            $inner = $this->serializer->envelopeFromArray($msg->event);
+            $inner = $this->deps->serializer->envelopeFromArray($msg->event);
         } catch (\Throwable $e) {
-            $this->logger->warning(
+            $this->deps->logger->warning(
                 'subscription decode error',
                 ['error' => $e->getMessage()],
             );
@@ -137,12 +126,12 @@ final class ResponseRouter
 
     private function sendReply(Envelope $inbound, MessageType $payload, Priority $priority): void
     {
-        $this->transport->send(new Envelope(
+        $this->deps->transport->send(new Envelope(
             id: MessageId::random(),
             payload: $payload,
-            timestamp: $this->clock->now(),
+            timestamp: $this->deps->clock->now(),
             priority: $priority,
-            sessionId: $this->session->sessionId,
+            sessionId: $this->deps->session->sessionId,
             jobId: $inbound->jobId,
             traceId: $inbound->traceId,
             correlationId: $inbound->id,
@@ -161,7 +150,7 @@ final class ResponseRouter
             try {
                 $onEvent($bufferedEnv);
             } catch (\Throwable $e) {
-                $this->logger->warning(
+                $this->deps->logger->warning(
                     'subscription callback error during drain',
                     ['error' => $e->getMessage()],
                 );
@@ -178,7 +167,7 @@ final class ResponseRouter
         try {
             $subscriber($inner);
         } catch (\Throwable $e) {
-            $this->logger->warning(
+            $this->deps->logger->warning(
                 'subscription handler error',
                 ['error' => $e->getMessage()],
             );

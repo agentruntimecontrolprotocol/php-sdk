@@ -49,19 +49,19 @@ final class LeaseManager
         return $lease;
     }
 
-    public function ensureUsable(
-        LeaseId $id,
-        string $permission,
-        string $resource,
-        string $operation,
-    ): LeaseGranted {
+    public function ensureUsable(LeaseId $id, LeaseScope $scope): LeaseGranted
+    {
         $lease = $this->get($id);
         if (
-            $lease->permission !== $permission
-            || $lease->resource !== $resource
-            || $lease->operation !== $operation
+            $lease->permission !== $scope->permission
+            || $lease->resource !== $scope->resource
+            || $lease->operation !== $scope->operation
         ) {
-            throw new PermissionDeniedException($permission, $resource, 'lease scope mismatch');
+            throw new PermissionDeniedException(
+                $scope->permission,
+                $scope->resource,
+                'lease scope mismatch',
+            );
         }
         return $lease;
     }

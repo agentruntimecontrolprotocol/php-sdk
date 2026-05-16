@@ -37,31 +37,27 @@ final class ArtifactStore
     ) {
     }
 
-    public function put(
-        Session $session,
-        string $mediaType,
-        string $bytes,
-        ?int $retentionSeconds = null,
-    ): ArtifactRef {
+    public function put(Session $session, ArtifactBlob $blob): ArtifactRef
+    {
         $sessionId = (string) (
             $session->sessionId
             ?? throw new InvalidArgumentException('session has no id')
         );
-        $retention = $retentionSeconds ?? $this->defaultRetentionSeconds;
+        $retention = $blob->retentionSeconds ?? $this->defaultRetentionSeconds;
         $retention = min($retention, $this->maxRetentionSeconds);
         $id = ArtifactId::random();
         $expiresAt = $this->clock->now()->modify('+' . $retention . ' seconds');
         $ref = new ArtifactRef(
             artifactId: $id,
             uri: 'arcp://session/' . $sessionId . '/artifact/' . $id->value,
-            mediaType: $mediaType,
-            size: \strlen($bytes),
-            sha256: hash('sha256', $bytes),
+            mediaType: $blob->mediaType,
+            size: \strlen($blob->bytes),
+            sha256: hash('sha256', $blob->bytes),
             expiresAt: $expiresAt,
         );
         $this->artifacts[(string) $id] = [
             'ref' => $ref,
-            'bytes' => $bytes,
+            'bytes' => $blob->bytes,
             'session_key' => $sessionId,
         ];
         return $ref;

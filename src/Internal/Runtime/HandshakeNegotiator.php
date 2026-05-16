@@ -52,15 +52,15 @@ final class HandshakeNegotiator
             $session->state = SessionState::Rejected;
             return;
         }
-        $open = $env->payload;
-        if (!$this->verifyCapabilities($session, $env->id, $open->capabilities)) {
+        $ctx = new SessionOpenContext($session, $env->id, $env->payload);
+        if (!$this->verifyCapabilities($session, $env->id, $ctx->open->capabilities)) {
             return;
         }
-        $principal = $this->authenticate($session, $env->id, $open);
+        $principal = $this->authenticate($ctx);
         if ($principal === null) {
             return;
         }
-        $this->acceptSession($session, $env->id, $open, $principal);
+        $this->acceptSession($ctx, $principal);
     }
 
     private function verifyCapabilities(
@@ -86,77 +86,69 @@ final class HandshakeNegotiator
      * (in which case the session state has already been moved to
      * {@see SessionState::Rejected} and a reject envelope sent).
      */
-    private function authenticate(
-        Session $session,
-        MessageId $envId,
-        SessionOpen $open,
-    ): ?string {
+    private function authenticate(SessionOpenContext $ctx): ?string
+    {
         $router = $this->authRouter;
         if (!$router instanceof AuthRouter) {
-            return $this->authenticateAnonymous($session, $envId, $open);
+            return $this->authenticateAnonymous($ctx);
         }
-        return $this->authenticateWithRouter($session, $envId, $open, $router);
+        return $this->authenticateWithRouter($ctx, $router);
     }
 
-    private function authenticateAnonymous(
-        Session $session,
-        MessageId $envId,
-        SessionOpen $open,
-    ): ?string {
+    private function authenticateAnonymous(SessionOpenContext $ctx): ?string
+    {
+        $open = $ctx->open;
         // No auth router: allow `none` if anonymous capability is requested.
         if ($open->auth->scheme !== 'none' || !$open->capabilities->anonymous) {
             $this->lifecycle->sendNoSession(
-                $session,
+                $ctx->session,
                 new SessionUnauthenticated(new ErrorPayload(
                     'UNAUTHENTICATED',
                     'no auth router configured',
                 )),
-                $envId,
+                $ctx->envId,
             );
-            $session->state = SessionState::Rejected;
+            $ctx->session->state = SessionState::Rejected;
             return null;
         }
         return $open->client->principal ?? 'anonymous';
     }
 
     private function authenticateWithRouter(
-        Session $session,
-        MessageId $envId,
-        SessionOpen $open,
+        SessionOpenContext $ctx,
         AuthRouter $router,
     ): ?string {
+        $open = $ctx->open;
         try {
             $result = $router->verify($open->auth, $open->client);
         } catch (UnimplementedException $e) {
             $this->lifecycle->sendNoSession(
-                $session,
+                $ctx->session,
                 new SessionRejected(new ErrorPayload('UNIMPLEMENTED', $e->getMessage())),
-                $envId,
+                $ctx->envId,
             );
-            $session->state = SessionState::Rejected;
+            $ctx->session->state = SessionState::Rejected;
             return null;
         }
         if (!$result->accepted) {
             $this->lifecycle->sendNoSession(
-                $session,
+                $ctx->session,
                 new SessionUnauthenticated(new ErrorPayload(
                     'UNAUTHENTICATED',
                     $result->error ?? 'authentication failed',
                 )),
-                $envId,
+                $ctx->envId,
             );
-            $session->state = SessionState::Rejected;
+            $ctx->session->state = SessionState::Rejected;
             return null;
         }
         return $result->principal ?? 'anonymous';
     }
 
-    private function acceptSession(
-        Session $session,
-        MessageId $envId,
-        SessionOpen $open,
-        string $principal,
-    ): void {
+    private function acceptSession(SessionOpenContext $ctx, string $principal): void
+    {
+        $session = $ctx->session;
+        $open = $ctx->open;
         $session->sessionId = SessionId::random();
         $session->principal = $principal;
         $session->peerInfo = $open->client;
@@ -173,7 +165,7 @@ final class HandshakeNegotiator
             capabilities: $this->runtime->advertisedCapabilities,
             runtime: $this->runtimeIdentity ?? $defaultRuntime,
         );
-        $this->runtime->emit($session, $accepted, ['correlation_id' => $envId]);
+        $this->runtime->emit($session, $accepted, ['correlation_id' => $ctx->envId]);
     }
 
     /**

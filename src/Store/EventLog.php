@@ -79,8 +79,14 @@ final readonly class EventLog
                 :timestamp, :payload_json
             )
             SQL);
+        $stmt->execute($this->bindRow($env));
+        return $stmt->rowCount() === 1;
+    }
 
-        $stmt->execute([
+    /** @return array<string, string|int|null> */
+    private function bindRow(Envelope $env): array
+    {
+        return [
             ':message_id' => (string) $env->id,
             ':session_id' => $env->sessionId instanceof SessionId ? (string) $env->sessionId : null,
             ':job_id' => $env->jobId instanceof JobId ? (string) $env->jobId : null,
@@ -96,9 +102,7 @@ final readonly class EventLog
                 : null,
             ':timestamp' => $env->timestamp->format(\DateTimeInterface::RFC3339_EXTENDED),
             ':payload_json' => $this->serializer->encode($env),
-        ]);
-
-        return $stmt->rowCount() === 1;
+        ];
     }
 
     /** True iff the message id has already been logged. */
@@ -162,13 +166,9 @@ final readonly class EventLog
      * retention horizon (RFC §6.4). Returns the previously cached outcome
      * message id if one exists, else `null`.
      */
-    public function rememberIdempotent(
-        string $principal,
-        string $idempotencyKey,
-        string $outcomeMessageId,
-        \DateTimeImmutable $expiresAt,
-    ): ?string {
-        $existing = $this->lookupIdempotent($principal, $idempotencyKey);
+    public function rememberIdempotent(IdempotencyRecord $record): ?string
+    {
+        $existing = $this->lookupIdempotent($record->principal, $record->idempotencyKey);
         if ($existing !== null) {
             return $existing;
         }
@@ -178,10 +178,10 @@ final readonly class EventLog
             VALUES (:principal, :key, :outcome, :expires)
             SQL);
         $stmt->execute([
-            ':principal' => $principal,
-            ':key' => $idempotencyKey,
-            ':outcome' => $outcomeMessageId,
-            ':expires' => $expiresAt->format(\DateTimeInterface::RFC3339_EXTENDED),
+            ':principal' => $record->principal,
+            ':key' => $record->idempotencyKey,
+            ':outcome' => $record->outcomeMessageId,
+            ':expires' => $record->expiresAt->format(\DateTimeInterface::RFC3339_EXTENDED),
         ]);
         return null;
     }

@@ -46,12 +46,7 @@ final class SubscriptionManager
         $sub = new Subscription(
             SubscriptionId::random(),
             $session,
-            $sessionIds,
-            $traceIds,
-            $jobIds,
-            $streamIds,
-            $types,
-            $min,
+            new SubscriptionFilter($sessionIds, $traceIds, $jobIds, $streamIds, $types, $min),
         );
         $this->byId[(string) $sub->id] = $sub;
         return $sub;

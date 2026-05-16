@@ -11,6 +11,7 @@ use Arcp\Messages\Artifacts\ArtifactPut;
 use Arcp\Messages\Artifacts\ArtifactRelease;
 use Arcp\Messages\Control\Ack;
 use Arcp\Runtime\ARCPRuntime;
+use Arcp\Runtime\ArtifactBlob;
 use Arcp\Runtime\Session;
 
 /**
@@ -41,9 +42,7 @@ final class ArtifactDispatcher
         }
         $ref = $this->runtime->artifacts->put(
             $session,
-            $msg->mediaType,
-            $bytes,
-            $msg->retentionSeconds,
+            new ArtifactBlob($msg->mediaType, $bytes, $msg->retentionSeconds),
         );
         $this->runtime->emit($session, $ref, ['correlation_id' => $env->id]);
     }

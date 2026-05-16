@@ -73,7 +73,10 @@ final class LeaseManagerTest extends TestCase
         $lease = $this->makeLease($clock);
         $mgr->register($lease);
         $this->expectException(PermissionDeniedException::class);
-        $mgr->ensureUsable($lease->leaseId, 'permission.write', 'resource:DIFFERENT', 'op');
+        $mgr->ensureUsable(
+            $lease->leaseId,
+            new \Arcp\Runtime\LeaseScope('permission.write', 'resource:DIFFERENT', 'op'),
+        );
     }
 
     public function testExtendUpdatesExpiry(): void

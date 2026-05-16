@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Arcp\Runtime;
 
 use Arcp\Envelope\Envelope;
-use Arcp\Envelope\Priority;
 use Arcp\Ids\JobId;
 use Arcp\Ids\SessionId;
 use Arcp\Ids\StreamId;
@@ -15,58 +14,46 @@ use Arcp\Ids\TraceId;
 /**
  * Compiled subscription filter (RFC §13.2). All conditions are AND'd;
  * arrays within a field are OR'd. `min_priority` lifts to a numeric
- * weight via {@see Priority::weight()}.
+ * weight via {@see \Arcp\Envelope\Priority::weight()}.
  */
 final readonly class Subscription
 {
-    /**
-     * @param list<string> $sessionIds
-     * @param list<string> $traceIds
-     * @param list<string> $jobIds
-     * @param list<string> $streamIds
-     * @param list<string> $types
-     */
     public function __construct(
         public SubscriptionId $id,
         public Session $session,
-        public array $sessionIds = [],
-        public array $traceIds = [],
-        public array $jobIds = [],
-        public array $streamIds = [],
-        public array $types = [],
-        public Priority $minPriority = Priority::Low,
+        public SubscriptionFilter $filter = new SubscriptionFilter(),
     ) {
     }
 
     public function matches(Envelope $env): bool
     {
-        if ($this->sessionIds !== [] && (
+        if ($this->filter->sessionIds !== [] && (
             !$env->sessionId instanceof SessionId
-            || !\in_array((string) $env->sessionId, $this->sessionIds, true)
+            || !\in_array((string) $env->sessionId, $this->filter->sessionIds, true)
         )) {
             return false;
         }
-        if ($this->traceIds !== [] && (
+        if ($this->filter->traceIds !== [] && (
             !$env->traceId instanceof TraceId
-            || !\in_array((string) $env->traceId, $this->traceIds, true)
+            || !\in_array((string) $env->traceId, $this->filter->traceIds, true)
         )) {
             return false;
         }
-        if ($this->jobIds !== [] && (
+        if ($this->filter->jobIds !== [] && (
             !$env->jobId instanceof JobId
-            || !\in_array((string) $env->jobId, $this->jobIds, true)
+            || !\in_array((string) $env->jobId, $this->filter->jobIds, true)
         )) {
             return false;
         }
-        if ($this->streamIds !== [] && (
+        if ($this->filter->streamIds !== [] && (
             !$env->streamId instanceof StreamId
-            || !\in_array((string) $env->streamId, $this->streamIds, true)
+            || !\in_array((string) $env->streamId, $this->filter->streamIds, true)
         )) {
             return false;
         }
-        if ($this->types !== [] && !\in_array($env->type(), $this->types, true)) {
+        if ($this->filter->types !== [] && !\in_array($env->type(), $this->filter->types, true)) {
             return false;
         }
-        return $env->priority->weight() >= $this->minPriority->weight();
+        return $env->priority->weight() >= $this->filter->minPriority->weight();
     }
 }

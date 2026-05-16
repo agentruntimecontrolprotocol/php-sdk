@@ -66,6 +66,9 @@ final class ARCPRuntime
     private readonly HandshakeNegotiator $handshake;
     private readonly Dispatcher $dispatcher;
 
+    /**
+     * @size-check-suppress public BC; superseded by RuntimeConfig (use ::withConfig).
+     */
     public function __construct(
         ?MessageTypeRegistry $registry = null,
         ?EventLog $eventLog = null,
@@ -105,6 +108,25 @@ final class ARCPRuntime
             $tools,
             new SubscriptionRouter($this, $lifecycle),
             new ArtifactDispatcher($this, $lifecycle),
+        );
+    }
+
+    /**
+     * Bundle the optional dependencies into a {@see RuntimeConfig} and
+     * construct the runtime from it. Equivalent to calling the constructor
+     * with named arguments; kept additively to make future BC easier.
+     */
+    public static function withConfig(RuntimeConfig $config): self
+    {
+        return new self(
+            $config->registry,
+            $config->eventLog,
+            $config->clock,
+            $config->logger,
+            $config->capabilities,
+            $config->authRouter,
+            $config->extensions,
+            $config->runtimeIdentity,
         );
     }
 

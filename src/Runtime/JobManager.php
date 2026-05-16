@@ -6,10 +6,9 @@ namespace Arcp\Runtime;
 
 use Amp\CancelledException;
 use Amp\DeferredCancellation;
+use Arcp\Envelope\Envelope;
 use Arcp\Errors\NotFoundException;
 use Arcp\Ids\JobId;
-use Arcp\Ids\MessageId;
-use Arcp\Ids\TraceId;
 
 /**
  * Tracks in-flight jobs and drives the state machine (RFC §10.2). Each
@@ -21,17 +20,12 @@ final class JobManager
     /** @var array<string, Job> */
     private array $jobs = [];
 
-    public function start(
-        Session $session,
-        MessageId $invocationId,
-        ?TraceId $traceId,
-        string $tool,
-    ): Job {
+    public function start(Session $session, Envelope $invocation, string $tool): Job
+    {
         $job = new Job(
             id: JobId::random(),
             session: $session,
-            invocationId: $invocationId,
-            traceId: $traceId,
+            invocation: $invocation,
             cancellation: new DeferredCancellation(),
             tool: $tool,
         );

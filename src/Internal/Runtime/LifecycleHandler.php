@@ -103,7 +103,7 @@ final class LifecycleHandler
             expiresAt: $this->runtime->clock->now()->modify('+5 minutes'),
         ), [
             'job_id' => $job->id,
-            'trace_id' => $job->traceId,
+            'trace_id' => $job->invocation->traceId,
             'priority' => Priority::High,
         ]);
         $this->runtime->emit($session, new Ack(), ['correlation_id' => $env->id]);

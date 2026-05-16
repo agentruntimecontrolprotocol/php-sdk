@@ -14,6 +14,7 @@ use Arcp\Ids\LeaseId;
 use Arcp\Ids\SessionId;
 use Arcp\Ids\StreamId;
 use Arcp\Ids\TraceId;
+use Arcp\Internal\Runtime\PermissionRequestSpec;
 use Arcp\Messages\Artifacts\ArtifactRef;
 use Arcp\Messages\Execution\JobHeartbeat;
 use Arcp\Messages\Execution\JobProgress;
@@ -100,9 +101,16 @@ final class JobContext
             'trace_id' => $this->traceId,
             'stream_id' => $sid,
         ]);
-
         $sequence = 0;
-        $emitChunk = function (
+        return [$sid, $this->makeChunkEmitter($sid, $sequence), $this->makeCloser($sid, $sequence)];
+    }
+
+    /**
+     * @return \Closure(string|array<string, mixed>|null, ?string=): void
+     */
+    private function makeChunkEmitter(StreamId $sid, int &$sequence): \Closure
+    {
+        return function (
             string|array|null $body,
             ?string $extraContentType = null,
         ) use ($sid, &$sequence): void {
@@ -125,14 +133,18 @@ final class JobContext
                 'stream_id' => $sid,
             ]);
         };
-        $closeFn = function (?int $totalChunks = null) use ($sid, &$sequence): void {
+    }
+
+    /** @return \Closure(?int=): void */
+    private function makeCloser(StreamId $sid, int &$sequence): \Closure
+    {
+        return function (?int $totalChunks = null) use ($sid, &$sequence): void {
             $this->runtime->emit($this->session, new StreamClose($totalChunks ?? $sequence), [
                 'job_id' => $this->jobId,
                 'trace_id' => $this->traceId,
                 'stream_id' => $sid,
             ]);
         };
-        return [$sid, $emitChunk, $closeFn];
     }
 
     /**
@@ -141,6 +153,8 @@ final class JobContext
      *
      * @param array<string, mixed> $responseSchema
      * @param array<string, mixed>|null $default
+     *
+     * @size-check-suppress public BC; mirrors RFC §12.1 human.input.request.
      */
     public function requestHumanInput(
         string $prompt,
@@ -176,7 +190,11 @@ final class JobContext
         }
     }
 
-    /** @param list<array{id: string, label: string}> $options */
+    /**
+     * @param list<array{id: string, label: string}> $options
+     *
+     * @size-check-suppress public BC; mirrors RFC §12.1 human.choice.request.
+     */
     public function requestHumanChoice(
         string $prompt,
         array $options,
@@ -198,6 +216,9 @@ final class JobContext
         return $response;
     }
 
+    /**
+     * @size-check-suppress public BC; protocol-level permission request fields.
+     */
     public function requestPermission(
         string $permission,
         string $resource,
@@ -206,12 +227,27 @@ final class JobContext
         int $requestedLeaseSeconds = 300,
         ?Cancellation $cancellation = null,
     ): LeaseId {
-        $req = new PermissionRequest(
+        $spec = new PermissionRequestSpec(
             $permission,
             $resource,
             $operation,
             $reason,
             $requestedLeaseSeconds,
+        );
+        $response = $this->awaitPermissionDecision($spec, $cancellation);
+        return $this->registerGrantedLease($spec, $response);
+    }
+
+    private function awaitPermissionDecision(
+        PermissionRequestSpec $spec,
+        ?Cancellation $cancellation,
+    ): PermissionGrant {
+        $req = new PermissionRequest(
+            $spec->permission,
+            $spec->resource,
+            $spec->operation,
+            $spec->reason,
+            $spec->requestedLeaseSeconds,
         );
         $msgId = $this->runtime->emit($this->session, $req, [
             'job_id' => $this->jobId,
@@ -220,27 +256,34 @@ final class JobContext
         ]);
         $response = $this->runtime->pending->awaitResponse(
             $msgId,
-            (float) $requestedLeaseSeconds + 60.0,
+            (float) $spec->requestedLeaseSeconds + 60.0,
             $cancellation,
         );
         if ($response instanceof PermissionDeny) {
-            throw new PermissionDeniedException($permission, $resource);
+            throw new PermissionDeniedException($spec->permission, $spec->resource);
         }
         if (!$response instanceof PermissionGrant) {
             throw new PermissionDeniedException(
-                $permission,
-                $resource,
+                $spec->permission,
+                $spec->resource,
                 'unexpected response type ' . $response::class,
             );
         }
+        return $response;
+    }
+
+    private function registerGrantedLease(
+        PermissionRequestSpec $spec,
+        PermissionGrant $response,
+    ): LeaseId {
         $leaseId = LeaseId::random();
-        $leaseSeconds = $response->leaseSeconds ?? $requestedLeaseSeconds;
+        $leaseSeconds = $response->leaseSeconds ?? $spec->requestedLeaseSeconds;
         $expiresAt = $this->runtime->clock->now()->modify('+' . $leaseSeconds . ' seconds');
         $granted = new LeaseGranted(
             leaseId: $leaseId,
-            permission: $permission,
-            resource: $resource,
-            operation: $operation,
+            permission: $spec->permission,
+            resource: $spec->resource,
+            operation: $spec->operation,
             expiresAt: $expiresAt,
         );
         $this->runtime->leases->register($granted);
@@ -258,9 +301,7 @@ final class JobContext
     ): ArtifactRef {
         return $this->runtime->artifacts->put(
             $this->session,
-            $mediaType,
-            $bytes,
-            $retentionSeconds,
+            new ArtifactBlob($mediaType, $bytes, $retentionSeconds),
         );
     }
 

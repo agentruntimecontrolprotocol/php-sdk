@@ -52,33 +52,41 @@ final readonly class SessionAccepted extends MessageType
             throw new InvalidArgumentException('capabilities must be object');
         }
         /** @var array<string, mixed> $caps */
-        $runtime = null;
-        if (isset($data['runtime'])) {
-            if (!\is_array($data['runtime'])) {
-                throw new InvalidArgumentException('runtime must be object');
-            }
-            /** @var array<string, mixed> $runtimeData */
-            $runtimeData = $data['runtime'];
-            $runtime = PeerInfo::fromArray($runtimeData);
-        }
-
-        $leaseExp = null;
-        if (isset($data['lease'])) {
-            if (!\is_array($data['lease']) || !isset($data['lease']['expires_at'])) {
-                throw new InvalidArgumentException('lease.expires_at missing');
-            }
-            $expStr = $data['lease']['expires_at'];
-            if (!\is_string($expStr)) {
-                throw new InvalidArgumentException('lease.expires_at must be string');
-            }
-            $leaseExp = new \DateTimeImmutable($expStr);
-        }
-
         return new self(
             SessionId::fromJson($sid),
             Capabilities::fromArray($caps),
-            $runtime,
-            $leaseExp,
+            self::extractRuntime($data),
+            self::extractLeaseExpiry($data),
         );
+    }
+
+    /** @param array<string, mixed> $data */
+    private static function extractRuntime(array $data): ?PeerInfo
+    {
+        if (!isset($data['runtime'])) {
+            return null;
+        }
+        if (!\is_array($data['runtime'])) {
+            throw new InvalidArgumentException('runtime must be object');
+        }
+        /** @var array<string, mixed> $runtimeData */
+        $runtimeData = $data['runtime'];
+        return PeerInfo::fromArray($runtimeData);
+    }
+
+    /** @param array<string, mixed> $data */
+    private static function extractLeaseExpiry(array $data): ?\DateTimeImmutable
+    {
+        if (!isset($data['lease'])) {
+            return null;
+        }
+        if (!\is_array($data['lease']) || !isset($data['lease']['expires_at'])) {
+            throw new InvalidArgumentException('lease.expires_at missing');
+        }
+        $expStr = $data['lease']['expires_at'];
+        if (!\is_string($expStr)) {
+            throw new InvalidArgumentException('lease.expires_at must be string');
+        }
+        return new \DateTimeImmutable($expStr);
     }
 }

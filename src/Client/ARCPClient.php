@@ -16,8 +16,6 @@ use Arcp\Envelope\Envelope;
 use Arcp\Envelope\MessageCatalog;
 use Arcp\Envelope\MessageTypeRegistry;
 use Arcp\Errors\InvalidArgumentException;
-use Arcp\Errors\UnauthenticatedException;
-use Arcp\Errors\UnimplementedException;
 use Arcp\Ids\ArtifactId;
 use Arcp\Ids\IdempotencyKey;
 use Arcp\Ids\JobId;
@@ -25,8 +23,10 @@ use Arcp\Ids\MessageId;
 use Arcp\Ids\SubscriptionId;
 use Arcp\Ids\TraceId;
 use Arcp\Internal\Client\ErrorMapper;
+use Arcp\Internal\Client\HandshakeClient;
 use Arcp\Internal\Client\HumanHandlers;
 use Arcp\Internal\Client\ResponseRouter;
+use Arcp\Internal\Client\ResponseRouterDeps;
 use Arcp\Json\EnvelopeSerializer;
 use Arcp\Messages\Artifacts\ArtifactFetch;
 use Arcp\Messages\Artifacts\ArtifactPut;
@@ -43,9 +43,6 @@ use Arcp\Messages\Session\Capabilities;
 use Arcp\Messages\Session\PeerInfo;
 use Arcp\Messages\Session\SessionAccepted;
 use Arcp\Messages\Session\SessionClose;
-use Arcp\Messages\Session\SessionOpen;
-use Arcp\Messages\Session\SessionRejected;
-use Arcp\Messages\Session\SessionUnauthenticated;
 use Arcp\Messages\Subscriptions\Subscribe;
 use Arcp\Messages\Subscriptions\SubscribeAccepted;
 use Arcp\Messages\Subscriptions\Unsubscribe;
@@ -79,10 +76,14 @@ final class ARCPClient
 
     private readonly ResponseRouter $router;
     private readonly ErrorMapper $errorMapper;
+    private readonly HandshakeClient $handshake;
 
     /** @var Future<mixed>|null */
     private ?Future $readLoop = null;
 
+    /**
+     * @size-check-suppress public BC; superseded by ClientConfig (use ::withConfig).
+     */
     public function __construct(
         Transport $transport,
         ?MessageTypeRegistry $registry = null,
@@ -98,13 +99,16 @@ final class ARCPClient
         $this->clock = $clock ?? new SystemClock();
         $this->logger = $logger ?? new NullLogger();
         $this->errorMapper = new ErrorMapper();
+        $this->handshake = new HandshakeClient($this->session, $this->clock);
         $this->router = new ResponseRouter(
-            $this->session->transport,
-            $this->session,
-            $this->pending,
-            $this->serializer,
-            $this->clock,
-            $this->logger,
+            new ResponseRouterDeps(
+                $this->session->transport,
+                $this->session,
+                $this->pending,
+                $this->serializer,
+                $this->clock,
+                $this->logger,
+            ),
             new HumanHandlers(
                 fn (): ?HumanInputHandler => $this->humanInputHandler,
                 fn (): ?PermissionHandler => $this->permissionHandler,
@@ -113,7 +117,26 @@ final class ARCPClient
     }
 
     /**
+     * Construct the client from a {@see ClientConfig} parameter object.
+     * Equivalent to calling the constructor with named arguments; kept
+     * additively to make future BC easier.
+     */
+    public static function withConfig(ClientConfig $config): self
+    {
+        return new self(
+            $config->transport,
+            $config->registry,
+            $config->clock,
+            $config->logger,
+            $config->humanInputHandler,
+            $config->permissionHandler,
+        );
+    }
+
+    /**
      * Send `session.open`, await `session.accepted`, and start the read-loop.
+     *
+     * @size-check-suppress public BC; mirrors RFC §8.3 session.open shape.
      */
     public function open(
         Auth $auth,
@@ -121,11 +144,11 @@ final class ARCPClient
         Capabilities $capabilities,
         ?Cancellation $cancellation = null,
     ): SessionAccepted {
-        $env = $this->prepareSessionOpen($auth, $client, $capabilities);
+        $env = $this->handshake->prepareEnvelope($auth, $client, $capabilities);
         $this->session->state = SessionState::Opening;
         $this->session->transport->send($env);
 
-        $accepted = $this->awaitHandshakeResponse($cancellation);
+        $accepted = $this->handshake->awaitResponse($cancellation);
         $this->session->sessionId = $accepted->sessionId;
         $this->session->capabilities = $accepted->capabilities;
         $this->session->peerInfo = $accepted->runtime;
@@ -136,43 +159,12 @@ final class ARCPClient
         return $accepted;
     }
 
-    private function prepareSessionOpen(
-        Auth $auth,
-        PeerInfo $client,
-        Capabilities $capabilities,
-    ): Envelope {
-        return new Envelope(
-            id: MessageId::random(),
-            payload: new SessionOpen($auth, $client, $capabilities),
-            timestamp: $this->clock->now(),
-        );
-    }
-
-    private function awaitHandshakeResponse(?Cancellation $cancellation): SessionAccepted
-    {
-        $response = $this->session->transport->receive($cancellation);
-        if (!$response instanceof Envelope) {
-            throw new UnauthenticatedException('handshake aborted: peer closed');
-        }
-        $msg = $response->payload;
-        if ($msg instanceof SessionUnauthenticated) {
-            throw new UnauthenticatedException($msg->error->message);
-        }
-        if ($msg instanceof SessionRejected) {
-            throw new UnimplementedException('§7', $msg->error->message);
-        }
-        if (!$msg instanceof SessionAccepted) {
-            throw new UnauthenticatedException(
-                'handshake: unexpected response ' . $response->type(),
-            );
-        }
-        return $msg;
-    }
-
     /**
      * Invoke a tool synchronously; returns the wire `ToolResult`/throws.
      *
      * @param array<string, mixed> $arguments
+     *
+     * @size-check-suppress public BC; tool.invoke options are RFC §10 wire fields.
      */
     public function invokeTool(
         string $tool,
@@ -210,6 +202,8 @@ final class ARCPClient
      *
      * @param array<string, mixed> $filter
      * @param \Closure(Envelope): void $onEvent Called with the unwrapped envelope.
+     *
+     * @size-check-suppress public BC; subscribe is the RFC §13 entry-point.
      */
     public function subscribe(
         array $filter,

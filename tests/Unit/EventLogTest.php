@@ -106,11 +106,15 @@ final class EventLogTest extends TestCase
     {
         $expires = $this->clock->now()->modify('+1 hour');
         self::assertNull(
-            $this->log->rememberIdempotent('alice', 'refund-1', 'msg_outcome_a', $expires),
+            $this->log->rememberIdempotent(
+                new \Arcp\Store\IdempotencyRecord('alice', 'refund-1', 'msg_outcome_a', $expires),
+            ),
         );
         self::assertSame(
             'msg_outcome_a',
-            $this->log->rememberIdempotent('alice', 'refund-1', 'msg_outcome_b', $expires),
+            $this->log->rememberIdempotent(
+                new \Arcp\Store\IdempotencyRecord('alice', 'refund-1', 'msg_outcome_b', $expires),
+            ),
             'a second remember with the same key returns the prior outcome, not the new one',
         );
         self::assertSame('msg_outcome_a', $this->log->lookupIdempotent('alice', 'refund-1'));
@@ -119,7 +123,9 @@ final class EventLogTest extends TestCase
     public function testIdempotencyCacheExpiresLazily(): void
     {
         $expires = $this->clock->now()->modify('+5 seconds');
-        $this->log->rememberIdempotent('alice', 'refund-1', 'msg_x', $expires);
+        $this->log->rememberIdempotent(
+            new \Arcp\Store\IdempotencyRecord('alice', 'refund-1', 'msg_x', $expires),
+        );
 
         $this->clock->advance(10);
 
@@ -129,15 +135,21 @@ final class EventLogTest extends TestCase
         );
         // After lazy GC, a fresh remember succeeds with the new outcome.
         $newExpires = $this->clock->now()->modify('+1 hour');
-        self::assertNull($this->log->rememberIdempotent('alice', 'refund-1', 'msg_y', $newExpires));
+        self::assertNull($this->log->rememberIdempotent(
+            new \Arcp\Store\IdempotencyRecord('alice', 'refund-1', 'msg_y', $newExpires),
+        ));
         self::assertSame('msg_y', $this->log->lookupIdempotent('alice', 'refund-1'));
     }
 
     public function testIdempotencyCachePartitionsByPrincipal(): void
     {
         $expires = $this->clock->now()->modify('+1 hour');
-        $this->log->rememberIdempotent('alice', 'refund-1', 'msg_a', $expires);
-        $this->log->rememberIdempotent('bob', 'refund-1', 'msg_b', $expires);
+        $this->log->rememberIdempotent(
+            new \Arcp\Store\IdempotencyRecord('alice', 'refund-1', 'msg_a', $expires),
+        );
+        $this->log->rememberIdempotent(
+            new \Arcp\Store\IdempotencyRecord('bob', 'refund-1', 'msg_b', $expires),
+        );
 
         self::assertSame('msg_a', $this->log->lookupIdempotent('alice', 'refund-1'));
         self::assertSame('msg_b', $this->log->lookupIdempotent('bob', 'refund-1'));

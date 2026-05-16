@@ -6,9 +6,8 @@ namespace Arcp\Runtime;
 
 use Amp\DeferredCancellation;
 use Amp\Future;
+use Arcp\Envelope\Envelope;
 use Arcp\Ids\JobId;
-use Arcp\Ids\MessageId;
-use Arcp\Ids\TraceId;
 
 /**
  * Tracking record for an in-flight job (RFC §10). Owns the cancellation
@@ -26,8 +25,7 @@ final class Job
     public function __construct(
         public readonly JobId $id,
         public readonly Session $session,
-        public readonly MessageId $invocationId,
-        public readonly ?TraceId $traceId,
+        public readonly Envelope $invocation,
         public readonly DeferredCancellation $cancellation,
         public readonly string $tool,
     ) {
