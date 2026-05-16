@@ -1,0 +1,321 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Arcp\Tests\Unit\Internal\Runtime;
+
+use Amp\Cancellation;
+use Amp\Future;
+use Arcp\Auth\AuthRouter;
+use Arcp\Auth\NoneAuth;
+use Arcp\Client\ARCPClient;
+use Arcp\Envelope\Envelope;
+use Arcp\Ids\JobId;
+use Arcp\Ids\LeaseId;
+use Arcp\Ids\MessageId;
+use Arcp\Messages\Control\Ack;
+use Arcp\Messages\Control\Cancel;
+use Arcp\Messages\Control\CancelAccepted;
+use Arcp\Messages\Control\Interrupt;
+use Arcp\Messages\Control\Nack;
+use Arcp\Messages\Control\Resume;
+use Arcp\Messages\Execution\ToolError;
+use Arcp\Messages\Human\HumanInputRequest;
+use Arcp\Messages\Permissions\LeaseExtended;
+use Arcp\Messages\Permissions\LeaseGranted;
+use Arcp\Messages\Permissions\LeaseRefresh;
+use Arcp\Messages\Session\Auth;
+use Arcp\Messages\Session\Capabilities;
+use Arcp\Messages\Session\PeerInfo;
+use Arcp\Runtime\ARCPRuntime;
+use Arcp\Runtime\JobContext;
+use Arcp\Runtime\ToolHandler;
+use Arcp\Transport\MemoryTransport;
+use PHPUnit\Framework\TestCase;
+
+final class LifecycleHandlerTest extends TestCase
+{
+    /** @return array{0: ARCPRuntime, 1: ARCPClient, 2: Future<mixed>} */
+    private function pair(): array
+    {
+        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
+        [$serverT, $clientT] = MemoryTransport::pair();
+        $serverFuture = $runtime->serveAsync($serverT);
+        $client = new ARCPClient($clientT);
+        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(anonymous: true));
+        return [$runtime, $client, $serverFuture];
+    }
+
+    public function testCancelNonJobTargetIsNackedAsUnimplemented(): void
+    {
+        [, $client, $serverFuture] = $this->pair();
+        $msgId = MessageId::random();
+        $env = new Envelope(
+            id: $msgId,
+            payload: new Cancel('stream', 'str_anything'),
+            timestamp: new \DateTimeImmutable(),
+            sessionId: $client->session->sessionId,
+        );
+        $client->session->transport->send($env);
+        $response = $client->pending->awaitResponse($msgId, 5.0);
+        self::assertInstanceOf(Nack::class, $response);
+        self::assertSame('UNIMPLEMENTED', $response->error->code);
+
+        $client->close();
+        $serverFuture->await();
+    }
+
+    public function testCancelUnknownJobReturnsFailedPrecondition(): void
+    {
+        [, $client, $serverFuture] = $this->pair();
+        $msgId = MessageId::random();
+        $env = new Envelope(
+            id: $msgId,
+            payload: new Cancel('job', 'job_does_not_exist'),
+            timestamp: new \DateTimeImmutable(),
+            sessionId: $client->session->sessionId,
+        );
+        $client->session->transport->send($env);
+        $response = $client->pending->awaitResponse($msgId, 5.0);
+        self::assertInstanceOf(Nack::class, $response);
+        self::assertSame('FAILED_PRECONDITION', $response->error->code);
+
+        $client->close();
+        $serverFuture->await();
+    }
+
+    public function testCancelLiveJobYieldsCancelAccepted(): void
+    {
+        [$runtime, $client, $serverFuture] = $this->pair();
+        $runtime->registerTool('slow', new class () implements ToolHandler {
+            #[\Override]
+            public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
+            {
+                // Block until cancelled.
+                $cancellation?->throwIfRequested();
+                \Amp\delay(0.5, cancellation: $cancellation);
+                return null;
+            }
+        });
+
+        // Start the slow tool without awaiting the result.
+        $invokeId = MessageId::random();
+        $invokeEnv = new Envelope(
+            id: $invokeId,
+            payload: new \Arcp\Messages\Execution\ToolInvoke('slow', []),
+            timestamp: new \DateTimeImmutable(),
+            sessionId: $client->session->sessionId,
+        );
+        $client->session->transport->send($invokeEnv);
+
+        // Wait for the runtime to register the job.
+        $jobId = null;
+        $deadline = microtime(true) + 2.0;
+        while (microtime(true) < $deadline) {
+            $all = $runtime->jobs->all();
+            if ($all !== []) {
+                $jobId = $all[0]->id;
+                break;
+            }
+            \Amp\delay(0.01);
+        }
+        self::assertInstanceOf(JobId::class, $jobId);
+
+        $cancelId = MessageId::random();
+        $cancelEnv = new Envelope(
+            id: $cancelId,
+            payload: new Cancel('job', (string) $jobId, 'user_aborted', 5000),
+            timestamp: new \DateTimeImmutable(),
+            sessionId: $client->session->sessionId,
+        );
+        $client->session->transport->send($cancelEnv);
+        $response = $client->pending->awaitResponse($cancelId, 5.0);
+        self::assertInstanceOf(CancelAccepted::class, $response);
+
+        $client->close();
+        $serverFuture->await();
+    }
+
+    public function testInterruptOnUnknownJobIsNacked(): void
+    {
+        [, $client, $serverFuture] = $this->pair();
+        $msgId = MessageId::random();
+        $env = new Envelope(
+            id: $msgId,
+            payload: new Interrupt('job', 'job_missing', 'help me'),
+            timestamp: new \DateTimeImmutable(),
+            sessionId: $client->session->sessionId,
+        );
+        $client->session->transport->send($env);
+        $response = $client->pending->awaitResponse($msgId, 5.0);
+        self::assertInstanceOf(Nack::class, $response);
+        self::assertSame('FAILED_PRECONDITION', $response->error->code);
+
+        $client->close();
+        $serverFuture->await();
+    }
+
+    public function testInterruptOnLiveJobEmitsHumanInputAndAck(): void
+    {
+        [$runtime, $client, $serverFuture] = $this->pair();
+        $runtime->registerTool('slow', new class () implements ToolHandler {
+            #[\Override]
+            public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
+            {
+                \Amp\delay(0.4, cancellation: $cancellation);
+                return null;
+            }
+        });
+
+        // Capture HumanInputRequest envelopes by overriding the human handler.
+        $sawHumanInput = false;
+        $client->humanInputHandler = new class ($sawHumanInput) implements \Arcp\Client\Handlers\HumanInputHandler {
+            public function __construct(public bool &$saw)
+            {
+            }
+
+            #[\Override]
+            public function onInputRequest(\Arcp\Messages\Human\HumanInputRequest $req): \Arcp\Messages\Human\HumanInputResponse
+            {
+                $this->saw = true;
+                return new \Arcp\Messages\Human\HumanInputResponse(['note' => 'k'], 'user', new \DateTimeImmutable());
+            }
+
+            #[\Override]
+            public function onChoiceRequest(\Arcp\Messages\Human\HumanChoiceRequest $req): \Arcp\Messages\Human\HumanChoiceResponse
+            {
+                return new \Arcp\Messages\Human\HumanChoiceResponse(
+                    $req->options[0]['id'] ?? '0',
+                    'user',
+                    new \DateTimeImmutable(),
+                );
+            }
+        };
+
+        // Start tool.
+        $invokeId = MessageId::random();
+        $client->session->transport->send(new Envelope(
+            id: $invokeId,
+            payload: new \Arcp\Messages\Execution\ToolInvoke('slow', []),
+            timestamp: new \DateTimeImmutable(),
+            sessionId: $client->session->sessionId,
+        ));
+
+        // Wait for job registration.
+        $jobId = null;
+        $deadline = microtime(true) + 2.0;
+        while (microtime(true) < $deadline) {
+            $all = $runtime->jobs->all();
+            if ($all !== []) {
+                $jobId = $all[0]->id;
+                break;
+            }
+            \Amp\delay(0.01);
+        }
+        self::assertInstanceOf(JobId::class, $jobId);
+
+        // Send interrupt.
+        $intId = MessageId::random();
+        $client->session->transport->send(new Envelope(
+            id: $intId,
+            payload: new Interrupt('job', (string) $jobId, ''),
+            timestamp: new \DateTimeImmutable(),
+            sessionId: $client->session->sessionId,
+        ));
+        $response = $client->pending->awaitResponse($intId, 5.0);
+        self::assertInstanceOf(Ack::class, $response);
+
+        // Give the HumanInputRequest a moment to arrive at the client.
+        \Amp\delay(0.05);
+        self::assertTrue($sawHumanInput, 'expected human input request to arrive at the client');
+
+        $client->close();
+        $serverFuture->await();
+    }
+
+    public function testResumeWithCheckpointIsNackedAsUnimplemented(): void
+    {
+        [, $client, $serverFuture] = $this->pair();
+        $msgId = MessageId::random();
+        $env = new Envelope(
+            id: $msgId,
+            payload: new Resume(checkpointId: 'ckpt_abc'),
+            timestamp: new \DateTimeImmutable(),
+            sessionId: $client->session->sessionId,
+        );
+        $client->session->transport->send($env);
+        $response = $client->pending->awaitResponse($msgId, 5.0);
+        self::assertInstanceOf(Nack::class, $response);
+        self::assertSame('UNIMPLEMENTED', $response->error->code);
+
+        $client->close();
+        $serverFuture->await();
+    }
+
+    public function testResumeWithUnknownAfterMessageIdYieldsDataLossToolError(): void
+    {
+        [, $client, $serverFuture] = $this->pair();
+
+        $msgId = MessageId::random();
+        $env = new Envelope(
+            id: $msgId,
+            payload: new Resume(afterMessageId: 'msg_definitely_not_in_log'),
+            timestamp: new \DateTimeImmutable(),
+            sessionId: $client->session->sessionId,
+        );
+        $client->session->transport->send($env);
+        $response = $client->pending->awaitResponse($msgId, 5.0);
+        self::assertInstanceOf(ToolError::class, $response);
+        self::assertSame('DATA_LOSS', $response->error->code);
+
+        $client->close();
+        $serverFuture->await();
+    }
+
+    public function testLeaseRefreshUnknownLeaseIsNacked(): void
+    {
+        [, $client, $serverFuture] = $this->pair();
+
+        $msgId = MessageId::random();
+        $env = new Envelope(
+            id: $msgId,
+            payload: new LeaseRefresh(new LeaseId('lease_unknown'), 300),
+            timestamp: new \DateTimeImmutable(),
+            sessionId: $client->session->sessionId,
+        );
+        $client->session->transport->send($env);
+        $response = $client->pending->awaitResponse($msgId, 5.0);
+        self::assertInstanceOf(Nack::class, $response);
+        self::assertSame('NOT_FOUND', $response->error->code);
+
+        $client->close();
+        $serverFuture->await();
+    }
+
+    public function testLeaseRefreshNullExtendUsesDefault(): void
+    {
+        [$runtime, $client, $serverFuture] = $this->pair();
+        $lease = new LeaseGranted(
+            new LeaseId('lease_pre'),
+            'p',
+            'r',
+            'op',
+            new \DateTimeImmutable()->modify('+1 hour'),
+        );
+        $runtime->leases->register($lease);
+
+        $msgId = MessageId::random();
+        $env = new Envelope(
+            id: $msgId,
+            payload: new LeaseRefresh($lease->leaseId, null),
+            timestamp: new \DateTimeImmutable(),
+            sessionId: $client->session->sessionId,
+        );
+        $client->session->transport->send($env);
+        $response = $client->pending->awaitResponse($msgId, 5.0);
+        self::assertInstanceOf(LeaseExtended::class, $response);
+
+        $client->close();
+        $serverFuture->await();
+    }
+}
