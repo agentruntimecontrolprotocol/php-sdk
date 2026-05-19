@@ -1,0 +1,66 @@
+// ARCP PHP SDK architecture stack (dark)
+digraph PhpSdkArchitecture {
+  rankdir=TB; bgcolor="transparent"; compound=true; fontname="Helvetica";
+  splines=ortho; nodesep=0.32; ranksep=0.45; pad="0.35,0.25";
+
+  node [shape=box, style="rounded,filled", fillcolor="#334155", color="#475569",
+        fontname="Helvetica", fontsize=11, fontcolor="#F1F5F9",
+        margin="0.22,0.11", penwidth=1.0];
+  edge [fontname="Helvetica", fontsize=9, fontcolor="#94A3B8", color="#64748B",
+        penwidth=1.1, arrowsize=0.75, arrowhead=vee];
+
+  Capability [
+    label=<<FONT POINT-SIZE="12"><B>Capability Layer</B></FONT><BR/><FONT POINT-SIZE="9" COLOR="#CBD5E1">MCP compatible</FONT>>,
+    fillcolor="#3B82F6", color="#2563EB", fontcolor="white", penwidth=1.4
+  ];
+
+  subgraph cluster_runtime {
+    label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="0" CELLSPACING="0"><TR><TD COLSPAN="3" HEIGHT="8"></TD></TR><TR><TD WIDTH="8"></TD><TD><FONT POINT-SIZE="12"><B>ARCP Runtime Layer</B></FONT></TD><TD WIDTH="8"></TD></TR></TABLE>>;
+    style="rounded,filled";
+    fillcolor="#0F172A"; color="#334155";
+    fontname="Helvetica"; fontcolor="#94A3B8";
+    margin=14; labeljust=l; penwidth=1.0;
+
+    Runtime [
+      label=<<FONT POINT-SIZE="12"><B>ARCPRuntime</B></FONT>>,
+      fillcolor="#F59E0B", color="#D97706", fontcolor="white", penwidth=1.4
+    ];
+
+    Identity      [label="Identity & Sessions"];
+    Streams       [label="Streams"];
+    Jobs          [label="Jobs"];
+    Subscriptions [label="Subscriptions"];
+    Events        [label="Events"];
+    Permissions   [label="Permissions & Leases"];
+    Artifacts     [label="Artifacts"];
+    Tracing       [label="Tracing & Metrics"];
+  }
+
+  subgraph cluster_transport {
+    label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="0" CELLSPACING="0"><TR><TD COLSPAN="3" HEIGHT="8"></TD></TR><TR><TD WIDTH="8"></TD><TD><FONT POINT-SIZE="12"><B>Transport Layer</B></FONT></TD><TD WIDTH="8"></TD></TR></TABLE>>;
+    style="rounded,filled";
+    fillcolor="#1E293B"; color="#334155";
+    fontname="Helvetica"; fontcolor="#94A3B8";
+    margin=14; labeljust=l; penwidth=1.0;
+
+    Ws    [label="WebSocket"];
+    Stdio [label="stdio"];
+
+    Ws -> Stdio [style=invis];
+    { rank=same; Ws; Stdio; }
+  }
+
+  edge [color="#94A3B8", penwidth=1.2];
+  Capability -> Runtime [lhead=cluster_runtime];
+  Runtime    -> Ws      [lhead=cluster_transport];
+
+  edge [color="#475569", penwidth=1.0];
+  Runtime -> Identity;
+  Runtime -> Streams;
+  Runtime -> Jobs;
+  Runtime -> Subscriptions;
+  Runtime -> Events;
+  Runtime -> Permissions;
+  Runtime -> Artifacts;
+  Runtime -> Tracing;
+}

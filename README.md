@@ -37,27 +37,10 @@ bin/arcp serve --host 127.0.0.1 --port 8765
 
 ## Architecture
 
-```
-+-----------------------------+
-| Capability Layer            |
-| (MCP Compatible)            |
-+-----------------------------+
-+-----------------------------+
-| ARCP Runtime Layer          |
-| - Identity & Sessions       |
-| - Streams                   |
-| - Jobs                      |
-| - Subscriptions             |
-| - Events                    |
-| - Permissions & Leases      |
-| - Artifacts                 |
-| - Tracing & Metrics         |
-+-----------------------------+
-+-----------------------------+
-| Transport Layer             |
-| WebSocket / stdio (mandatory)|
-+-----------------------------+
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/architecture-dark.svg">
+  <img alt="ARCP PHP SDK architecture — Capability Layer (MCP-compatible) on top of the ARCP Runtime Layer (identity/sessions, streams, jobs, subscriptions, events, permissions & leases, artifacts, tracing & metrics) on top of the Transport Layer (WebSocket / stdio)" src="docs/diagrams/architecture-light.svg">
+</picture>
 
 The runtime is `Arcp\Runtime\ARCPRuntime`; the client is
 `Arcp\Client\ARCPClient`. Both are async (Amp v3 + fibers) and both take a
