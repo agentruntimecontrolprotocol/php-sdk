@@ -1,6 +1,6 @@
 # ARCP PHP samples
 
-Fourteen single-purpose sample programs, each named for the protocol
+Eighteen single-purpose sample programs, each named for the protocol
 primitive it demonstrates. Mirrors the Python tree at
 `python-sdk/examples/` and the cross-language brief in
 `python-sdk/examples/SUBWORKER_BRIEF.md`.
@@ -12,7 +12,7 @@ primitive it demonstrates. Mirrors the Python tree at
 > stub modules (`agents.php`, `steps.php`, `cheap.php`, …) so the
 > protocol code in `main.php` is what you read.
 
-## The fourteen
+## The eighteen
 
 | Directory | Demonstrates | Spec |
 |---|---|---|
@@ -30,6 +30,10 @@ primitive it demonstrates. Mirrors the Python tree at
 | [`human_input/`](./human_input) | `human.input.request` fanned across phone/email/Slack; first-wins resolution. | §12 |
 | [`cancellation/`](./cancellation) | Cooperative `cancel` (terminate) vs `interrupt` (pause and ask). | §10.4–§10.5 |
 | [`mcp/`](./mcp) | ARCP runtime fronting an MCP server: `tool.invoke` → MCP `call_tool`. | §20 |
+| [`list_jobs/`](./list_jobs) | `session.list_jobs` read-only inventory with status/agent filtering. | §6.6 |
+| [`agent_versions/`](./agent_versions) | `name@version` resolution and missing-version errors. | §7.5, §12 |
+| [`result_chunk/`](./result_chunk) | Chunked terminal results assembled by the client. | §8.4 |
+| [`cost_budget/`](./cost_budget) | `cost.budget` counters decremented by `cost.*` metrics. | §9.6, §12 |
 
 ## Conventions
 

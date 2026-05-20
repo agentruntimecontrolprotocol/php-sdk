@@ -14,7 +14,7 @@ namespace Arcp;
 final class Version
 {
     /** Wire-protocol version understood by this implementation (RFC §6.1). */
-    public const string PROTOCOL_VERSION = '1.0';
+    public const string PROTOCOL_VERSION = '1.1';
 
     /** SemVer of this PHP SDK implementation. */
     public const string IMPL_VERSION = '0.1.0-dev';

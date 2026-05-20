@@ -20,14 +20,21 @@ final class JobManager
     /** @var array<string, Job> */
     private array $jobs = [];
 
-    public function start(Session $session, Envelope $invocation, string $tool): Job
-    {
+    public function start(
+        Session $session,
+        Envelope $invocation,
+        string $tool,
+        ?string $toolVersion = null,
+        ?CostBudget $budget = null,
+    ): Job {
         $job = new Job(
             id: JobId::random(),
             session: $session,
             invocation: $invocation,
             cancellation: new DeferredCancellation(),
             tool: $tool,
+            toolVersion: $toolVersion,
+            budget: $budget,
         );
         $this->jobs[(string) $job->id] = $job;
         return $job;

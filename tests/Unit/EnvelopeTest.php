@@ -106,7 +106,7 @@ final class EnvelopeTest extends TestCase
     public function testDecodeRejectsMissingType(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->newSerializer()->decode('{"arcp":"1.0","id":"a","timestamp":"2026-05-09T13:00:00Z","payload":{}}');
+        $this->newSerializer()->decode('{"arcp":"1.1","id":"a","timestamp":"2026-05-09T13:00:00Z","payload":{}}');
     }
 
     public function testDecodeRejectsUnknownTypeWithUnimplemented(): void
@@ -114,7 +114,7 @@ final class EnvelopeTest extends TestCase
         $serializer = $this->newSerializer();
         $this->expectException(UnimplementedException::class);
         $serializer->decode((string) json_encode([
-            'arcp' => '1.0',
+            'arcp' => '1.1',
             'id' => 'msg_x',
             'type' => 'totally.unknown',
             'timestamp' => '2026-05-09T13:00:00Z',
@@ -133,7 +133,7 @@ final class EnvelopeTest extends TestCase
         $serializer = $this->newSerializer();
         $this->expectException(InvalidArgumentException::class);
         $serializer->decode((string) json_encode([
-            'arcp' => '1.0',
+            'arcp' => '1.1',
             'id' => 'msg_x',
             'type' => 'event.emit',
             'timestamp' => 'definitely-not-rfc3339',
@@ -201,7 +201,7 @@ final class EnvelopeTest extends TestCase
     {
         $this->expectException(InvalidArgumentException::class);
         $this->newSerializer()->decode((string) json_encode([
-            'arcp' => '1.0',
+            'arcp' => '1.1',
             'id' => '',
             'type' => 'event.emit',
             'timestamp' => '2026-05-09T13:00:00Z',
@@ -213,7 +213,7 @@ final class EnvelopeTest extends TestCase
     {
         $this->expectException(InvalidArgumentException::class);
         $this->newSerializer()->decode((string) json_encode([
-            'arcp' => '1.0',
+            'arcp' => '1.1',
             'id' => 'msg_x',
             'type' => 'event.emit',
             'timestamp' => '2026-05-09T13:00:00Z',
@@ -226,7 +226,7 @@ final class EnvelopeTest extends TestCase
     {
         $this->expectException(InvalidArgumentException::class);
         $this->newSerializer()->decode((string) json_encode([
-            'arcp' => '1.0',
+            'arcp' => '1.1',
             'id' => 'msg_x',
             'type' => 'event.emit',
             'timestamp' => '2026-05-09T13:00:00Z',
@@ -241,7 +241,7 @@ final class EnvelopeTest extends TestCase
 
         $this->expectException(UnimplementedException::class);
         $serializer->decode((string) json_encode([
-            'arcp' => '1.0',
+            'arcp' => '1.1',
             'id' => 'msg_x',
             'type' => 'arcpx.acme.v1',
             'timestamp' => '2026-05-09T13:00:00Z',
@@ -259,7 +259,7 @@ final class EnvelopeTest extends TestCase
 
         $this->expectException(UnimplementedException::class);
         $serializer->decode((string) json_encode([
-            'arcp' => '1.0',
+            'arcp' => '1.1',
             'id' => 'msg_x',
             'type' => 'arcpx.unknown.v1',
             'timestamp' => '2026-05-09T13:00:00Z',

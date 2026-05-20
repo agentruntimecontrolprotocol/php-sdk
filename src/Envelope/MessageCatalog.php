@@ -31,6 +31,7 @@ use Arcp\Messages\Execution\JobHeartbeat;
 use Arcp\Messages\Execution\JobProgress;
 use Arcp\Messages\Execution\JobSchedule;
 use Arcp\Messages\Execution\JobStarted;
+use Arcp\Messages\Execution\ResultChunk;
 use Arcp\Messages\Execution\ToolError;
 use Arcp\Messages\Execution\ToolInvoke;
 use Arcp\Messages\Execution\ToolResult;
@@ -48,6 +49,8 @@ use Arcp\Messages\Permissions\LeaseRevoked;
 use Arcp\Messages\Permissions\PermissionDeny;
 use Arcp\Messages\Permissions\PermissionGrant;
 use Arcp\Messages\Permissions\PermissionRequest;
+use Arcp\Messages\Session\Jobs;
+use Arcp\Messages\Session\ListJobs;
 use Arcp\Messages\Session\SessionAccepted;
 use Arcp\Messages\Session\SessionAuthenticate;
 use Arcp\Messages\Session\SessionChallenge;
@@ -90,6 +93,8 @@ final class MessageCatalog
         SessionUnauthenticated::class,
         SessionRejected::class,
         SessionRefresh::class,
+        ListJobs::class,
+        Jobs::class,
         SessionEvicted::class,
         SessionClose::class,
         // Control
@@ -114,6 +119,7 @@ final class MessageCatalog
         JobProgress::class,
         JobHeartbeat::class,
         JobCheckpoint::class,
+        ResultChunk::class,
         JobCompleted::class,
         JobFailed::class,
         JobCancelled::class,

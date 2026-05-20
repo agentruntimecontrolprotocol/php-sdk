@@ -18,6 +18,7 @@ use Arcp\Internal\Runtime\PermissionRequestSpec;
 use Arcp\Messages\Artifacts\ArtifactRef;
 use Arcp\Messages\Execution\JobHeartbeat;
 use Arcp\Messages\Execution\JobProgress;
+use Arcp\Messages\Execution\ResultChunk;
 use Arcp\Messages\Human\HumanChoiceRequest;
 use Arcp\Messages\Human\HumanChoiceResponse;
 use Arcp\Messages\Human\HumanInputCancelled;
@@ -54,6 +55,21 @@ final class JobContext
     ) {
     }
 
+    public function emitResultChunk(
+        string $resultId,
+        string $data,
+        bool $more = true,
+        string $encoding = 'utf8',
+    ): void {
+        $job = $this->runtime->jobs->tryGet($this->jobId);
+        $seq = $job instanceof Job ? $job->nextResultChunkSeq($resultId) : 0;
+        $this->runtime->emit(
+            $this->session,
+            new ResultChunk($resultId, $seq, $data, $encoding, $more),
+            ['job_id' => $this->jobId, 'trace_id' => $this->traceId],
+        );
+    }
+
     public function reportProgress(int $percent, ?string $message = null): void
     {
         $this->runtime->emit($this->session, new JobProgress($percent, $message), [
@@ -74,6 +90,11 @@ final class JobContext
     /** @param array<string, bool|float|int|string> $dims */
     public function emitMetric(string $name, int|float $value, string $unit, array $dims = []): void
     {
+        $job = $this->runtime->jobs->tryGet($this->jobId);
+        $remaining = $job?->budget?->consume($name, $value, $unit);
+        if ($remaining !== null) {
+            $dims['budget_remaining'] = $remaining;
+        }
         $this->runtime->emit($this->session, new MetricEvent($name, $value, $unit, $dims), [
             'job_id' => $this->jobId,
             'trace_id' => $this->traceId,

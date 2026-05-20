@@ -27,6 +27,7 @@ use Arcp\Messages\Execution\JobSchedule;
 use Arcp\Messages\Execution\ToolInvoke;
 use Arcp\Messages\Execution\WorkflowStart;
 use Arcp\Messages\Permissions\LeaseRefresh;
+use Arcp\Messages\Session\ListJobs;
 use Arcp\Messages\Session\SessionClose;
 use Arcp\Messages\Subscriptions\Subscribe;
 use Arcp\Messages\Subscriptions\Unsubscribe;
@@ -47,6 +48,7 @@ final readonly class Dispatcher
         private ToolInvocationHandler $toolInvocation,
         private SubscriptionRouter $subscriptions,
         private ArtifactDispatcher $artifacts,
+        private JobListHandler $jobList,
     ) {
     }
 
@@ -148,6 +150,7 @@ final readonly class Dispatcher
     {
         match (true) {
             $msg instanceof ToolInvoke => $this->toolInvocation->handle($session, $env, $msg),
+            $msg instanceof ListJobs => $this->jobList->handle($session, $env, $msg),
             $msg instanceof Subscribe => $this->subscriptions->subscribe($session, $env, $msg),
             $msg instanceof Unsubscribe => $this->subscriptions->unsubscribe($session, $env),
             $msg instanceof ArtifactPut => $this->artifacts->put($session, $env, $msg),
@@ -156,6 +159,7 @@ final readonly class Dispatcher
             default => null,
         };
         return $msg instanceof ToolInvoke
+            || $msg instanceof ListJobs
             || $msg instanceof Subscribe
             || $msg instanceof Unsubscribe
             || $msg instanceof ArtifactPut

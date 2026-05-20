@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Arcp\Tests\Unit;
 
 use Arcp\Errors\AbortedException;
+use Arcp\Errors\AgentVersionNotAvailableException;
 use Arcp\Errors\AlreadyExistsException;
 use Arcp\Errors\ARCPException;
 use Arcp\Errors\BackpressureOverflowException;
+use Arcp\Errors\BudgetExhaustedException;
 use Arcp\Errors\CancelledException;
 use Arcp\Errors\DataLossException;
 use Arcp\Errors\DeadlineExceededException;
@@ -61,6 +63,9 @@ final class ErrorsTest extends TestCase
                 new \DateTimeImmutable('2026-01-01T00:00:00Z'),
             ),
             ErrorCode::LeaseRevoked->value       => new LeaseRevokedException(new LeaseId('l_x')),
+            ErrorCode::BudgetExhausted->value    => new BudgetExhaustedException('USD', '0'),
+            ErrorCode::AgentVersionNotAvailable->value
+                => new AgentVersionNotAvailableException('planner', '9.9.9'),
             ErrorCode::BackpressureOverflow->value => new BackpressureOverflowException('x'),
             ErrorCode::Unknown->value            => new UnknownException('weird.code'),
         ];

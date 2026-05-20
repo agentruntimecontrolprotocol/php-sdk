@@ -133,14 +133,21 @@ to keep the example self-contained:
 
 Topic guides under [docs/](docs/):
 
-- [docs/authentication.md](docs/authentication.md) — built-in schemes,
+- [docs/getting-started.md](docs/getting-started.md) — install and run
+  an in-process client/runtime demo.
+- [docs/architecture.md](docs/architecture.md) — PHP namespace layout
+  and runtime/client layering.
+- [docs/transports.md](docs/transports.md) — WebSocket, stdio, and
+  in-memory transports.
+- [docs/guides/auth.md](docs/guides/auth.md) — built-in schemes,
   AuthRouter wiring, custom schemes, failure semantics.
-- [docs/errors.md](docs/errors.md) — full exception hierarchy, retry
-  defaults, code-driven dispatch.
-- [docs/retries.md](docs/retries.md) — when to retry, backoff with
-  jitter, idempotency keys.
-- [docs/subscriptions.md](docs/subscriptions.md) — subscribe API,
-  filter shape, backfill markers, backpressure.
+- [docs/guides/errors.md](docs/guides/errors.md) — full exception
+  hierarchy, retry defaults, code-driven dispatch.
+- [docs/guides/jobs.md](docs/guides/jobs.md) — tool invocation, job
+  state, cancellation, budgets, and agent versions.
+- [docs/guides/job-events.md](docs/guides/job-events.md) — progress,
+  metrics, streams, subscriptions, and result chunks.
+- [docs/recipes.md](docs/recipes.md) — PHP recipes for common flows.
 
 ## Supported PHP versions
 

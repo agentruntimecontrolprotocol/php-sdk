@@ -21,10 +21,13 @@ use Arcp\Messages\Execution\JobStarted;
 use Arcp\Messages\Execution\ToolError;
 use Arcp\Messages\Execution\ToolInvoke;
 use Arcp\Messages\Execution\ToolResult;
+use Arcp\Runtime\AgentRef;
 use Arcp\Runtime\ARCPRuntime;
+use Arcp\Runtime\CostBudget;
 use Arcp\Runtime\Job;
 use Arcp\Runtime\JobContext;
 use Arcp\Runtime\JobState;
+use Arcp\Runtime\ResolvedTool;
 use Arcp\Runtime\Session;
 use Arcp\Runtime\ToolHandler;
 use Arcp\Store\IdempotencyRecord;
@@ -38,26 +41,32 @@ use Arcp\Store\IdempotencyRecord;
  */
 final readonly class ToolInvocationHandler
 {
-    /** @param \Closure(string): ?ToolHandler $resolveTool */
+    /** @param \Closure(AgentRef): ?ResolvedTool $resolveTool */
     public function __construct(private ARCPRuntime $runtime, private \Closure $resolveTool)
     {
     }
 
     public function handle(Session $session, Envelope $env, ToolInvoke $msg): void
     {
-        $handler = ($this->resolveTool)($msg->tool);
-        if (!$handler instanceof ToolHandler) {
+        $resolved = ($this->resolveTool)(AgentRef::parse($msg->tool));
+        if (!$resolved instanceof ResolvedTool) {
             $this->emitNotFound($session, $env, $msg->tool);
             return;
         }
         if ($this->handledByIdempotencyReplay($session, $env)) {
             return;
         }
-        $job = $this->runtime->jobs->start($session, $env, $msg->tool);
+        $job = $this->runtime->jobs->start(
+            $session,
+            $env,
+            $resolved->name,
+            $resolved->version,
+            CostBudget::fromInvocationArguments($msg->arguments),
+        );
         $this->emitJobAcceptedAndStarted($session, $env, $job);
         $this->runtime->jobs->transition($job, JobState::Running);
-        $job->future = async(function () use ($session, $env, $msg, $job, $handler): void {
-            $this->runHandler(new ToolJobContextSpec($session, $env, $msg, $job), $handler);
+        $job->future = async(function () use ($session, $env, $msg, $job, $resolved): void {
+            $this->runHandler(new ToolJobContextSpec($session, $env, $msg, $job), $resolved->handler);
         });
     }
 

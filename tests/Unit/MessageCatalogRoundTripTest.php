@@ -38,6 +38,7 @@ use Arcp\Messages\Execution\JobHeartbeat;
 use Arcp\Messages\Execution\JobProgress;
 use Arcp\Messages\Execution\JobSchedule;
 use Arcp\Messages\Execution\JobStarted;
+use Arcp\Messages\Execution\ResultChunk;
 use Arcp\Messages\Execution\ToolError;
 use Arcp\Messages\Execution\ToolInvoke;
 use Arcp\Messages\Execution\ToolResult;
@@ -57,6 +58,8 @@ use Arcp\Messages\Permissions\PermissionGrant;
 use Arcp\Messages\Permissions\PermissionRequest;
 use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\Capabilities;
+use Arcp\Messages\Session\Jobs;
+use Arcp\Messages\Session\ListJobs;
 use Arcp\Messages\Session\PeerInfo;
 use Arcp\Messages\Session\SessionAccepted;
 use Arcp\Messages\Session\SessionAuthenticate;
@@ -122,6 +125,13 @@ final class MessageCatalogRoundTripTest extends TestCase
         yield 'session.unauthenticated' => [new SessionUnauthenticated($err)];
         yield 'session.rejected' => [new SessionRejected($err)];
         yield 'session.refresh' => [new SessionRefresh($now->modify('+5 minutes'), 'token rotation')];
+        yield 'session.list_jobs' => [new ListJobs(['agent' => 'planner@1.0.0'], 10, 'job_prev')];
+        yield 'session.jobs' => [new Jobs('msg_req', [[
+            'job_id' => 'job_x',
+            'agent' => 'planner@1.0.0',
+            'status' => 'running',
+            'created_at' => '2026-05-09T12:00:00Z',
+        ]], null)];
         yield 'session.evicted' => [new SessionEvicted('idle timeout', 'IDLE')];
         yield 'session.close' => [new SessionClose('client_close')];
 
@@ -144,6 +154,7 @@ final class MessageCatalogRoundTripTest extends TestCase
         yield 'job.accepted' => [new JobAccepted('queued')];
         yield 'job.started' => [new JobStarted($now)];
         yield 'job.progress' => [new JobProgress(50, 'midway')];
+        yield 'job.result_chunk' => [new ResultChunk('res_x', 0, 'hello', 'utf8', true)];
         yield 'job.heartbeat' => [new JobHeartbeat(17, 60000, 'running')];
         yield 'job.checkpoint' => [new JobCheckpoint('chk_a', ['progress' => 50])];
         yield 'job.completed' => [new JobCompleted(['ok' => true])];
@@ -197,7 +208,7 @@ final class MessageCatalogRoundTripTest extends TestCase
 
         yield 'subscribe' => [new Subscribe(['types' => ['log']], 'msg_after')];
         yield 'subscribe.accepted' => [new SubscribeAccepted(new SubscriptionId('sub_x'))];
-        yield 'subscribe.event' => [new SubscribeEvent(['type' => 'log', 'arcp' => '1.0', 'id' => 'msg_inner', 'timestamp' => '2026-05-09T12:00:00Z', 'payload' => ['level' => 'info', 'message' => 'hi']])];
+        yield 'subscribe.event' => [new SubscribeEvent(['type' => 'log', 'arcp' => '1.1', 'id' => 'msg_inner', 'timestamp' => '2026-05-09T12:00:00Z', 'payload' => ['level' => 'info', 'message' => 'hi']])];
         yield 'unsubscribe' => [new Unsubscribe()];
         yield 'subscribe.closed' => [new SubscribeClosed('UNAVAILABLE', 'shutdown')];
 

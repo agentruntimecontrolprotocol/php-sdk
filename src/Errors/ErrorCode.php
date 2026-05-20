@@ -36,6 +36,8 @@ enum ErrorCode: string
     case HeartbeatLost = 'HEARTBEAT_LOST';
     case LeaseExpired = 'LEASE_EXPIRED';
     case LeaseRevoked = 'LEASE_REVOKED';
+    case BudgetExhausted = 'BUDGET_EXHAUSTED';
+    case AgentVersionNotAvailable = 'AGENT_VERSION_NOT_AVAILABLE';
     case BackpressureOverflow = 'BACKPRESSURE_OVERFLOW';
 
     /**

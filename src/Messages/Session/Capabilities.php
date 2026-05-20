@@ -20,6 +20,7 @@ final readonly class Capabilities
     /**
      * @param list<string> $extensions Advertised extension type-namespaces.
      * @param list<string> $binaryEncodings Per RFC §11.3 (`base64`, `sidecar`).
+     * @param list<string|array<string, mixed>> $agents Runtime agent inventory.
      * @param ExtraMap $extra
      *
      * @size-check-suppress Wire-shape DTO mapping to RFC §7.
@@ -40,6 +41,7 @@ final readonly class Capabilities
         public string $heartbeatRecovery = 'fail',
         public array $binaryEncodings = ['base64'],
         public array $extensions = [],
+        public array $agents = [],
         public ?int $artifactRetentionDefaultSeconds = null,
         public ?int $artifactRetentionMaxSeconds = null,
         public array $extra = [],
@@ -56,7 +58,7 @@ final readonly class Capabilities
         'streaming', 'durable_jobs', 'checkpoints', 'binary_streams', 'agent_handoff',
         'human_input', 'artifacts', 'subscriptions', 'scheduled_jobs', 'interrupt',
         'anonymous', 'heartbeat_interval_seconds', 'heartbeat_recovery',
-        'binary_encoding', 'extensions', 'artifact_retention',
+        'binary_encoding', 'extensions', 'agents', 'artifact_retention',
     ];
 
     /** @return array<string, mixed> */
@@ -67,6 +69,9 @@ final readonly class Capabilities
         $out['heartbeat_recovery'] = $this->heartbeatRecovery;
         $out['binary_encoding'] = $this->binaryEncodings;
         $out['extensions'] = $this->extensions;
+        if ($this->agents !== []) {
+            $out['agents'] = $this->agents;
+        }
         $retention = $this->retentionToArray();
         if ($retention !== null) {
             $out['artifact_retention'] = $retention;
@@ -99,9 +104,38 @@ final readonly class Capabilities
             heartbeatRecovery: self::stringField($data, 'heartbeat_recovery', 'fail'),
             binaryEncodings: self::stringListField($data, 'binary_encoding', ['base64']),
             extensions: self::stringListField($data, 'extensions', []),
+            agents: self::agentsField($data),
             artifactRetentionDefaultSeconds: $defaultRet,
             artifactRetentionMaxSeconds: $maxRet,
             extra: self::extraFromArray($data),
+        );
+    }
+
+    /**
+     * @param list<string|array<string, mixed>> $agents
+     */
+    public function withAgents(array $agents): self
+    {
+        return new self(
+            streaming: $this->streaming,
+            durableJobs: $this->durableJobs,
+            checkpoints: $this->checkpoints,
+            binaryStreams: $this->binaryStreams,
+            agentHandoff: $this->agentHandoff,
+            humanInput: $this->humanInput,
+            artifacts: $this->artifacts,
+            subscriptions: $this->subscriptions,
+            scheduledJobs: $this->scheduledJobs,
+            interrupt: $this->interrupt,
+            anonymous: $this->anonymous,
+            heartbeatIntervalSeconds: $this->heartbeatIntervalSeconds,
+            heartbeatRecovery: $this->heartbeatRecovery,
+            binaryEncodings: $this->binaryEncodings,
+            extensions: $this->extensions,
+            agents: $agents,
+            artifactRetentionDefaultSeconds: $this->artifactRetentionDefaultSeconds,
+            artifactRetentionMaxSeconds: $this->artifactRetentionMaxSeconds,
+            extra: $this->extra,
         );
     }
 
@@ -173,6 +207,30 @@ final readonly class Capabilities
         foreach ($data[$key] as $v) {
             if (\is_string($v)) {
                 $out[] = $v;
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     *
+     * @return list<string|array<string, mixed>>
+     */
+    private static function agentsField(array $data): array
+    {
+        if (!isset($data['agents']) || !\is_array($data['agents'])) {
+            return [];
+        }
+        $out = [];
+        foreach ($data['agents'] as $agent) {
+            if (\is_string($agent)) {
+                $out[] = $agent;
+                continue;
+            }
+            if (\is_array($agent)) {
+                /** @var array<string, mixed> $agent */
+                $out[] = $agent;
             }
         }
         return $out;

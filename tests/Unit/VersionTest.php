@@ -9,9 +9,9 @@ use PHPUnit\Framework\TestCase;
 
 final class VersionTest extends TestCase
 {
-    public function testProtocolVersionIsOnePointZero(): void
+    public function testProtocolVersionIsOnePointOne(): void
     {
-        self::assertSame('1.0', Version::PROTOCOL_VERSION);
+        self::assertSame('1.1', Version::PROTOCOL_VERSION);
     }
 
     public function testImplKindIsStable(): void

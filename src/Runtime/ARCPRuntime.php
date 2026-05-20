@@ -16,6 +16,7 @@ use Arcp\Envelope\MessageCatalog;
 use Arcp\Envelope\MessageType;
 use Arcp\Envelope\MessageTypeRegistry;
 use Arcp\Envelope\Priority;
+use Arcp\Errors\AgentVersionNotAvailableException;
 use Arcp\Extensions\ExtensionRegistry;
 use Arcp\Ids\JobId;
 use Arcp\Ids\MessageId;
@@ -25,6 +26,7 @@ use Arcp\Ids\TraceId;
 use Arcp\Internal\Runtime\ArtifactDispatcher;
 use Arcp\Internal\Runtime\Dispatcher;
 use Arcp\Internal\Runtime\HandshakeNegotiator;
+use Arcp\Internal\Runtime\JobListHandler;
 use Arcp\Internal\Runtime\LifecycleHandler;
 use Arcp\Internal\Runtime\SubscriptionRouter;
 use Arcp\Internal\Runtime\ToolInvocationHandler;
@@ -60,8 +62,11 @@ final class ARCPRuntime
     public readonly LoggerInterface $logger;
     public readonly Capabilities $advertisedCapabilities;
 
-    /** @var array<string, ToolHandler> */
+    /** @var array<string, array<string, ToolHandler>> Empty version key means unversioned. */
     private array $tools = [];
+
+    /** @var array<string, string> */
+    private array $defaultToolVersions = [];
 
     private readonly HandshakeNegotiator $handshake;
     private readonly Dispatcher $dispatcher;
@@ -100,7 +105,7 @@ final class ARCPRuntime
         );
         $tools = new ToolInvocationHandler(
             $this,
-            fn (string $name): ?ToolHandler => $this->tools[$name] ?? null,
+            fn (AgentRef $ref): ?ResolvedTool => $this->resolveTool($ref),
         );
         $this->dispatcher = new Dispatcher(
             $this,
@@ -108,6 +113,7 @@ final class ARCPRuntime
             $tools,
             new SubscriptionRouter($this, $lifecycle),
             new ArtifactDispatcher($this, $lifecycle),
+            new JobListHandler($this),
         );
     }
 
@@ -132,12 +138,85 @@ final class ARCPRuntime
 
     public function registerTool(string $name, ToolHandler $handler): void
     {
-        $this->tools[$name] = $handler;
+        $ref = AgentRef::parse($name);
+        $this->tools[$ref->name][$ref->version ?? ''] = $handler;
+    }
+
+    public function registerToolVersion(string $name, string $version, ToolHandler $handler): void
+    {
+        $ref = new AgentRef($name, $version);
+        $this->tools[$ref->name][$ref->version ?? ''] = $handler;
+    }
+
+    public function setDefaultToolVersion(string $name, string $version): void
+    {
+        $ref = new AgentRef($name, $version);
+        if (!isset($this->tools[$ref->name][$version])) {
+            throw new AgentVersionNotAvailableException($ref->name, $version);
+        }
+        $this->defaultToolVersions[$ref->name] = $version;
     }
 
     public function hasTool(string $name): bool
     {
-        return isset($this->tools[$name]);
+        $ref = AgentRef::parse($name);
+        try {
+            return $this->resolveTool($ref) instanceof ResolvedTool;
+        } catch (AgentVersionNotAvailableException) {
+            return false;
+        }
+    }
+
+    public function resolveTool(AgentRef $ref): ?ResolvedTool
+    {
+        $bucket = $this->tools[$ref->name] ?? null;
+        if ($bucket === null || $bucket === []) {
+            return null;
+        }
+        if ($ref->version !== null) {
+            $handler = $bucket[$ref->version] ?? null;
+            if (!$handler instanceof ToolHandler) {
+                throw new AgentVersionNotAvailableException($ref->name, $ref->version);
+            }
+            return new ResolvedTool($ref->name, $ref->version, $handler);
+        }
+        $default = $this->defaultToolVersions[$ref->name] ?? null;
+        if ($default !== null && isset($bucket[$default])) {
+            return new ResolvedTool($ref->name, $default, $bucket[$default]);
+        }
+        if (isset($bucket[''])) {
+            return new ResolvedTool($ref->name, null, $bucket['']);
+        }
+        $firstVersion = array_key_first($bucket);
+        return new ResolvedTool($ref->name, $firstVersion, $bucket[$firstVersion]);
+    }
+
+    public function advertisedCapabilitiesForSession(): Capabilities
+    {
+        return $this->advertisedCapabilities->withAgents($this->agentInventory());
+    }
+
+    /**
+     * @return list<array{name: string, versions: list<string>, default?: string}>
+     */
+    private function agentInventory(): array
+    {
+        $out = [];
+        foreach ($this->tools as $name => $bucket) {
+            $versions = [];
+            foreach (array_keys($bucket) as $version) {
+                if ($version !== '') {
+                    $versions[] = $version;
+                }
+            }
+            $entry = ['name' => $name, 'versions' => $versions];
+            $default = $this->defaultToolVersions[$name] ?? null;
+            if ($default !== null && \in_array($default, $versions, true)) {
+                $entry['default'] = $default;
+            }
+            $out[] = $entry;
+        }
+        return $out;
     }
 
     /**
@@ -204,7 +283,11 @@ final class ARCPRuntime
         );
         $this->eventLog->append($env);
         $this->subscriptions->dispatch($env);
-        $session->transport->send($env);
+        try {
+            $session->transport->send($env);
+        } catch (\Throwable $e) {
+            $this->logger->debug('emit skipped; transport closed', ['error' => $e->getMessage()]);
+        }
         return $id;
     }
 }

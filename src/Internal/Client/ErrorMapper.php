@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Arcp\Internal\Client;
 
 use Arcp\Errors\AbortedException;
+use Arcp\Errors\AgentVersionNotAvailableException;
 use Arcp\Errors\AlreadyExistsException;
 use Arcp\Errors\ARCPException;
 use Arcp\Errors\BackpressureOverflowException;
+use Arcp\Errors\BudgetExhaustedException;
 use Arcp\Errors\CancelledException;
 use Arcp\Errors\DataLossException;
 use Arcp\Errors\DeadlineExceededException;
@@ -54,6 +56,8 @@ final class ErrorMapper
             ErrorCode::Aborted => new AbortedException($err->message),
             ErrorCode::OutOfRange => new OutOfRangeException($err->message),
             ErrorCode::BackpressureOverflow => new BackpressureOverflowException($err->message),
+            ErrorCode::BudgetExhausted => $this->budgetExhausted($err),
+            ErrorCode::AgentVersionNotAvailable => $this->agentVersionNotAvailable($err),
             default => new UnknownException($err->code, $err->message),
         };
     }
@@ -65,6 +69,30 @@ final class ErrorMapper
         return new PermissionDeniedException(
             \is_string($perm) ? $perm : '?',
             \is_string($res) ? $res : '?',
+            $err->message,
+        );
+    }
+
+    private function budgetExhausted(ErrorPayload $err): BudgetExhaustedException
+    {
+        $currency = $err->details['currency'] ?? '?';
+        $remaining = $err->details['remaining'] ?? 0;
+        return new BudgetExhaustedException(
+            \is_string($currency) ? $currency : '?',
+            \is_int($remaining) || \is_float($remaining) || \is_string($remaining)
+                ? $remaining
+                : 0,
+            $err->message,
+        );
+    }
+
+    private function agentVersionNotAvailable(ErrorPayload $err): AgentVersionNotAvailableException
+    {
+        $agent = $err->details['agent'] ?? '?';
+        $version = $err->details['version'] ?? '?';
+        return new AgentVersionNotAvailableException(
+            \is_string($agent) ? $agent : '?',
+            \is_string($version) ? $version : '?',
             $err->message,
         );
     }

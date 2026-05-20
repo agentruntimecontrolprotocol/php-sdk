@@ -35,11 +35,14 @@ use Arcp\Messages\Control\Cancel;
 use Arcp\Messages\Control\Nack;
 use Arcp\Messages\Control\Ping;
 use Arcp\Messages\Control\Pong;
+use Arcp\Messages\Execution\ResultChunk;
 use Arcp\Messages\Execution\ToolError;
 use Arcp\Messages\Execution\ToolInvoke;
 use Arcp\Messages\Execution\ToolResult;
 use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\Capabilities;
+use Arcp\Messages\Session\Jobs;
+use Arcp\Messages\Session\ListJobs;
 use Arcp\Messages\Session\PeerInfo;
 use Arcp\Messages\Session\SessionAccepted;
 use Arcp\Messages\Session\SessionClose;
@@ -70,6 +73,7 @@ final class ARCPClient
     public readonly MessageTypeRegistry $registry;
     public readonly EnvelopeSerializer $serializer;
     public readonly PendingRegistry $pending;
+    public readonly ResultChunkAssembler $resultChunks;
     public readonly Session $session;
     public readonly ClockInterface $clock;
     public readonly LoggerInterface $logger;
@@ -95,6 +99,7 @@ final class ARCPClient
         $this->registry = $registry ?? MessageCatalog::create();
         $this->serializer = new EnvelopeSerializer($this->registry);
         $this->pending = new PendingRegistry();
+        $this->resultChunks = new ResultChunkAssembler();
         $this->session = new Session($transport, isClient: true);
         $this->clock = $clock ?? new SystemClock();
         $this->logger = $logger ?? new NullLogger();
@@ -243,6 +248,33 @@ final class ARCPClient
         $this->session->transport->send($env);
     }
 
+    /**
+     * @param array<string, mixed> $filter
+     */
+    public function listJobs(
+        array $filter = [],
+        int $limit = 50,
+        ?string $cursor = null,
+        ?Cancellation $cancellation = null,
+    ): Jobs {
+        $id = MessageId::random();
+        $env = new Envelope(
+            id: $id,
+            payload: new ListJobs($filter, $limit, $cursor),
+            timestamp: $this->clock->now(),
+            sessionId: $this->session->sessionId,
+        );
+        $this->session->transport->send($env);
+        $response = $this->pending->awaitResponse($id, 30.0, $cancellation);
+        if ($response instanceof Nack) {
+            throw $this->errorMapper->raise($response->error);
+        }
+        if (!$response instanceof Jobs) {
+            throw new InvalidArgumentException('expected session.jobs');
+        }
+        return $response;
+    }
+
     public function cancelJob(
         JobId $jobId,
         string $reason = 'user_aborted',
@@ -347,6 +379,9 @@ final class ARCPClient
                 $env = $this->session->transport->receive($cancellation);
                 if (!$env instanceof Envelope) {
                     break;
+                }
+                if ($env->payload instanceof ResultChunk) {
+                    $this->resultChunks->push($env->payload);
                 }
                 $this->router->handle($env);
             }

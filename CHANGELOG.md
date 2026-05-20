@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- ARCP v1.1 feature coverage for `session.list_jobs` / `session.jobs`,
+  versioned `name@version` tool resolution, `job.result_chunk`, and
+  `cost.budget` enforcement.
+- `Arcp\Errors\BudgetExhaustedException` and
+  `Arcp\Errors\AgentVersionNotAvailableException` mapped to their v1.1
+  canonical wire codes.
 - `Arcp\Errors\ARCPExceptionInterface` — root marker for every exception
   the SDK can throw. Implemented by the existing abstract
   `Arcp\Errors\ARCPException` (no migration needed for existing catch
@@ -39,5 +45,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Initial reference SDK release aligned with ARCP protocol v1.0 (see README status).
-
+- Initial reference SDK release aligned with ARCP protocol v1.1 (see README status).

@@ -18,6 +18,10 @@ final class Job
 {
     public JobState $state = JobState::Accepted;
     public int $heartbeatSequence = 0;
+    public readonly \DateTimeImmutable $createdAt;
+
+    /** @var array<string, int> */
+    private array $resultChunkSeq = [];
 
     /** @var Future<mixed>|null */
     public ?Future $future = null;
@@ -28,6 +32,21 @@ final class Job
         public readonly Envelope $invocation,
         public readonly DeferredCancellation $cancellation,
         public readonly string $tool,
+        public readonly ?string $toolVersion = null,
+        public readonly ?CostBudget $budget = null,
     ) {
+        $this->createdAt = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
+    }
+
+    public function toolRef(): string
+    {
+        return $this->toolVersion === null ? $this->tool : $this->tool . '@' . $this->toolVersion;
+    }
+
+    public function nextResultChunkSeq(string $resultId): int
+    {
+        $next = $this->resultChunkSeq[$resultId] ?? 0;
+        $this->resultChunkSeq[$resultId] = $next + 1;
+        return $next;
     }
 }

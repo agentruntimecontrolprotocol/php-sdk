@@ -163,7 +163,7 @@ final readonly class HandshakeNegotiator
         );
         $accepted = new SessionAccepted(
             sessionId: $session->sessionId,
-            capabilities: $this->runtime->advertisedCapabilities,
+            capabilities: $this->runtime->advertisedCapabilitiesForSession(),
             runtime: $this->runtimeIdentity ?? $defaultRuntime,
         );
         $this->runtime->emit($session, $accepted, ['correlation_id' => $ctx->envId]);
