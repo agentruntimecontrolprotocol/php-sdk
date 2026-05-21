@@ -1,13 +1,13 @@
 // ARCP PHP SDK architecture stack (light)
 // Capability Layer (MCP) → ARCP Runtime Layer → Transport Layer.
 digraph PhpSdkArchitecture {
-  rankdir=TB; bgcolor="transparent"; compound=true; fontname="Helvetica";
-  splines=ortho; nodesep=0.32; ranksep=0.45; pad="0.35,0.25";
+  rankdir=TB; bgcolor="transparent"; compound=true; fontname="TT Commons Pro Trial";
+  splines=spline; nodesep=0.32; ranksep=0.45; pad="0.35,0.25";
 
   node [shape=box, style="rounded,filled", fillcolor="white", color="#CBD5E1",
-        fontname="Helvetica", fontsize=11, fontcolor="#1F2937",
+        fontname="TT Commons Pro Trial", fontsize=11, fontcolor="#1F2937",
         margin="0.22,0.11", penwidth=1.0];
-  edge [fontname="Helvetica", fontsize=9, fontcolor="#64748B", color="#94A3B8",
+  edge [fontname="TT Commons Pro Trial", fontsize=9, fontcolor="#64748B", color="#94A3B8",
         penwidth=1.1, arrowsize=0.75, arrowhead=vee];
 
   Capability [
@@ -19,7 +19,7 @@ digraph PhpSdkArchitecture {
     label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="0" CELLSPACING="0"><TR><TD COLSPAN="3" HEIGHT="8"></TD></TR><TR><TD WIDTH="8"></TD><TD><FONT POINT-SIZE="12"><B>ARCP Runtime Layer</B></FONT></TD><TD WIDTH="8"></TD></TR></TABLE>>;
     style="rounded,filled";
     fillcolor="#F1F5F9"; color="#E2E8F0";
-    fontname="Helvetica"; fontcolor="#475569";
+    fontname="TT Commons Pro Trial"; fontcolor="#475569";
     margin=14; labeljust=l; penwidth=1.0;
 
     Runtime [
@@ -41,7 +41,7 @@ digraph PhpSdkArchitecture {
     label=<<TABLE BORDER="0" CELLBORDER="0" CELLPADDING="0" CELLSPACING="0"><TR><TD COLSPAN="3" HEIGHT="8"></TD></TR><TR><TD WIDTH="8"></TD><TD><FONT POINT-SIZE="12"><B>Transport Layer</B></FONT></TD><TD WIDTH="8"></TD></TR></TABLE>>;
     style="rounded,filled";
     fillcolor="#F8FAFC"; color="#E2E8F0";
-    fontname="Helvetica"; fontcolor="#475569";
+    fontname="TT Commons Pro Trial"; fontcolor="#475569";
     margin=14; labeljust=l; penwidth=1.0;
 
     Ws    [label="WebSocket"];
