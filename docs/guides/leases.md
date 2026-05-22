@@ -94,5 +94,5 @@ canonical error codes.
 
 ## Runnable examples
 
-See `samples/leases/`, `samples/lease_revocation/`, and
-`samples/cost_budget/`, and `samples/provisioned_credentials/`.
+See `samples/leases/`, `samples/lease-revocation/`, and
+`samples/cost-budget/`, and `samples/provisioned-credentials/`.

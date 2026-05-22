@@ -46,4 +46,4 @@ Advertise required extension support in `Capabilities::$extensions`.
 
 ## Runnable example
 
-See `samples/extensions/`.
+See `samples/vendor-extensions/`.

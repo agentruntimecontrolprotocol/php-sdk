@@ -61,5 +61,5 @@ exceptions to errors, and removes terminal jobs from the live list.
 
 ## Runnable examples
 
-See `samples/agent_versions/`, `samples/list_jobs/`, and
+See `samples/agent-versions/`, `samples/list-jobs/`, and
 `tests/Integration/JobLifecycleTest.php`.

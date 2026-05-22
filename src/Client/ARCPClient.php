@@ -62,7 +62,7 @@ use Psr\Log\NullLogger;
  *
  * The client runs a background read-loop that delegates inbound envelope
  * dispatch to {@see ResponseRouter}: correlated responses go back to their
- * `await`ing fiber, HITL/permission requests fire the configured handlers,
+ * `await`ing fiber, permission requests fire the configured handlers,
  * and `subscribe.event` envelopes are buffered for the matching subscription.
  *
  * RFC §6.3 — every command returns either a typed response or raises a

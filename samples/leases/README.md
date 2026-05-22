@@ -49,4 +49,4 @@ a `restart api-gateway` grant to `restart database`.
 - Replace operator approval with a policy engine (OPA, Cedar) — the
   responder is interchangeable as long as it emits `lease.granted`.
 - Mirror the `kind: thought` stream into
-  [subscriptions](../subscriptions) for postmortem replay.
+  [subscriptions](../subscribe) for postmortem replay.

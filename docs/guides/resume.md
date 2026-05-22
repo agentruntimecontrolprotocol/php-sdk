@@ -41,4 +41,4 @@ Combine `IdempotencyKey` with event-log replay to avoid duplicate work.
 
 ## Runnable example
 
-See `samples/resumability/` and `tests/Integration/ResumeTest.php`.
+See `samples/resume/` and `tests/Integration/ResumeTest.php`.

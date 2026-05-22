@@ -42,5 +42,5 @@ Reuse idempotency keys when retrying the same delegated operation.
 
 ## Runnable example
 
-See `samples/delegation/`, `samples/handoff/`, and
-`samples/reasoning_streams/`.
+See `samples/delegate/`, `samples/handoff/`, and
+`samples/reasoning-streams/`.

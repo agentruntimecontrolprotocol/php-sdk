@@ -75,5 +75,5 @@ core `Auth` fields compatible with the canonical schemes.
 
 ## Runnable example
 
-See `samples/capability_negotiation/` and the handshake tests under
+See `samples/capability-negotiation/` and the handshake tests under
 `tests/Integration/HandshakeTest.php`.

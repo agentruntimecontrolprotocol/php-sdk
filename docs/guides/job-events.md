@@ -56,5 +56,5 @@ Keep subscriber callbacks short and do heavy work outside the read loop.
 
 ## Runnable examples
 
-See `samples/result_chunk/`, `samples/subscriptions/`, and
-`samples/reasoning_streams/`.
+See `samples/result-chunk/`, `samples/subscribe/`, and
+`samples/reasoning-streams/`.

@@ -1,5 +1,10 @@
 # Recipes
 
+Full recipe ports live in [`../recipes/`](../recipes/):
+`email-vendor-leases`, `mcp-skill`, `multi-agent-budget`, and
+`stream-resume`. The notes below are smaller copy-paste patterns for
+common SDK tasks.
+
 ## Streaming progress
 
 ```php

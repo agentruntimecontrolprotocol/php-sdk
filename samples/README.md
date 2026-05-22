@@ -1,69 +1,51 @@
 # ARCP PHP samples
 
-Nineteen single-purpose sample programs, each named for the protocol
-primitive it demonstrates. Mirrors the Python tree at
-`python-sdk/examples/` and the cross-language brief in
-`python-sdk/examples/SUBWORKER_BRIEF.md`.
+Single-purpose PHP sample blueprints named after the canonical
+cross-SDK examples. Most samples elide transport/auth setup behind an
+`elided()` helper so the protocol flow stays visible.
 
-> **Illustrative, not runnable.** Each sample imports from the in-repo
-> `Arcp\` namespace as if it were a published `arcp/arcp ^1.0` package.
-> Setup boilerplate (transport URL, identity, auth) is elided behind an
-> `elided()` helper that throws. LLM and framework calls live in tiny
-> stub modules (`agents.php`, `steps.php`, `cheap.php`, …) so the
-> protocol code in `main.php` is what you read.
-
-## The nineteen
+## Canonical examples
 
 | Directory | Demonstrates | Spec |
-|---|---|---|
-| [`subscriptions/`](./subscriptions) | Three Observer clients on one session, three filters, three sinks. | §5, §13 |
-| [`leases/`](./leases) | Lease-gated shell agent. Read leases coarse, write leases scoped. | §15.4–§15.5 |
-| [`lease_revocation/`](./lease_revocation) | Per-table leases with `lease.revoked` / `lease.extended` mid-flight. | §15.5 |
-| [`permission_challenge/`](./permission_challenge) | Two-party permission challenge — generator asks, reviewer holds veto. | §15.4, §6.4 |
-| [`delegation/`](./delegation) | `agent.delegate` fan-out + `JobMux` to demux events by `job_id`. | §14, §6.4 |
-| [`handoff/`](./handoff) | `agent.handoff` with transcript packed as an artifact, runtime fingerprint pinned. | §14, §16, §8.3 |
-| [`heartbeats/`](./heartbeats) | Worker federation; heartbeat-loss reroute via `idempotency_key`. | §10.3, §6.4 |
-| [`capability_negotiation/`](./capability_negotiation) | Capability-driven peer routing; standard `cost.usd` rollups. | §7, §17.3.1, §18.3 |
-| [`resumability/`](./resumability) | **Actually crash and resume.** `exit(137)` mid-flight; second invocation picks up at the next step. | §10, §19, §6.4 |
-| [`reasoning_streams/`](./reasoning_streams) | `kind: thought` stream + a peer runtime that subscribes and delegates critiques back. | §11.4, §13, §14 |
-| [`extensions/`](./extensions) | Custom `arcpx.sdr.*.v1` extension namespace with correct unknown-message handling. | §21 |
-| [`human_input/`](./human_input) | `human.input.request` fanned across phone/email/Slack; first-wins resolution. | §12 |
-| [`cancellation/`](./cancellation) | Cooperative `cancel` (terminate) vs `interrupt` (pause and ask). | §10.4–§10.5 |
-| [`mcp/`](./mcp) | ARCP runtime fronting an MCP server: `tool.invoke` → MCP `call_tool`. | §20 |
-| [`list_jobs/`](./list_jobs) | `session.list_jobs` read-only inventory with status/agent filtering. | §6.6 |
-| [`agent_versions/`](./agent_versions) | `name@version` resolution and missing-version errors. | §7.5, §12 |
-| [`result_chunk/`](./result_chunk) | Chunked terminal results assembled by the client. | §8.4 |
-| [`cost_budget/`](./cost_budget) | `cost.budget` counters decremented by `cost.*` metrics. | §9.6, §12 |
-| [`provisioned_credentials/`](./provisioned_credentials) | Lease-bound upstream credentials for model and budget enforcement. | §9.7–§9.8 |
+| --- | --- | --- |
+| [`ack-backpressure/`](./ack-backpressure) | Ack-driven flow control and back-pressure status events. | §6.5, §8.2 |
+| [`agent-versions/`](./agent-versions) | `name@version` resolution and missing-version errors. | §7.5, §12 |
+| [`cancel/`](./cancel) | Cooperative `cancel` and blocked-job interrupt handling. | §10.4-§10.5 |
+| [`cost-budget/`](./cost-budget) | `cost.budget` counters decremented by `cost.*` metrics. | §9.6, §12 |
+| [`custom-auth/`](./custom-auth) | Custom bearer verifier shape for handshake auth. | §6.1 |
+| [`delegate/`](./delegate) | `agent.delegate` fan-out and event demux by `job_id`. | §14, §6.4 |
+| [`heartbeat/`](./heartbeat) | Worker federation and heartbeat-loss reroute. | §10.3, §6.4 |
+| [`idempotent-retry/`](./idempotent-retry) | Stable `(principal, idempotency_key)` job submission semantics. | §6.4, §7.2 |
+| [`lease-expires-at/`](./lease-expires-at) | Lease expiry deadlines enforced before side effects. | §9.5, §12 |
+| [`lease-violation/`](./lease-violation) | Out-of-lease operation denied without failing the whole job. | §9.3, §12 |
+| [`list-jobs/`](./list-jobs) | `session.list_jobs` inventory with status/agent filtering. | §6.6 |
+| [`progress/`](./progress) | Progress events suitable for UI progress bars. | §8.2.1 |
+| [`result-chunk/`](./result-chunk) | Chunked terminal results assembled by the client. | §8.4 |
+| [`resume/`](./resume) | Crash and resume via event replay and checkpoints. | §10, §19, §6.4 |
+| [`stdio/`](./stdio) | Parent/child ARCP over stdin/stdout. | §4.2, §22 |
+| [`submit-and-stream/`](./submit-and-stream) | One-shot job with status, log, thought, metric, and artifact events. | §13.1, §7.1, §8.2 |
+| [`subscribe/`](./subscribe) | Observer subscriptions with filters and backfill. | §5, §13 |
+| [`tracing/`](./tracing) | W3C trace context carried through envelope extensions. | §11 |
+| [`vendor-extensions/`](./vendor-extensions) | Custom `arcpx.sdr.*.v1` extension namespace handling. | §21 |
+
+## Additional blueprints
+
+| Directory | Demonstrates | Spec |
+| --- | --- | --- |
+| [`capability-negotiation/`](./capability-negotiation) | Capability-driven peer routing and retry classification. | §7, §17.3.1, §18.3 |
+| [`handoff/`](./handoff) | `agent.handoff` with transcript artifacts and runtime pinning. | §14, §16, §8.3 |
+| [`mcp/`](./mcp) | ARCP runtime fronting an MCP server. | §20 |
+| [`provisioned-credentials/`](./provisioned-credentials) | Lease-bound upstream credentials for model and budget enforcement. | §9.7-§9.8 |
 
 ## Conventions
 
 - PHP 8.4+, `declare(strict_types=1)` everywhere.
-- PSR-4 namespaces under `Arcp\Samples\<Name>\` for stub modules.
-- One `main.php` per directory carrying the protocol code; 0–2 stub
-  modules named for what they elide (`agents.php`, `steps.php`,
-  `cheap.php`, `synth.php`, `work.php`, `channels.php`, `sql.php`,
-  `upstream.php`, `sinks/*.php`).
-- `elided()` literally — transport, identity, and auth blocks are
-  setup noise, not the point. The function throws, so samples are
-  read-only blueprints.
-- Envelopes match RFC-0001 v2 exactly. Custom message types follow
-  §21.1 `arcpx.<domain>.<name>.v<n>` naming.
-
-## What's where in the SDK
-
-- `Arcp\Client\ARCPClient` — handshake driver; `invokeTool`,
-  `subscribe`, `cancelJob`, `putArtifact`.
-- `Arcp\Envelope\Envelope`, `Arcp\Errors\ErrorCode`,
-  `Arcp\Errors\ARCPException` — wire primitives.
-- `Arcp\Ids\MessageId::random()` — for runtime-side code that builds
-  envelopes outside an `ARCPClient`.
-- `Arcp\Transport\WebsocketTransport` — most common transport.
-- `Arcp\Store\` — eventlog schema reused by `subscriptions`.
+- One `main.php` per runnable directory; small helper files only where a sample needs a stubbed agent, sink, or upstream.
+- `elided()` means transport, identity, auth, or provider setup that would hide the protocol behavior.
+- Vendor message types use §21.1 `arcpx.<domain>.<name>.v<n>` naming.
 
 ## Reading order
 
-For a brisk tour: `subscriptions`, `leases`, `delegation`,
-`resumability` (this one actually crashes and recovers),
-`cancellation`, `extensions`, `mcp`. These seven exercise the bulk
-of the protocol.
+Start with `submit-and-stream`, `progress`, `subscribe`, `lease-expires-at`,
+`delegate`, and `resume`. Those cover the core lifecycle before moving
+to auth, tracing, vendor extensions, and MCP.

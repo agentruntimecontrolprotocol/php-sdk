@@ -77,4 +77,4 @@ previous exception and its `code()`.
 
 ## Runnable example
 
-See `samples/cost_budget/` and `tests/Unit/ErrorsTest.php`.
+See `samples/cost-budget/` and `tests/Unit/ErrorsTest.php`.

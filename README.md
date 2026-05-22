@@ -106,7 +106,6 @@ $serverFuture->await();
 | §8 Authentication | [src/Auth/](src/Auth/) |
 | §10 Jobs | [src/Runtime/JobManager.php](src/Runtime/JobManager.php) + [JobContext](src/Runtime/JobContext.php) |
 | §11 Streaming | `JobContext::openStream()` (text/event/log/thought; binary base64 only) |
-| §12 Human-in-the-loop | [src/Client/Handlers/](src/Client/Handlers/) + `JobContext::requestHumanInput/Choice` |
 | §13 Subscriptions | [src/Runtime/SubscriptionManager.php](src/Runtime/SubscriptionManager.php) |
 | §15 Permissions & leases | [src/Runtime/LeaseManager.php](src/Runtime/LeaseManager.php) |
 | §16 Artifacts | [src/Runtime/ArtifactStore.php](src/Runtime/ArtifactStore.php) |
@@ -118,16 +117,11 @@ $serverFuture->await();
 
 ## Samples
 
-Six runnable scripts under [samples/](samples/), each backed by a
-single sentence of context at the top. They all use `MemoryTransport`
-to keep the example self-contained:
-
-1. `01_minimal_session.php` — handshake.
-2. `02_tool_invoke_with_progress.php` — tool + progress events.
-3. `03_human_input_request.php` — HITL input.
-4. `04_permission_challenge.php` — permission/lease.
-5. `05_observer_subscription.php` — passive observer.
-6. `06_relay_human_in_the_loop.php` — multi-channel HITL relay.
+Canonical cross-SDK sample blueprints live under [samples/](samples/).
+They are named to match the TypeScript SDK examples, including
+`submit-and-stream`, `progress`, `subscribe`, `resume`, `delegate`,
+`lease-expires-at`, `lease-violation`, `custom-auth`, and
+`vendor-extensions`.
 
 ## Docs
 

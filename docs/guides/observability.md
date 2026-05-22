@@ -44,4 +44,4 @@ job states.
 
 ## Runnable example
 
-See `samples/capability_negotiation/` and `samples/reasoning_streams/`.
+See `samples/capability-negotiation/` and `samples/reasoning-streams/`.
