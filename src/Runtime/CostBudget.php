@@ -78,6 +78,16 @@ final class CostBudget
         return $out;
     }
 
+    /** @return list<string> */
+    public function patterns(): array
+    {
+        $out = [];
+        foreach ($this->remaining as $currency => $amount) {
+            $out[] = $currency . ':' . $this->format($amount);
+        }
+        return $out;
+    }
+
     public function containsSubset(self $child): bool
     {
         foreach ($child->remaining as $currency => $amount) {

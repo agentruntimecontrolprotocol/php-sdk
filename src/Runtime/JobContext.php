@@ -43,6 +43,8 @@ use Arcp\Messages\Telemetry\MetricEvent;
  */
 final class JobContext
 {
+    use JobCredentialControls;
+
     /** @internal The runtime sets this during job dispatch. */
     public ?DeferredCancellation $cancellation = null;
 

@@ -24,6 +24,7 @@ use Arcp\Ids\StreamId;
 use Arcp\Ids\SubscriptionId;
 use Arcp\Ids\TraceId;
 use Arcp\Internal\Runtime\ArtifactDispatcher;
+use Arcp\Internal\Runtime\CredentialLifecycle;
 use Arcp\Internal\Runtime\Dispatcher;
 use Arcp\Internal\Runtime\HandshakeNegotiator;
 use Arcp\Internal\Runtime\JobListHandler;
@@ -31,8 +32,13 @@ use Arcp\Internal\Runtime\LifecycleHandler;
 use Arcp\Internal\Runtime\SubscriptionRouter;
 use Arcp\Internal\Runtime\ToolInvocationHandler;
 use Arcp\Json\EnvelopeSerializer;
+use Arcp\Messages\Execution\JobAccepted;
 use Arcp\Messages\Session\Capabilities;
 use Arcp\Messages\Session\PeerInfo;
+use Arcp\Messages\Telemetry\EventEmit;
+use Arcp\Runtime\Credentials\CredentialProvisioner;
+use Arcp\Runtime\Credentials\CredentialStore;
+use Arcp\Runtime\Credentials\InMemoryCredentialStore;
 use Arcp\Store\EventLog;
 use Arcp\Transport\Transport;
 use Psr\Log\LoggerInterface;
@@ -58,6 +64,7 @@ final class ARCPRuntime
     public readonly ArtifactStore $artifacts;
     public readonly SubscriptionManager $subscriptions;
     public readonly JobManager $jobs;
+    public readonly CredentialStore $credentials;
     public readonly ClockInterface $clock;
     public readonly LoggerInterface $logger;
     public readonly Capabilities $advertisedCapabilities;
@@ -83,6 +90,8 @@ final class ARCPRuntime
         ?AuthRouter $authRouter = null,
         ?ExtensionRegistry $extensions = null,
         public readonly ?PeerInfo $runtimeIdentity = null,
+        public readonly ?CredentialProvisioner $credentialProvisioner = null,
+        ?CredentialStore $credentialStore = null,
     ) {
         $this->registry = $registry ?? MessageCatalog::create();
         $this->serializer = new EnvelopeSerializer($this->registry, $extensions);
@@ -94,6 +103,13 @@ final class ARCPRuntime
         $this->artifacts = new ArtifactStore($this->clock);
         $this->subscriptions = new SubscriptionManager($this->serializer);
         $this->jobs = new JobManager();
+        $this->credentials = $credentialStore ?? new InMemoryCredentialStore();
+        if (
+            $this->credentialProvisioner instanceof CredentialProvisioner
+            && !$this->credentials->supportsDurableRevocation()
+        ) {
+            throw new \InvalidArgumentException('provisioned credentials require a durable revocation store');
+        }
         $this->advertisedCapabilities = $capabilities ?? Capabilities::defaultRuntime();
 
         $lifecycle = new LifecycleHandler($this);
@@ -106,6 +122,7 @@ final class ARCPRuntime
         $tools = new ToolInvocationHandler(
             $this,
             fn (AgentRef $ref): ?ResolvedTool => $this->resolveTool($ref),
+            new CredentialLifecycle($this),
         );
         $this->dispatcher = new Dispatcher(
             $this,
@@ -133,6 +150,8 @@ final class ARCPRuntime
             $config->authRouter,
             $config->extensions,
             $config->runtimeIdentity,
+            $config->credentialProvisioner,
+            $config->credentialStore,
         );
     }
 
@@ -193,7 +212,15 @@ final class ARCPRuntime
 
     public function advertisedCapabilitiesForSession(): Capabilities
     {
-        return $this->advertisedCapabilities->withAgents($this->agentInventory());
+        $capabilities = $this->advertisedCapabilities->withAgents($this->agentInventory());
+        if ($this->credentialProvisioner instanceof CredentialProvisioner) {
+            $capabilities = $capabilities->withFeatures([
+                ...$capabilities->features,
+                'provisioned_credentials',
+                'model.use',
+            ]);
+        }
+        return $capabilities;
     }
 
     /**
@@ -269,6 +296,7 @@ final class ARCPRuntime
     public function emit(Session $session, MessageType $payload, array $hints = []): MessageId
     {
         $id = MessageId::random();
+        $redactedPayload = $this->redactedPayload($payload);
         $env = new Envelope(
             id: $id,
             payload: $payload,
@@ -281,13 +309,48 @@ final class ARCPRuntime
             traceId: $hints['trace_id'] ?? null,
             correlationId: $hints['correlation_id'] ?? null,
         );
-        $this->eventLog->append($env);
-        $this->subscriptions->dispatch($env);
+        $logEnv = $redactedPayload === $payload ? $env : new Envelope(
+            id: $id,
+            payload: $redactedPayload,
+            timestamp: $env->timestamp,
+            priority: $env->priority,
+            sessionId: $env->sessionId,
+            jobId: $env->jobId,
+            streamId: $env->streamId,
+            subscriptionId: $env->subscriptionId,
+            traceId: $env->traceId,
+            spanId: $env->spanId,
+            parentSpanId: $env->parentSpanId,
+            correlationId: $env->correlationId,
+            causationId: $env->causationId,
+            idempotencyKey: $env->idempotencyKey,
+            source: $env->source,
+            target: $env->target,
+            arcp: $env->arcp,
+            extensions: $env->extensions,
+        );
+        $this->eventLog->append($logEnv);
+        $this->subscriptions->dispatch($logEnv);
         try {
             $session->transport->send($env);
         } catch (\Throwable $e) {
             $this->logger->debug('emit skipped; transport closed', ['error' => $e->getMessage()]);
         }
         return $id;
+    }
+
+    private function redactedPayload(MessageType $payload): MessageType
+    {
+        if ($payload instanceof JobAccepted && $payload->credentials !== null) {
+            return $payload->redacted();
+        }
+        if (
+            $payload instanceof EventEmit
+            && $payload->eventType === 'status'
+            && ($payload->attributes['phase'] ?? null) === 'credential_rotated'
+        ) {
+            return new EventEmit('status', [...$payload->attributes, 'value' => '***']);
+        }
+        return $payload;
     }
 }

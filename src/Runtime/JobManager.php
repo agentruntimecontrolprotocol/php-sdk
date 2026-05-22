@@ -9,6 +9,7 @@ use Amp\DeferredCancellation;
 use Arcp\Envelope\Envelope;
 use Arcp\Errors\NotFoundException;
 use Arcp\Ids\JobId;
+use Arcp\Messages\Permissions\LeaseGranted;
 
 /**
  * Tracks in-flight jobs and drives the state machine (RFC §10.2). Each
@@ -26,6 +27,7 @@ final class JobManager
         string $tool,
         ?string $toolVersion = null,
         ?CostBudget $budget = null,
+        ?LeaseGranted $lease = null,
     ): Job {
         $job = new Job(
             id: JobId::random(),
@@ -35,6 +37,7 @@ final class JobManager
             tool: $tool,
             toolVersion: $toolVersion,
             budget: $budget,
+            lease: $lease,
         );
         $this->jobs[(string) $job->id] = $job;
         return $job;

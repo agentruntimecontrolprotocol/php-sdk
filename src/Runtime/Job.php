@@ -8,6 +8,7 @@ use Amp\DeferredCancellation;
 use Amp\Future;
 use Arcp\Envelope\Envelope;
 use Arcp\Ids\JobId;
+use Arcp\Messages\Permissions\LeaseGranted;
 
 /**
  * Tracking record for an in-flight job (RFC §10). Owns the cancellation
@@ -34,6 +35,7 @@ final class Job
         public readonly string $tool,
         public readonly ?string $toolVersion = null,
         public readonly ?CostBudget $budget = null,
+        public readonly ?LeaseGranted $lease = null,
     ) {
         $this->createdAt = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
     }

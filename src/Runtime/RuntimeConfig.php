@@ -10,6 +10,8 @@ use Arcp\Envelope\MessageTypeRegistry;
 use Arcp\Extensions\ExtensionRegistry;
 use Arcp\Messages\Session\Capabilities;
 use Arcp\Messages\Session\PeerInfo;
+use Arcp\Runtime\Credentials\CredentialProvisioner;
+use Arcp\Runtime\Credentials\CredentialStore;
 use Arcp\Store\EventLog;
 use Psr\Log\LoggerInterface;
 
@@ -32,6 +34,8 @@ final readonly class RuntimeConfig
         public ?AuthRouter $authRouter = null,
         public ?ExtensionRegistry $extensions = null,
         public ?PeerInfo $runtimeIdentity = null,
+        public ?CredentialProvisioner $credentialProvisioner = null,
+        public ?CredentialStore $credentialStore = null,
     ) {
     }
 }

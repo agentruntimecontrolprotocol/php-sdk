@@ -19,6 +19,7 @@ final readonly class Capabilities
 {
     /**
      * @param list<string> $extensions Advertised extension type-namespaces.
+     * @param list<string> $features Named v1.1 feature flags.
      * @param list<string> $binaryEncodings Per RFC §11.3 (`base64`, `sidecar`).
      * @param list<string|array<string, mixed>> $agents Runtime agent inventory.
      * @param ExtraMap $extra
@@ -41,6 +42,7 @@ final readonly class Capabilities
         public string $heartbeatRecovery = 'fail',
         public array $binaryEncodings = ['base64'],
         public array $extensions = [],
+        public array $features = [],
         public array $agents = [],
         public ?int $artifactRetentionDefaultSeconds = null,
         public ?int $artifactRetentionMaxSeconds = null,
@@ -58,7 +60,7 @@ final readonly class Capabilities
         'streaming', 'durable_jobs', 'checkpoints', 'binary_streams', 'agent_handoff',
         'human_input', 'artifacts', 'subscriptions', 'scheduled_jobs', 'interrupt',
         'anonymous', 'heartbeat_interval_seconds', 'heartbeat_recovery',
-        'binary_encoding', 'extensions', 'agents', 'artifact_retention',
+        'binary_encoding', 'extensions', 'features', 'agents', 'artifact_retention',
     ];
 
     /** @return array<string, mixed> */
@@ -69,6 +71,9 @@ final readonly class Capabilities
         $out['heartbeat_recovery'] = $this->heartbeatRecovery;
         $out['binary_encoding'] = $this->binaryEncodings;
         $out['extensions'] = $this->extensions;
+        if ($this->features !== []) {
+            $out['features'] = $this->features;
+        }
         if ($this->agents !== []) {
             $out['agents'] = $this->agents;
         }
@@ -104,6 +109,7 @@ final readonly class Capabilities
             heartbeatRecovery: self::stringField($data, 'heartbeat_recovery', 'fail'),
             binaryEncodings: self::stringListField($data, 'binary_encoding', ['base64']),
             extensions: self::stringListField($data, 'extensions', []),
+            features: self::stringListField($data, 'features', []),
             agents: self::agentsField($data),
             artifactRetentionDefaultSeconds: $defaultRet,
             artifactRetentionMaxSeconds: $maxRet,
@@ -132,7 +138,35 @@ final readonly class Capabilities
             heartbeatRecovery: $this->heartbeatRecovery,
             binaryEncodings: $this->binaryEncodings,
             extensions: $this->extensions,
+            features: $this->features,
             agents: $agents,
+            artifactRetentionDefaultSeconds: $this->artifactRetentionDefaultSeconds,
+            artifactRetentionMaxSeconds: $this->artifactRetentionMaxSeconds,
+            extra: $this->extra,
+        );
+    }
+
+    /** @param list<string> $features */
+    public function withFeatures(array $features): self
+    {
+        return new self(
+            streaming: $this->streaming,
+            durableJobs: $this->durableJobs,
+            checkpoints: $this->checkpoints,
+            binaryStreams: $this->binaryStreams,
+            agentHandoff: $this->agentHandoff,
+            humanInput: $this->humanInput,
+            artifacts: $this->artifacts,
+            subscriptions: $this->subscriptions,
+            scheduledJobs: $this->scheduledJobs,
+            interrupt: $this->interrupt,
+            anonymous: $this->anonymous,
+            heartbeatIntervalSeconds: $this->heartbeatIntervalSeconds,
+            heartbeatRecovery: $this->heartbeatRecovery,
+            binaryEncodings: $this->binaryEncodings,
+            extensions: $this->extensions,
+            features: array_values(array_unique($features)),
+            agents: $this->agents,
             artifactRetentionDefaultSeconds: $this->artifactRetentionDefaultSeconds,
             artifactRetentionMaxSeconds: $this->artifactRetentionMaxSeconds,
             extra: $this->extra,
@@ -283,6 +317,7 @@ final readonly class Capabilities
             heartbeatIntervalSeconds: 30,
             heartbeatRecovery: 'fail',
             binaryEncodings: ['base64'],
+            features: [],
             artifactRetentionDefaultSeconds: 86400,
             artifactRetentionMaxSeconds: 604800,
         );

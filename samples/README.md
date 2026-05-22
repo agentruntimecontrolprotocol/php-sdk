@@ -1,6 +1,6 @@
 # ARCP PHP samples
 
-Eighteen single-purpose sample programs, each named for the protocol
+Nineteen single-purpose sample programs, each named for the protocol
 primitive it demonstrates. Mirrors the Python tree at
 `python-sdk/examples/` and the cross-language brief in
 `python-sdk/examples/SUBWORKER_BRIEF.md`.
@@ -12,7 +12,7 @@ primitive it demonstrates. Mirrors the Python tree at
 > stub modules (`agents.php`, `steps.php`, `cheap.php`, …) so the
 > protocol code in `main.php` is what you read.
 
-## The eighteen
+## The nineteen
 
 | Directory | Demonstrates | Spec |
 |---|---|---|
@@ -34,6 +34,7 @@ primitive it demonstrates. Mirrors the Python tree at
 | [`agent_versions/`](./agent_versions) | `name@version` resolution and missing-version errors. | §7.5, §12 |
 | [`result_chunk/`](./result_chunk) | Chunked terminal results assembled by the client. | §8.4 |
 | [`cost_budget/`](./cost_budget) | `cost.budget` counters decremented by `cost.*` metrics. | §9.6, §12 |
+| [`provisioned_credentials/`](./provisioned_credentials) | Lease-bound upstream credentials for model and budget enforcement. | §9.7–§9.8 |
 
 ## Conventions
 

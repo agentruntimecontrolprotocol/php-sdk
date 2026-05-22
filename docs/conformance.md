@@ -15,6 +15,9 @@ The PHP SDK targets ARCP v1.1.
 | Progress, streams, and `job.result_chunk` | implemented |
 | Permissions and leases | implemented |
 | `cost.budget` counters | implemented |
+| `model.use` leases | implemented |
+| Provisioned credentials | implemented |
+| `LEASE_SUBSET_VIOLATION` | implemented |
 | Artifacts | implemented |
 | Subscriptions and backfill | implemented |
 | Vendor extensions | implemented |
@@ -25,6 +28,8 @@ The v1.1 PHP-specific additions are covered by unit and integration
 tests in:
 
 - `tests/Unit/Runtime/V11FeaturesTest.php`
+- `tests/Unit/Runtime/ModelUseTest.php`
+- `tests/Integration/CredentialLifecycleTest.php`
 - `tests/Integration/JobLifecycleTest.php`
 - `tests/Unit/MessageCatalogRoundTripTest.php`
 - `tests/Unit/ErrorsTest.php`

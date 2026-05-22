@@ -1,10 +1,10 @@
 # `arcp/arcp` — ARCP PHP SDK
 
 PHP 8.4 reference implementation of the [Agent Runtime Control Protocol
-(ARCP) v1.0](https://github.com/agentruntimecontrolprotocol/spec/blob/main/docs/draft-arcp-1.1.md).
+(ARCP) v1.1](https://github.com/agentruntimecontrolprotocol/spec/blob/main/docs/draft-arcp-1.1.md).
 
-> **Status:** v0.1 complete. The conformance matrix is in
-> [CONFORMANCE.md](CONFORMANCE.md).
+> **Status:** v1.1 feature coverage. The conformance matrix is in
+> [docs/conformance.md](docs/conformance.md).
 
 ## Quick start
 
@@ -158,9 +158,9 @@ PHP 8.4 and newer. Older minors are not supported.
 See [CHANGELOG.md](CHANGELOG.md). Major-version migration notes live
 in [UPGRADE.md](UPGRADE.md).
 
-## What's not implemented in v0.1
+## Conformance
 
-See [CONFORMANCE.md](CONFORMANCE.md) for the full list. Calls into
+See [docs/conformance.md](docs/conformance.md) for the full list. Calls into
 out-of-scope surfaces throw `UnimplementedException` with the relevant
 RFC section.
 

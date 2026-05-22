@@ -153,7 +153,8 @@ final readonly class HandshakeNegotiator
         $session->sessionId = SessionId::random();
         $session->principal = $principal;
         $session->peerInfo = $open->client;
-        $session->capabilities = $open->capabilities;
+        $acceptedCapabilities = $this->acceptedCapabilities($open->capabilities);
+        $session->capabilities = $acceptedCapabilities;
         $session->state = SessionState::Authenticated;
 
         $defaultRuntime = new PeerInfo(
@@ -163,10 +164,17 @@ final readonly class HandshakeNegotiator
         );
         $accepted = new SessionAccepted(
             sessionId: $session->sessionId,
-            capabilities: $this->runtime->advertisedCapabilitiesForSession(),
+            capabilities: $acceptedCapabilities,
             runtime: $this->runtimeIdentity ?? $defaultRuntime,
         );
         $this->runtime->emit($session, $accepted, ['correlation_id' => $ctx->envId]);
+    }
+
+    private function acceptedCapabilities(Capabilities $requested): Capabilities
+    {
+        $advertised = $this->runtime->advertisedCapabilitiesForSession();
+        $features = array_values(array_intersect($requested->features, $advertised->features));
+        return $advertised->withFeatures($features);
     }
 
     /**
@@ -185,6 +193,15 @@ final readonly class HandshakeNegotiator
         }
         if ($requested->checkpoints && !$advertised->checkpoints) {
             return 'checkpoints unsupported (RFC §19 v0.2)';
+        }
+        $required = $requested->extra['required_features'] ?? null;
+        if (\is_array($required)) {
+            $advertisedFeatures = $this->runtime->advertisedCapabilitiesForSession()->features;
+            foreach ($required as $feature) {
+                if (\is_string($feature) && !\in_array($feature, $advertisedFeatures, true)) {
+                    return 'feature unsupported: ' . $feature;
+                }
+            }
         }
         // Extension demands are checked once they are registered explicitly.
         return null;

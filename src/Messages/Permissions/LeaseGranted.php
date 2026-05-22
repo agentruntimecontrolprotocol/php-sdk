@@ -7,6 +7,8 @@ namespace Arcp\Messages\Permissions;
 use Arcp\Envelope\MessageType;
 use Arcp\Errors\InvalidArgumentException;
 use Arcp\Ids\LeaseId;
+use Arcp\Runtime\CostBudget;
+use Arcp\Runtime\ModelUse;
 
 /** RFC §15.5 — lease materialized. */
 final readonly class LeaseGranted extends MessageType
@@ -17,6 +19,8 @@ final readonly class LeaseGranted extends MessageType
         public string $resource,
         public string $operation,
         public \DateTimeImmutable $expiresAt,
+        public ?ModelUse $modelUse = null,
+        public ?CostBudget $costBudget = null,
     ) {
     }
 
@@ -29,13 +33,20 @@ final readonly class LeaseGranted extends MessageType
     #[\Override]
     public function toArray(): array
     {
-        return [
+        $out = [
             'lease_id' => (string) $this->leaseId,
             'permission' => $this->permission,
             'resource' => $this->resource,
             'operation' => $this->operation,
             'expires_at' => $this->expiresAt->format(\DateTimeInterface::RFC3339_EXTENDED),
         ];
+        if ($this->modelUse !== null) {
+            $out['model.use'] = $this->modelUse->patterns;
+        }
+        if ($this->costBudget !== null) {
+            $out['cost.budget'] = $this->costBudget->patterns();
+        }
+        return $out;
     }
 
     #[\Override]
@@ -49,6 +60,52 @@ final readonly class LeaseGranted extends MessageType
         if (!\is_string($p) || !\is_string($r) || !\is_string($o) || !\is_string($exp)) {
             throw new InvalidArgumentException('field types wrong');
         }
-        return new self(LeaseId::fromJson($id), $p, $r, $o, new \DateTimeImmutable($exp));
+        return new self(
+            LeaseId::fromJson($id),
+            $p,
+            $r,
+            $o,
+            new \DateTimeImmutable($exp),
+            self::modelUseFromArray($data),
+            self::costBudgetFromArray($data),
+        );
+    }
+
+    /** @param array<string, mixed> $data */
+    private static function modelUseFromArray(array $data): ?ModelUse
+    {
+        if (!isset($data['model.use'])) {
+            return null;
+        }
+        if (!\is_array($data['model.use'])) {
+            throw new InvalidArgumentException('model.use must be list');
+        }
+        $patterns = [];
+        foreach ($data['model.use'] as $pattern) {
+            if (!\is_string($pattern)) {
+                throw new InvalidArgumentException('model.use entries must be strings');
+            }
+            $patterns[] = $pattern;
+        }
+        return ModelUse::fromPatterns($patterns);
+    }
+
+    /** @param array<string, mixed> $data */
+    private static function costBudgetFromArray(array $data): ?CostBudget
+    {
+        if (!isset($data['cost.budget'])) {
+            return null;
+        }
+        if (!\is_array($data['cost.budget'])) {
+            throw new InvalidArgumentException('cost.budget must be list');
+        }
+        $patterns = [];
+        foreach ($data['cost.budget'] as $pattern) {
+            if (!\is_string($pattern)) {
+                throw new InvalidArgumentException('cost.budget entries must be strings');
+            }
+            $patterns[] = $pattern;
+        }
+        return CostBudget::fromPatterns($patterns);
     }
 }

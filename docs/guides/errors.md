@@ -10,6 +10,7 @@ Canonical codes live in `Arcp\Errors\ErrorCode`. v1.1 additions include:
 | Code | Exception |
 | --- | --- |
 | `LEASE_EXPIRED` | `LeaseExpiredException` |
+| `LEASE_SUBSET_VIOLATION` | `LeaseSubsetViolationException` |
 | `BUDGET_EXHAUSTED` | `BudgetExhaustedException` |
 | `AGENT_VERSION_NOT_AVAILABLE` | `AgentVersionNotAvailableException` |
 
@@ -59,6 +60,10 @@ Direct tool failures are surfaced as typed exceptions by `ErrorMapper`.
 ## Lease violations look like `tool_result.error`
 
 Permission and lease failures inside a tool become terminal tool errors.
+
+`LEASE_SUBSET_VIOLATION` is raised when a delegated or child lease
+expands `model.use` or `cost.budget` beyond its parent. Its details are
+`parent_lease_id`, `child_lease_id`, and `field`.
 
 ## Retry guidance
 

@@ -8,6 +8,7 @@ use function Amp\async;
 
 use Amp\CancelledException;
 use Arcp\Envelope\Envelope;
+use Arcp\Errors\AgentVersionNotAvailableException;
 use Arcp\Errors\ARCPException;
 use Arcp\Errors\ErrorPayload;
 use Arcp\Errors\InvalidArgumentException;
@@ -21,9 +22,10 @@ use Arcp\Messages\Execution\JobStarted;
 use Arcp\Messages\Execution\ToolError;
 use Arcp\Messages\Execution\ToolInvoke;
 use Arcp\Messages\Execution\ToolResult;
+use Arcp\Messages\Permissions\LeaseGranted;
 use Arcp\Runtime\AgentRef;
-use Arcp\Runtime\ARCPRuntime;
 use Arcp\Runtime\CostBudget;
+use Arcp\Runtime\Credentials\Credential;
 use Arcp\Runtime\Job;
 use Arcp\Runtime\JobContext;
 use Arcp\Runtime\JobState;
@@ -42,13 +44,24 @@ use Arcp\Store\IdempotencyRecord;
 final readonly class ToolInvocationHandler
 {
     /** @param \Closure(AgentRef): ?ResolvedTool $resolveTool */
-    public function __construct(private ARCPRuntime $runtime, private \Closure $resolveTool)
-    {
+    public function __construct(
+        private \Arcp\Runtime\ARCPRuntime $runtime,
+        private \Closure $resolveTool,
+        private CredentialLifecycle $credentials,
+    ) {
     }
 
     public function handle(Session $session, Envelope $env, ToolInvoke $msg): void
     {
-        $resolved = ($this->resolveTool)(AgentRef::parse($msg->tool));
+        try {
+            $resolved = ($this->resolveTool)(AgentRef::parse($msg->tool));
+        } catch (AgentVersionNotAvailableException $e) {
+            $this->runtime->emit($session, new ToolError(ErrorPayload::fromException($e)), [
+                'correlation_id' => $env->id,
+                'trace_id' => $env->traceId,
+            ]);
+            return;
+        }
         if (!$resolved instanceof ResolvedTool) {
             $this->emitNotFound($session, $env, $msg->tool);
             return;
@@ -56,14 +69,22 @@ final readonly class ToolInvocationHandler
         if ($this->handledByIdempotencyReplay($session, $env)) {
             return;
         }
+        $lease = $this->credentials->leaseFromArguments($msg->arguments, $resolved);
         $job = $this->runtime->jobs->start(
             $session,
             $env,
             $resolved->name,
             $resolved->version,
-            CostBudget::fromInvocationArguments($msg->arguments),
+            $lease instanceof LeaseGranted
+                ? $lease->costBudget
+                : CostBudget::fromInvocationArguments($msg->arguments),
+            $lease,
         );
-        $this->emitJobAcceptedAndStarted($session, $env, $job);
+        $credentials = $this->credentials->issue($session, $env, $job, $lease);
+        if ($credentials === null) {
+            return;
+        }
+        $this->emitJobAcceptedAndStarted($session, $env, $job, $credentials);
         $this->runtime->jobs->transition($job, JobState::Running);
         $job->future = async(function () use ($session, $env, $msg, $job, $resolved): void {
             $this->runHandler(new ToolJobContextSpec($session, $env, $msg, $job), $resolved->handler);
@@ -103,12 +124,22 @@ final readonly class ToolInvocationHandler
         return true;
     }
 
-    private function emitJobAcceptedAndStarted(Session $session, Envelope $env, Job $job): void
-    {
+    /**
+     * @param list<Credential> $credentials
+     */
+    private function emitJobAcceptedAndStarted(
+        Session $session,
+        Envelope $env,
+        Job $job,
+        array $credentials,
+    ): void {
         // job.accepted/started keyed on job_id; only the terminal
         // tool.result/tool.error envelopes carry correlation_id, so
         // synchronous invokeTool() callers see exactly one resolution.
-        $this->runtime->emit($session, new JobAccepted(), [
+        $payloadCredentials = $credentials === []
+            ? null
+            : array_map(fn (Credential $cred): array => $cred->toArray(), $credentials);
+        $this->runtime->emit($session, new JobAccepted(credentials: $payloadCredentials), [
             'job_id' => $job->id,
             'trace_id' => $env->traceId,
         ]);
@@ -154,6 +185,7 @@ final readonly class ToolInvocationHandler
             'job_id' => $job->id,
             'trace_id' => $env->traceId,
         ]);
+        $this->credentials->revoke($job);
         $this->rememberIdempotent($session, $env);
     }
 
@@ -185,6 +217,7 @@ final readonly class ToolInvocationHandler
             'job_id' => $job->id,
             'trace_id' => $env->traceId,
         ]);
+        $this->credentials->revoke($job);
     }
 
     private function failJob(ToolJobContextSpec $spec, ErrorPayload $payload): void
@@ -202,5 +235,6 @@ final readonly class ToolInvocationHandler
             'job_id' => $job->id,
             'trace_id' => $env->traceId,
         ]);
+        $this->credentials->revoke($job);
     }
 }

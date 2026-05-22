@@ -8,6 +8,7 @@ use Arcp\Clock\ClockInterface;
 use Arcp\Clock\SystemClock;
 use Arcp\Errors\LeaseExpiredException;
 use Arcp\Errors\LeaseRevokedException;
+use Arcp\Errors\LeaseSubsetViolationException;
 use Arcp\Errors\NotFoundException;
 use Arcp\Errors\PermissionDeniedException;
 use Arcp\Ids\LeaseId;
@@ -75,9 +76,51 @@ final class LeaseManager
             $lease->resource,
             $lease->operation,
             $newExpiresAt,
+            $lease->modelUse,
+            $lease->costBudget,
         );
         $this->byId[(string) $id] = $extended;
         return $extended;
+    }
+
+    public function ensureSubset(LeaseGranted $parent, LeaseGranted $child): void
+    {
+        if (
+            $parent->modelUse !== null
+            && $child->modelUse !== null
+            && !$parent->modelUse->containsSubset($child->modelUse)
+        ) {
+            throw new LeaseSubsetViolationException(
+                (string) $parent->leaseId,
+                (string) $child->leaseId,
+                'model.use',
+            );
+        }
+        if ($parent->modelUse === null && $child->modelUse !== null) {
+            throw new LeaseSubsetViolationException(
+                (string) $parent->leaseId,
+                (string) $child->leaseId,
+                'model.use',
+            );
+        }
+        if (
+            $parent->costBudget !== null
+            && $child->costBudget !== null
+            && !$parent->costBudget->containsSubset($child->costBudget)
+        ) {
+            throw new LeaseSubsetViolationException(
+                (string) $parent->leaseId,
+                (string) $child->leaseId,
+                'cost.budget',
+            );
+        }
+        if ($parent->costBudget === null && $child->costBudget !== null) {
+            throw new LeaseSubsetViolationException(
+                (string) $parent->leaseId,
+                (string) $child->leaseId,
+                'cost.budget',
+            );
+        }
     }
 
     public function revoke(LeaseId $id, string $reason = ''): LeaseRevoked

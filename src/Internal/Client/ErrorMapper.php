@@ -18,6 +18,7 @@ use Arcp\Errors\ErrorPayload;
 use Arcp\Errors\FailedPreconditionException;
 use Arcp\Errors\InternalException;
 use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\LeaseSubsetViolationException;
 use Arcp\Errors\NotFoundException;
 use Arcp\Errors\OutOfRangeException;
 use Arcp\Errors\PermissionDeniedException;
@@ -56,6 +57,7 @@ final class ErrorMapper
             ErrorCode::Aborted => new AbortedException($err->message),
             ErrorCode::OutOfRange => new OutOfRangeException($err->message),
             ErrorCode::BackpressureOverflow => new BackpressureOverflowException($err->message),
+            ErrorCode::LeaseSubsetViolation => $this->leaseSubsetViolation($err),
             ErrorCode::BudgetExhausted => $this->budgetExhausted($err),
             ErrorCode::AgentVersionNotAvailable => $this->agentVersionNotAvailable($err),
             default => new UnknownException($err->code, $err->message),
@@ -82,6 +84,19 @@ final class ErrorMapper
             \is_int($remaining) || \is_float($remaining) || \is_string($remaining)
                 ? $remaining
                 : 0,
+            $err->message,
+        );
+    }
+
+    private function leaseSubsetViolation(ErrorPayload $err): LeaseSubsetViolationException
+    {
+        $parent = $err->details['parent_lease_id'] ?? '?';
+        $child = $err->details['child_lease_id'] ?? '?';
+        $field = $err->details['field'] ?? '?';
+        return new LeaseSubsetViolationException(
+            \is_string($parent) ? $parent : '?',
+            \is_string($child) ? $child : '?',
+            \is_string($field) ? $field : '?',
             $err->message,
         );
     }

@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - ARCP v1.1 feature coverage for `session.list_jobs` / `session.jobs`,
   versioned `name@version` tool resolution, `job.result_chunk`, and
-  `cost.budget` enforcement.
+  `cost.budget`, `model.use`, and provisioned credential enforcement.
 - `Arcp\Errors\BudgetExhaustedException` and
   `Arcp\Errors\AgentVersionNotAvailableException` mapped to their v1.1
   canonical wire codes.
