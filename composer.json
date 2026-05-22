@@ -4,14 +4,14 @@
     "type": "library",
     "license": "Apache-2.0",
     "keywords": ["arcp", "agent", "runtime", "protocol", "websocket", "stdio"],
-    "homepage": "https://github.com/arcp/php-sdk",
+    "homepage": "https://github.com/agentruntimecontrolprotocol/php-sdk",
     "authors": [
         {"name": "ARCP Contributors"}
     ],
     "support": {
-        "issues": "https://github.com/arcp/php-sdk/issues",
-        "source": "https://github.com/arcp/php-sdk",
-        "docs": "https://github.com/arcp/php-sdk/tree/main/docs"
+        "issues": "https://github.com/agentruntimecontrolprotocol/php-sdk/issues",
+        "source": "https://github.com/agentruntimecontrolprotocol/php-sdk",
+        "docs": "https://github.com/agentruntimecontrolprotocol/php-sdk/tree/main/docs"
     },
     "require": {
         "php": ">=8.4",

@@ -1,0 +1,90 @@
+name: publish
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Version tag to publish (for example v1.1.0)'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: package and publish to Packagist
+    runs-on: ubuntu-latest
+    environment: packagist
+    env:
+      PACKAGE_NAME: arcp/arcp
+      REPOSITORY_URL: https://github.com/agentruntimecontrolprotocol/php-sdk
+      PACKAGIST_USERNAME: ${{ secrets.PACKAGIST_USERNAME }}
+      PACKAGIST_TOKEN: ${{ secrets.PACKAGIST_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc # 2.37.1
+        with:
+          php-version: '8.4'
+          extensions: pdo, pdo_sqlite, mbstring, json
+          tools: composer:v2
+
+      - name: Validate composer metadata
+        run: composer validate --strict
+
+      - name: Install production dependencies
+        run: composer install --no-dev --no-progress --no-interaction --prefer-dist
+
+      - name: Build Composer archive
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          version="${GITHUB_REF_NAME}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            version="${{ inputs.tag }}"
+          fi
+          composer archive --format=zip --file="build/${PACKAGE_NAME//\//-}-${version}"
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: composer-package
+          path: build/*.zip
+          if-no-files-found: error
+
+      - name: Publish to Packagist
+        run: |
+          set -euo pipefail
+
+          if [ -z "${PACKAGIST_USERNAME}" ] || [ -z "${PACKAGIST_TOKEN}" ]; then
+            echo "PACKAGIST_USERNAME and PACKAGIST_TOKEN repository secrets are required." >&2
+            exit 1
+          fi
+
+          status="$(curl -sS -o /tmp/packagist-package.json -w '%{http_code}' \
+            "https://repo.packagist.org/p2/${PACKAGE_NAME}.json")"
+
+          if [ "${status}" = "200" ]; then
+            endpoint="https://packagist.org/api/update-package"
+          elif [ "${status}" = "404" ]; then
+            endpoint="https://packagist.org/api/create-package"
+          else
+            echo "Unexpected Packagist metadata status ${status}" >&2
+            cat /tmp/packagist-package.json >&2 || true
+            exit 1
+          fi
+
+          curl --fail-with-body -sS \
+            -X POST \
+            -H 'Content-Type: application/json' \
+            -H "Authorization: Bearer ${PACKAGIST_USERNAME}:${PACKAGIST_TOKEN}" \
+            "${endpoint}" \
+            -d "{\"repository\":\"${REPOSITORY_URL}\"}"
