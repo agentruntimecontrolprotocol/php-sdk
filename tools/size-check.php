@@ -153,7 +153,7 @@ function checkFile(string $file, array $limits): array
 
 /**
  * Returns true if the preceding docblock contains a
- * `@size-check-suppress(reason: …)` tag — used to silence the
+ * `@size-check-suppress(reason: ...)` tag — used to silence the
  * parameter-count check for wire-shape DTOs whose param list maps 1:1
  * to the protocol and cannot be collapsed without breaking the
  * public API. The `reason:` argument is required and human-readable.

@@ -58,7 +58,7 @@ use Psr\Log\NullLogger;
 
 /**
  * Client wrapper around a {@see Transport}. Performs the handshake then
- * exposes high-level commands (`invokeTool`, `subscribe`, `cancel`, …).
+ * exposes high-level commands (`invokeTool`, `subscribe`, `cancel`, ...).
  *
  * The client runs a background read-loop that delegates inbound envelope
  * dispatch to {@see ResponseRouter}: correlated responses go back to their

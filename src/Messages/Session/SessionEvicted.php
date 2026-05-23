@@ -7,7 +7,7 @@ namespace Arcp\Messages\Session;
 use Arcp\Envelope\MessageType;
 use Arcp\Errors\InvalidArgumentException;
 
-/** RFC §8.5 — runtime evicted the session (idle, revoked credentials, quota, …). */
+/** RFC §8.5 — runtime evicted the session (idle, revoked credentials, quota, ...). */
 final readonly class SessionEvicted extends MessageType
 {
     public function __construct(

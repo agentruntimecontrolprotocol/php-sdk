@@ -13,7 +13,7 @@ history lives in `CHANGELOG.md`.
 
 The v1.x line introduces no breaking changes for code that uses the
 documented public surface (`Arcp\Client\ARCPClient`, `Arcp\Runtime\ARCPRuntime`,
-the `Arcp\Messages\…` value objects, the `Arcp\Errors\…` exception
+the `Arcp\Messages\...` value objects, the `Arcp\Errors\...` exception
 hierarchy, and the `Arcp\Transport\Transport` adapter contract).
 
 What changed:
@@ -40,19 +40,19 @@ try {
 ### Additive — `TransportClosedException`
 
 Three transports (`StdioTransport`, `MemoryTransport`, `WebSocketTransport`)
-previously threw bare `\RuntimeException('… closed')` when called after
+previously threw bare `\RuntimeException('... closed')` when called after
 close. They now throw `Arcp\Errors\TransportClosedException`, which
 descends from `Arcp\Errors\ARCPException` (which extends
 `\RuntimeException`). Existing `catch (\RuntimeException $e)` blocks
 keep working; new code can catch the typed exception or
 `ARCPExceptionInterface`.
 
-### Internal — `Arcp\Internal\…` namespace
+### Internal — `Arcp\Internal\...` namespace
 
 Runtime and client internals (`HandshakeNegotiator`,
 `ToolInvocationHandler`, `SubscriptionRouter`, `LifecycleHandler`,
 `ArtifactDispatcher`, `ResponseRouter`, etc.) live under
-`Arcp\Internal\…`. They are marked `@internal` and are NOT part of the
+`Arcp\Internal\...`. They are marked `@internal` and are NOT part of the
 backward-compatibility promise. Application code should depend only on
 `Arcp\Client\ARCPClient` and `Arcp\Runtime\ARCPRuntime`.
 

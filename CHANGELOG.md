@@ -22,9 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Arcp\Errors\ARCPException` (no migration needed for existing catch
   blocks). See `UPGRADE.md`.
 - `Arcp\Errors\TransportClosedException` — typed replacement for the
-  bare `\RuntimeException('… closed')` previously thrown by stdio,
+  bare `\RuntimeException('... closed')` previously thrown by stdio,
   memory, and WebSocket transports. Maps to `ErrorCode::Unavailable`.
-- `Arcp\Internal\…` namespace housing the runtime and client
+- `Arcp\Internal\...` namespace housing the runtime and client
   collaborators that were split out of `ARCPRuntime` / `ARCPClient` /
   `EnvelopeSerializer`. Marked `@internal`; not part of the BC promise.
 - Toolchain: `rector/rector`, `infection/infection`, `tools/size-check.php`
@@ -48,3 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Initial reference SDK release aligned with ARCP protocol v1.1 (see README status).
+
+[Unreleased]: https://github.com/agentruntimecontrolprotocol/php-sdk/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/agentruntimecontrolprotocol/php-sdk/compare/v0.1.0...v1.1.0
+[0.1.0]: https://github.com/agentruntimecontrolprotocol/php-sdk/releases/tag/v0.1.0
