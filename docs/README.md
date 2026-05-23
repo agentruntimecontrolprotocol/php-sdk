@@ -42,12 +42,14 @@ across multiple npm packages. PHP ships as one Composer package,
 | --- | --- |
 | `Arcp\Envelope`, `Arcp\Json` | Wire envelope model and serialization |
 | `Arcp\Messages` | Typed protocol payloads |
+| `Arcp\Ids` | Typed IDs (`SessionId`, `JobId`, `TraceId`, etc.) |
 | `Arcp\Errors` | Canonical error codes and exceptions |
 | `Arcp\Client` | `ARCPClient` and client-side handlers |
 | `Arcp\Runtime` | `ARCPRuntime`, jobs, leases, artifacts, subscriptions |
 | `Arcp\Transport` | WebSocket, stdio, and in-memory transports |
 | `Arcp\Auth` | Built-in auth schemes and `AuthRouter` |
 | `Arcp\Store` | Event log and idempotency persistence |
+| `Arcp\Clock` | Time source abstraction for deterministic tests |
 | `Arcp\Extensions` | Vendor extension classification |
 | `Arcp\Cli` | `bin/arcp` commands |
 

@@ -12,6 +12,7 @@ that map to the same layers as the TypeScript SDK packages.
 | Runtime | `Arcp\Runtime`, `Arcp\Internal\Runtime` |
 | Transports | `Arcp\Transport` |
 | Persistence | `Arcp\Store` |
+| Time | `Arcp\Clock` |
 | Extensions | `Arcp\Extensions` |
 
 The public surface is intentionally small: `ARCPClient`, `ARCPRuntime`,

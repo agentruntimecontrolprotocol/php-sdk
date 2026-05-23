@@ -78,8 +78,8 @@ child owns the runtime.
 
 ## What's next
 
-- [Sessions](./architecture.md)
-- [Jobs](./architecture.md)
+- [Sessions](./guides/sessions.md)
+- [Jobs](./guides/jobs.md)
 - [Transports](./transports.md)
 - [Recipes](./recipes.md)
 

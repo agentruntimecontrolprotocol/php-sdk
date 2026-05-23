@@ -5,7 +5,7 @@ The transport interface is `Arcp\Transport\Transport`:
 ```php
 interface Transport
 {
-    public function send(Envelope $env): void;
+    public function send(Envelope $env, ?Cancellation $cancellation = null): void;
     public function receive(?Cancellation $cancellation = null): ?Envelope;
     public function close(): void;
     public function isClosed(): bool;
