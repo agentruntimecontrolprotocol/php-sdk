@@ -8,6 +8,7 @@
   <a href="https://packagist.org/packages/arcp/arcp"><img alt="PHP version" src="https://img.shields.io/packagist/php-v/arcp/arcp.svg"></a>
   <a href="https://github.com/agentruntimecontrolprotocol/spec/blob/main/docs/draft-arcp-1.1.md"><img alt="ARCP" src="https://img.shields.io/badge/ARCP-v1.1%20draft-blue"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-lightgrey"></a>
+  <a href="https://coderabbit.ai"><img alt="CodeRabbit" src="https://img.shields.io/coderabbit/prs/github/agentruntimecontrolprotocol/php-sdk?utm_source=oss&utm_medium=github&utm_campaign=agentruntimecontrolprotocol/php-sdk&labelColor=171717&color=FF570A&label=CodeRabbit+Reviews"></a>
 </p>
 
 <p align="center">
