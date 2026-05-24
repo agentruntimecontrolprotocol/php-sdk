@@ -179,15 +179,15 @@ use Arcp\Envelope\Envelope;
 use Arcp\Messages\Execution\JobProgress;
 use Arcp\Messages\Execution\ResultChunk;
 use Arcp\Messages\Telemetry\EventEmit;
-use Arcp\Messages\Telemetry\LogRecord;
-use Arcp\Messages\Telemetry\Metric;
+use Arcp\Messages\Telemetry\LogEvent;
+use Arcp\Messages\Telemetry\MetricEvent;
 
 $client->subscribe(
     ['session_id' => [(string) $client->session->sessionId]],
     static function (Envelope $env) use ($client): void {
         match (true) {
-            $env->payload instanceof LogRecord     => printf("[log] %s\n", $env->payload->message),
-            $env->payload instanceof Metric        => printf("[metric] %s=%s %s\n", $env->payload->name, $env->payload->value, $env->payload->unit ?? ''),
+            $env->payload instanceof LogEvent      => printf("[log] %s\n", $env->payload->message),
+            $env->payload instanceof MetricEvent   => printf("[metric] %s=%s %s\n", $env->payload->name, $env->payload->value, $env->payload->unit),
             $env->payload instanceof JobProgress   => printf("[progress %d%%] %s\n", $env->payload->percent, $env->payload->message ?? ''),
             $env->payload instanceof ResultChunk   => $client->resultChunks->push($env->payload),
             $env->payload instanceof EventEmit     => printf("[event] %s\n", $env->payload->eventType),
@@ -204,13 +204,13 @@ Request capabilities, a budget, and an expiry; read budget-remaining metrics as 
 ```php
 use Arcp\Envelope\Envelope;
 use Arcp\Errors\BudgetExhaustedException;
-use Arcp\Messages\Telemetry\Metric;
+use Arcp\Messages\Telemetry\MetricEvent;
 
 $client->subscribe(
     ['types' => ['metric']],
     static function (Envelope $env): void {
-        if ($env->payload instanceof Metric && $env->payload->name === 'cost.budget.remaining') {
-            printf("budget remaining: %.2f %s\n", $env->payload->value, $env->payload->unit ?? '');
+        if ($env->payload instanceof MetricEvent && $env->payload->name === 'cost.budget.remaining') {
+            printf("budget remaining: %.2f %s\n", $env->payload->value, $env->payload->unit);
         }
     },
 );

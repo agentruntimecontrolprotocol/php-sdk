@@ -26,7 +26,7 @@ principal. `NoneAuth` accepts anonymous sessions.
 
 ```php
 $runtime = new ARCPRuntime(
-    authRouter: new AuthRouter([new BearerAuth('secret', principal: 'alice')]),
+    authRouter: new AuthRouter([new BearerAuth(['secret' => 'alice'])]),
 );
 ```
 
@@ -37,7 +37,7 @@ Implement `Arcp\Auth\AuthScheme`:
 ```php
 final class HeaderAuth implements AuthScheme
 {
-    public function scheme(): string
+    public function name(): string
     {
         return 'bearer';
     }
@@ -45,8 +45,8 @@ final class HeaderAuth implements AuthScheme
     public function verify(Auth $auth, PeerInfo $peer): AuthResult
     {
         return $auth->token === 'secret'
-            ? AuthResult::accepted('alice')
-            : AuthResult::rejected('bad token');
+            ? AuthResult::accept('alice')
+            : AuthResult::reject('bad token');
     }
 }
 ```
