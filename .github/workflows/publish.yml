@@ -82,9 +82,10 @@ jobs:
             exit 1
           fi
 
+          encoded_user="$(jq -rn --arg v "${PACKAGIST_USERNAME}" '$v|@uri')"
+          encoded_token="$(jq -rn --arg v "${PACKAGIST_TOKEN}" '$v|@uri')"
           curl --fail-with-body -sS \
             -X POST \
             -H 'Content-Type: application/json' \
-            -H "Authorization: Bearer ${PACKAGIST_USERNAME}:${PACKAGIST_TOKEN}" \
-            "${endpoint}" \
-            -d "{\"repository\":\"${REPOSITORY_URL}\"}"
+            "${endpoint}?username=${encoded_user}&apiToken=${encoded_token}" \
+            -d "{\"repository\":{\"url\":\"${REPOSITORY_URL}\"}}"
