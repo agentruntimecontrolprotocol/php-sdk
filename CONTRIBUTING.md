@@ -1,4 +1,4 @@
-# Contributing to arcp/arcp
+# Contributing to arcp/sdk
 
 Thanks for your interest in improving the PHP SDK for ARCP. This
 document covers how to report issues, propose changes, and get a change merged.
@@ -129,7 +129,7 @@ the changelog. Prefer clarity over cleverness in a library others build on.
 ## Releases
 
 Releases are cut by maintainers. The package is published to
-[Packagist](https://packagist.org/packages/arcp/arcp); pushing a
+[Packagist](https://packagist.org/packages/arcp/sdk); pushing a
 `v*` tag (for example `v1.1.0`) triggers the `publish` GitHub Actions
 workflow, which validates the Composer metadata, builds the archive,
 and notifies Packagist. The SDK is versioned with

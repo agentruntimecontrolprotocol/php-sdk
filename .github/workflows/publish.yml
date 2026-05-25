@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: packagist
     env:
-      PACKAGE_NAME: arcp/arcp
+      PACKAGE_NAME: arcp/sdk
       REPOSITORY_URL: https://github.com/agentruntimecontrolprotocol/php-sdk
       PACKAGIST_USERNAME: ${{ secrets.PACKAGIST_USERNAME }}
       PACKAGIST_TOKEN: ${{ secrets.PACKAGIST_TOKEN }}

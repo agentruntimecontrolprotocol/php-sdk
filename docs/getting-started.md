@@ -17,7 +17,7 @@ composer install
 As a dependency:
 
 ```sh
-composer require arcp/arcp
+composer require arcp/sdk
 ```
 
 ## In-process demo (no network)

@@ -14,7 +14,7 @@ the runtime, client, transports, and protocol features.
 - [Getting started](./getting-started.md) - install, create an in-process runtime + client, run the checks.
 - [Architecture](./architecture.md) - how the PHP namespaces fit together.
 - [Transports](./transports.md) - WebSocket, stdio, and memory transports.
-- [CLI](./cli.md) - the `bin/arcp` command shipped by `arcp/arcp`.
+- [CLI](./cli.md) - the `bin/arcp` command shipped by `arcp/sdk`.
 
 ## Guides (one per spec section)
 
@@ -35,7 +35,7 @@ the runtime, client, transports, and protocol features.
 
 The TypeScript SDK has package-specific docs because its code is split
 across multiple npm packages. PHP ships as one Composer package,
-`arcp/arcp`, so this documentation follows the namespace layout under
+`arcp/sdk`, so this documentation follows the namespace layout under
 `src/`.
 
 | Namespace | Purpose |

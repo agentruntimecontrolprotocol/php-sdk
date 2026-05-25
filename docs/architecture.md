@@ -1,6 +1,6 @@
 # Architecture
 
-The PHP SDK is a single Composer package, `arcp/arcp`, with namespaces
+The PHP SDK is a single Composer package, `arcp/sdk`, with namespaces
 that map to the same layers as the TypeScript SDK packages.
 
 ## Layering

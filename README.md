@@ -3,9 +3,9 @@
 <p align="center"><strong>PHP SDK for the Agent Runtime Control Protocol (ARCP) — submit, observe, and control long-running agent jobs from PHP.</strong></p>
 
 <p align="center">
-  <a href="https://packagist.org/packages/arcp/arcp"><img alt="Packagist" src="https://img.shields.io/packagist/v/arcp/arcp.svg"></a>
+  <a href="https://packagist.org/packages/arcp/sdk"><img alt="Packagist" src="https://img.shields.io/packagist/v/arcp/sdk.svg"></a>
   <a href="https://github.com/agentruntimecontrolprotocol/php-sdk/actions/workflows/test.yml"><img alt="CI" src="https://github.com/agentruntimecontrolprotocol/php-sdk/actions/workflows/test.yml/badge.svg"></a>
-  <a href="https://packagist.org/packages/arcp/arcp"><img alt="PHP version" src="https://img.shields.io/packagist/php-v/arcp/arcp.svg"></a>
+  <a href="https://packagist.org/packages/arcp/sdk"><img alt="PHP version" src="https://img.shields.io/packagist/php-v/arcp/sdk.svg"></a>
   <a href="https://github.com/agentruntimecontrolprotocol/spec/blob/main/docs/draft-arcp-1.1.md"><img alt="ARCP" src="https://img.shields.io/badge/ARCP-v1.1%20draft-blue"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-lightgrey"></a>
   <a href="https://coderabbit.ai"><img alt="CodeRabbit" src="https://img.shields.io/coderabbit/prs/github/agentruntimecontrolprotocol/php-sdk?utm_source=oss&utm_medium=github&utm_campaign=agentruntimecontrolprotocol/php-sdk&labelColor=171717&color=FF570A&label=CodeRabbit+Reviews"></a>
@@ -22,7 +22,7 @@
 
 ---
 
-`arcp/arcp` is the PHP reference implementation of [ARCP](https://github.com/agentruntimecontrolprotocol/spec/blob/main/docs/draft-arcp-1.1.md), the Agent Runtime Control Protocol. It covers both sides of the wire — `Arcp\Client\ARCPClient` for submitting and observing jobs, `Arcp\Runtime\ARCPRuntime` for hosting agents — so either side can talk to any conformant peer in any language without hand-rolling the envelope, sequencing, or lease enforcement.
+`arcp/sdk` is the PHP reference implementation of [ARCP](https://github.com/agentruntimecontrolprotocol/spec/blob/main/docs/draft-arcp-1.1.md), the Agent Runtime Control Protocol. It covers both sides of the wire — `Arcp\Client\ARCPClient` for submitting and observing jobs, `Arcp\Runtime\ARCPRuntime` for hosting agents — so either side can talk to any conformant peer in any language without hand-rolling the envelope, sequencing, or lease enforcement.
 
 ARCP itself is a transport-agnostic wire protocol for long-running AI agent jobs. It owns the parts of agent infrastructure that don't change between products — sessions, durable event streams, capability leases, budgets, resume — and stays out of the parts that do. ARCP wraps the agent function; it does not define how agents are built, how tools are exposed (that's MCP), or how telemetry is exported (that's OpenTelemetry).
 
@@ -31,7 +31,7 @@ ARCP itself is a transport-agnostic wire protocol for long-running AI agent jobs
 Requires PHP 8.4 or newer and Composer 2.x. The SDK ships as a single Composer package; the `bin/arcp` CLI is registered automatically so `vendor/bin/arcp` is available in any project that pulls it in.
 
 ```sh
-composer require arcp/arcp
+composer require arcp/sdk
 ```
 
 The `pdo_sqlite`, `mbstring`, and `json` extensions are required (all bundled with most PHP distributions). The runtime uses [Amp v3](https://amphp.org/) + fibers; no extra extension is needed for async.
