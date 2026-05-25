@@ -1,0 +1,47 @@
+# Codecov configuration for the ARCP PHP SDK.
+# Reference: https://docs.codecov.com/docs/codecovyml-reference
+
+codecov:
+  notify:
+    wait_for_ci: true
+  require_ci_to_pass: true
+
+coverage:
+  precision: 2
+  round: down
+  range: "70...95"
+  status:
+    project:
+      default:
+        target: 85%
+        threshold: 1%
+        flags:
+          - unittests
+    patch:
+      default:
+        target: 80%
+        threshold: 5%
+
+flag_management:
+  default_rules:
+    carryforward: true
+  individual_flags:
+    - name: unittests
+      paths:
+        - src/**
+
+ignore:
+  - "bin/**"
+  - "docs/**"
+  - "samples/**"
+  - "recipes/**"
+  - "tests/**"
+  - "tools/**"
+  - "vendor/**"
+
+comment:
+  layout: "header, diff, flags, files, footer"
+  behavior: default
+  require_changes: false
+  require_base: false
+  require_head: true
