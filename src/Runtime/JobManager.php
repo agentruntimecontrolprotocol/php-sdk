@@ -6,6 +6,8 @@ namespace Arcp\Runtime;
 
 use Amp\CancelledException;
 use Amp\DeferredCancellation;
+use Arcp\Clock\ClockInterface;
+use Arcp\Clock\SystemClock;
 use Arcp\Envelope\Envelope;
 use Arcp\Errors\NotFoundException;
 use Arcp\Ids\JobId;
@@ -20,6 +22,18 @@ final class JobManager
 {
     /** @var array<string, Job> */
     private array $jobs = [];
+
+    /**
+     * @param int $terminalRetentionSeconds how long terminal jobs remain
+     *                                      visible to `session.list_jobs`. Operators rely on the list path
+     *                                      to reconstruct recent history; we keep terminal entries around
+     *                                      for a bounded window so cursors keep working past completion.
+     */
+    public function __construct(
+        private readonly ClockInterface $clock = new SystemClock(),
+        public readonly int $terminalRetentionSeconds = 900,
+    ) {
+    }
 
     public function start(
         Session $session,
@@ -58,7 +72,11 @@ final class JobManager
     {
         $job->state = $next;
         if ($next->isTerminal()) {
-            unset($this->jobs[(string) $job->id]);
+            $job->terminatedAt = $this->clock->now();
+            // Retain terminal jobs in the map; sweep evicts them once the
+            // retention window has elapsed so `session.list_jobs` can
+            // surface recent history (RFC §10.5).
+            $this->sweepTerminal();
         }
     }
 
@@ -75,11 +93,28 @@ final class JobManager
     /** @return list<Job> */
     public function all(): array
     {
+        $this->sweepTerminal();
         return array_values($this->jobs);
     }
 
     public function count(): int
     {
+        $this->sweepTerminal();
         return \count($this->jobs);
+    }
+
+    /** Drop terminal jobs whose retention window has elapsed. */
+    private function sweepTerminal(): void
+    {
+        $now = $this->clock->now();
+        foreach ($this->jobs as $key => $job) {
+            if (!$job->state->isTerminal() || !$job->terminatedAt instanceof \DateTimeImmutable) {
+                continue;
+            }
+            $expires = $job->terminatedAt->modify('+' . $this->terminalRetentionSeconds . ' seconds');
+            if ($expires <= $now) {
+                unset($this->jobs[$key]);
+            }
+        }
     }
 }

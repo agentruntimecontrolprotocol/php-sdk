@@ -40,6 +40,28 @@ final readonly class ArtifactDispatcher
             );
             return;
         }
+        if ($msg->sha256 !== null) {
+            $normalized = strtolower(trim($msg->sha256));
+            if (preg_match('/^[0-9a-f]{64}$/', $normalized) !== 1) {
+                $this->lifecycle->nack(
+                    $session,
+                    $env,
+                    'INVALID_ARGUMENT',
+                    'artifact.put sha256 must be 64 lowercase hex chars',
+                );
+                return;
+            }
+            $computed = hash('sha256', $bytes);
+            if (!hash_equals($computed, $normalized)) {
+                $this->lifecycle->nack(
+                    $session,
+                    $env,
+                    'INVALID_ARGUMENT',
+                    'artifact.put sha256 does not match payload',
+                );
+                return;
+            }
+        }
         $ref = $this->runtime->artifacts->put(
             $session,
             new ArtifactBlob($msg->mediaType, $bytes, $msg->retentionSeconds),
@@ -50,13 +72,14 @@ final readonly class ArtifactDispatcher
     public function fetch(Session $session, Envelope $env, ArtifactFetch $msg): void
     {
         try {
-            $bytes = $this->runtime->artifacts->fetch($msg->artifactId);
+            $bytes = $this->runtime->artifacts->fetch($msg->artifactId, $session);
+            $mediaType = $this->runtime->artifacts->ref($msg->artifactId, $session)->mediaType;
         } catch (ARCPException $e) {
             $this->lifecycle->nack($session, $env, $e->code()->value, $e->getMessage());
             return;
         }
         $put = new ArtifactPut(
-            mediaType: $this->runtime->artifacts->ref($msg->artifactId)->mediaType,
+            mediaType: $mediaType,
             data: base64_encode($bytes),
         );
         $this->runtime->emit($session, $put, ['correlation_id' => $env->id]);
@@ -64,7 +87,12 @@ final readonly class ArtifactDispatcher
 
     public function release(Session $session, Envelope $env, ArtifactRelease $msg): void
     {
-        $ok = $this->runtime->artifacts->release($msg->artifactId);
+        try {
+            $ok = $this->runtime->artifacts->release($msg->artifactId, $session);
+        } catch (ARCPException $e) {
+            $this->lifecycle->nack($session, $env, $e->code()->value, $e->getMessage());
+            return;
+        }
         $this->runtime->emit($session, new Ack($ok ? 'released' : 'unknown'), [
             'correlation_id' => $env->id,
         ]);

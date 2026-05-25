@@ -8,6 +8,7 @@ use Arcp\Envelope\Envelope;
 use Arcp\Envelope\Priority;
 use Arcp\Errors\InvalidArgumentException;
 use Arcp\Ids\MessageId;
+use Arcp\Ids\SessionId;
 use Arcp\Ids\SubscriptionId;
 use Arcp\Json\EnvelopeSerializer;
 use Arcp\Messages\Subscriptions\Subscribe;
@@ -31,6 +32,13 @@ final class SubscriptionManager
     public function compile(Session $session, Subscribe $msg): Subscription
     {
         $sessionIds = $this->extractStringList($msg->filter, 'session_id');
+        // Default the session_id constraint to the calling session if no
+        // filter was supplied. Without this, an empty list means "match any
+        // session" and a subscriber would observe every other session's
+        // envelopes (RFC §13 — subscriptions are session-scoped).
+        if ($sessionIds === [] && $session->sessionId instanceof SessionId) {
+            $sessionIds = [(string) $session->sessionId];
+        }
         $traceIds   = $this->extractStringList($msg->filter, 'trace_id');
         $jobIds     = $this->extractStringList($msg->filter, 'job_id');
         $streamIds  = $this->extractStringList($msg->filter, 'stream_id');

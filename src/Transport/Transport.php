@@ -18,13 +18,21 @@ use Arcp\Envelope\Envelope;
 interface Transport
 {
     /**
-     * Push `$env` onto the wire. Throws on transport errors.
+     * Push `$env` onto the wire.
+     *
+     * @throws \Arcp\Errors\TransportClosedException when the transport is
+     *                                               no longer writable.
+     * @throws \Amp\CancelledException when `$cancellation` fires before
+     *                                 the write completes.
      */
     public function send(Envelope $env, ?Cancellation $cancellation = null): void;
 
     /**
      * Pull the next envelope. Returns `null` if the peer closed cleanly.
-     * Throws on transport errors or cancellation.
+     *
+     * @throws \Arcp\Errors\TransportClosedException on unexpected
+     *                                               transport failure (distinct from a clean close, which returns null).
+     * @throws \Amp\CancelledException when `$cancellation` fires.
      */
     public function receive(?Cancellation $cancellation = null): ?Envelope;
 

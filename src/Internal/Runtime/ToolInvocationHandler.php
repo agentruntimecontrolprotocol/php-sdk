@@ -69,7 +69,15 @@ final readonly class ToolInvocationHandler
         if ($this->handledByIdempotencyReplay($session, $env)) {
             return;
         }
-        $lease = $this->credentials->leaseFromArguments($msg->arguments, $resolved);
+        try {
+            $lease = $this->credentials->leaseFromArguments($msg->arguments, $resolved, $session);
+        } catch (\Arcp\Errors\PermissionDeniedException $e) {
+            $this->runtime->emit($session, new ToolError(ErrorPayload::fromException($e)), [
+                'correlation_id' => $env->id,
+                'trace_id' => $env->traceId,
+            ]);
+            return;
+        }
         $job = $this->runtime->jobs->start(
             $session,
             $env,
@@ -104,7 +112,8 @@ final readonly class ToolInvocationHandler
 
     /**
      * Logical idempotency replay (RFC §6.4). Returns true when the request
-     * has already been processed and the runtime has emitted a replay Ack.
+     * has already been processed and the runtime has re-emitted the
+     * original terminal correlated response for the duplicate.
      */
     private function handledByIdempotencyReplay(Session $session, Envelope $env): bool
     {
@@ -117,10 +126,22 @@ final readonly class ToolInvocationHandler
         if ($prior === null) {
             return false;
         }
-        $this->runtime->emit($session, new Ack('replay'), [
+        $original = $this->runtime->eventLog->findByMessageId($prior);
+        $hints = [
             'correlation_id' => $env->id,
             'trace_id' => $env->traceId,
-        ]);
+        ];
+        if ($original instanceof Envelope) {
+            if ($original->jobId !== null) {
+                $hints['job_id'] = $original->jobId;
+            }
+            $this->runtime->emit($session, $original->payload, $hints);
+        } else {
+            // Fallback: if the original outcome envelope is no longer in the
+            // log (e.g. retention purged it), still ack the duplicate so
+            // synchronous callers stop waiting.
+            $this->runtime->emit($session, new Ack('replay'), $hints);
+        }
         return true;
     }
 
@@ -176,7 +197,7 @@ final readonly class ToolInvocationHandler
     private function completeJob(Session $session, Envelope $env, Job $job, mixed $value): void
     {
         $this->runtime->jobs->transition($job, JobState::Completed);
-        $this->runtime->emit($session, new ToolResult($value), [
+        $outcomeId = $this->runtime->emit($session, new ToolResult($value), [
             'correlation_id' => $env->id,
             'job_id' => $job->id,
             'trace_id' => $env->traceId,
@@ -186,10 +207,10 @@ final readonly class ToolInvocationHandler
             'trace_id' => $env->traceId,
         ]);
         $this->credentials->revoke($job);
-        $this->rememberIdempotent($session, $env);
+        $this->rememberIdempotent($session, $env, (string) $outcomeId);
     }
 
-    private function rememberIdempotent(Session $session, Envelope $env): void
+    private function rememberIdempotent(Session $session, Envelope $env, string $outcomeMessageId): void
     {
         $key = $env->idempotencyKey;
         $principal = $session->principal;
@@ -199,7 +220,7 @@ final readonly class ToolInvocationHandler
         $this->runtime->eventLog->rememberIdempotent(new IdempotencyRecord(
             $principal,
             (string) $key,
-            (string) $env->id,
+            $outcomeMessageId,
             $this->runtime->clock->now()->modify('+24 hours'),
         ));
     }
@@ -226,7 +247,7 @@ final readonly class ToolInvocationHandler
         $env = $spec->env;
         $job = $spec->job;
         $this->runtime->jobs->transition($job, JobState::Failed);
-        $this->runtime->emit($session, new ToolError($payload), [
+        $outcomeId = $this->runtime->emit($session, new ToolError($payload), [
             'correlation_id' => $env->id,
             'job_id' => $job->id,
             'trace_id' => $env->traceId,
@@ -236,5 +257,12 @@ final readonly class ToolInvocationHandler
             'trace_id' => $env->traceId,
         ]);
         $this->credentials->revoke($job);
+        // Retryable failures intentionally do not consume the idempotency
+        // key — the client is expected to retry. Non-retryable failures
+        // (including the default `null` case) are part of the recorded
+        // outcome and must replay identically on duplicate submission.
+        if ($payload->retryable !== true) {
+            $this->rememberIdempotent($session, $env, (string) $outcomeId);
+        }
     }
 }

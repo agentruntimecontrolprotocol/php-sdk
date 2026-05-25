@@ -59,6 +59,31 @@ final class StdioTransportTest extends TestCase
         $b->close();
     }
 
+    public function testFinalUnterminatedFrameIsDecoded(): void
+    {
+        $pair = stream_socket_pair(\STREAM_PF_UNIX, \STREAM_SOCK_STREAM, \STREAM_IPPROTO_IP);
+        self::assertIsArray($pair);
+        $serializer = new EnvelopeSerializer(MessageCatalog::create());
+
+        $writer = new WritableResourceStream($pair[0]);
+        $reader = new ReadableResourceStream($pair[1]);
+        $transport = new StdioTransport($reader, new WritableResourceStream($pair[0]), $serializer);
+
+        $env = new Envelope(
+            id: new MessageId('msg_eof'),
+            payload: new EventEmit('demo'),
+            timestamp: new \DateTimeImmutable('2026-05-09T12:00:00Z'),
+        );
+        // Note: NO trailing newline.
+        $writer->write($serializer->encode($env));
+        $writer->end();
+
+        $received = $transport->receive();
+        self::assertNotNull($received);
+        self::assertSame('msg_eof', (string) $received->id);
+        self::assertNull($transport->receive());
+    }
+
     public function testNewlineDelimitedFraming(): void
     {
         $pair = stream_socket_pair(\STREAM_PF_UNIX, \STREAM_SOCK_STREAM, \STREAM_IPPROTO_IP);

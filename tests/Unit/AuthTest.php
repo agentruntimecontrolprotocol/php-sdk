@@ -48,6 +48,17 @@ final class AuthTest extends TestCase
         self::assertFalse($result->accepted);
     }
 
+    public function testBearerIgnoresClientSuppliedPrincipal(): void
+    {
+        $scheme = new BearerAuth(['t1' => 'alice']);
+        $result = $scheme->verify(
+            Auth::bearer('t1'),
+            new PeerInfo('c', '0', principal: 'mallory@example.com'),
+        );
+        self::assertTrue($result->accepted);
+        self::assertSame('alice', $result->principal);
+    }
+
     public function testNoneAccepts(): void
     {
         $scheme = new NoneAuth('public');

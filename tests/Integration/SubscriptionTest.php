@@ -109,4 +109,53 @@ final class SubscriptionTest extends TestCase
         }
         self::assertInstanceOf(PermissionDeniedException::class, $caught);
     }
+
+    public function testEmptyFilterDoesNotObserveOtherSessions(): void
+    {
+        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
+        $runtime->registerTool('emitProgress', new class () implements ToolHandler {
+            #[\Override]
+            public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
+            {
+                $ctx->reportProgress(50);
+                $ctx->emitLog('info', 'midway');
+                return null;
+            }
+        });
+        [$serverTA, $clientTA] = MemoryTransport::pair();
+        [$serverTB, $clientTB] = MemoryTransport::pair();
+        $serverFutureA = $runtime->serveAsync($serverTA);
+        $serverFutureB = $runtime->serveAsync($serverTB);
+        $clientA = new ARCPClient($clientTA);
+        $clientB = new ARCPClient($clientTB);
+        $clientA->open(Auth::none(), new PeerInfo('cli-a', '0.1'), new Capabilities(subscriptions: true, anonymous: true));
+        $clientB->open(Auth::none(), new PeerInfo('cli-b', '0.1'), new Capabilities(subscriptions: true, anonymous: true));
+
+        $aObservedSessions = [];
+        $clientA->subscribe(
+            [],
+            function (Envelope $env) use (&$aObservedSessions): void {
+                if ($env->sessionId !== null) {
+                    $aObservedSessions[(string) $env->sessionId] = true;
+                }
+            },
+        );
+        delay(0.01);
+
+        // Drive activity on B; A's empty-filter subscription must NOT see it.
+        $clientB->invokeTool('emitProgress');
+        delay(0.05);
+
+        $aSessionId = (string) $clientA->session->sessionId;
+        $bSessionId = (string) $clientB->session->sessionId;
+        self::assertArrayNotHasKey($bSessionId, $aObservedSessions);
+        // Allow A to see its own envelopes (e.g. backfill marker).
+        $foreign = array_diff(array_keys($aObservedSessions), [$aSessionId]);
+        self::assertEmpty($foreign);
+
+        $clientA->close();
+        $clientB->close();
+        $serverFutureA->await();
+        $serverFutureB->await();
+    }
 }

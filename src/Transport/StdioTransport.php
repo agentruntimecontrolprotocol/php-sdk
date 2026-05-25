@@ -83,18 +83,31 @@ final class StdioTransport implements Transport
                 return $this->serializer->decode($line);
             }
             if ($this->closed) {
-                return null;
+                return $this->drainResidualBuffer();
             }
             $chunk = $this->reader->read($cancellation);
             if ($chunk === null) {
                 $this->closed = true;
-                if ($this->readBuffer === '') {
-                    return null;
-                }
                 continue;
             }
             $this->readBuffer .= $chunk;
         }
+    }
+
+    /**
+     * Decode and return any unterminated frame still in the buffer at EOF.
+     * A strict-NDJSON peer that closes its stream without a final newline
+     * would otherwise lose its last envelope (typically tool.result or
+     * session.close).
+     */
+    private function drainResidualBuffer(): ?Envelope
+    {
+        $residual = rtrim($this->readBuffer, "\r");
+        $this->readBuffer = '';
+        if ($residual === '') {
+            return null;
+        }
+        return $this->serializer->decode($residual);
     }
 
     #[\Override]

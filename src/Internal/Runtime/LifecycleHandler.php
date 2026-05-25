@@ -115,9 +115,14 @@ final readonly class LifecycleHandler
             $this->nack($session, $env, 'UNIMPLEMENTED', 'checkpoint resume deferred (RFC §19)');
             return;
         }
+        $sessionId = $session->sessionId;
+        if ($sessionId === null) {
+            $this->nack($session, $env, 'FAILED_PRECONDITION', 'resume requires an authenticated session');
+            return;
+        }
         $after = $msg->afterMessageId ?? '';
         try {
-            foreach ($this->runtime->eventLog->replayAfter($after) as $past) {
+            foreach ($this->runtime->eventLog->replayAfterForSession($after, $sessionId) as $past) {
                 $session->transport->send($past);
             }
         } catch (InvalidArgumentException) {

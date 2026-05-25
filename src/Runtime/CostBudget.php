@@ -61,7 +61,13 @@ final class CostBudget
         if (!isset($this->remaining[$unit]) || $value < 0) {
             return null;
         }
-        $this->remaining[$unit] -= self::decimalToScaled((string) $value);
+        if (\is_float($value) && (!is_finite($value) || is_nan($value))) {
+            throw new InvalidArgumentException('cost metric value must be finite', [
+                'metric' => $metricName,
+                'value' => $value,
+            ]);
+        }
+        $this->remaining[$unit] -= self::numericToScaled($value);
         if ($this->remaining[$unit] <= 0) {
             throw new BudgetExhaustedException($unit, $this->format($this->remaining[$unit]));
         }
@@ -107,13 +113,33 @@ final class CostBudget
         return [$m[1], self::decimalToScaled($m[2])];
     }
 
+    /**
+     * Normalize an int|float metric value into the fixed six-decimal
+     * representation. PHP stringifies small floats as scientific notation
+     * (e.g. `0.000001` → `1.0E-6`), which the decimal parser rejects;
+     * format explicitly to side-step that.
+     */
+    private static function numericToScaled(int|float $value): int
+    {
+        if (\is_int($value)) {
+            return self::decimalToScaled((string) $value);
+        }
+        return self::decimalToScaled(rtrim(rtrim(\sprintf('%.6F', $value), '0'), '.'));
+    }
+
     private static function decimalToScaled(string $decimal): int
     {
         if (preg_match('/^(\d+)(?:\.(\d+))?$/', $decimal, $m) !== 1) {
             throw new InvalidArgumentException('invalid decimal amount: ' . $decimal);
         }
+        $rawFraction = $m[2] ?? '';
+        if (\strlen($rawFraction) > 6 && rtrim(substr($rawFraction, 6), '0') !== '') {
+            throw new InvalidArgumentException(
+                'decimal amount exceeds six-place precision: ' . $decimal,
+            );
+        }
         $whole = (int) $m[1] * self::SCALE;
-        $fraction = substr(str_pad($m[2] ?? '', 6, '0'), 0, 6);
+        $fraction = substr(str_pad($rawFraction, 6, '0'), 0, 6);
         return $whole + (int) $fraction;
     }
 

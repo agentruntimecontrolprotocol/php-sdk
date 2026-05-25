@@ -27,6 +27,7 @@ use Arcp\Runtime\Credentials\Credential;
 use Arcp\Runtime\Credentials\InMemoryCredentialProvisioner;
 use Arcp\Runtime\JobContext;
 use Arcp\Runtime\ToolHandler;
+use Arcp\Tests\Support\FakeDurableCredentialStore;
 use Arcp\Transport\MemoryTransport;
 use Arcp\Transport\Transport;
 use PHPUnit\Framework\TestCase;
@@ -188,6 +189,18 @@ final class CredentialLifecycleTest extends TestCase
         $serverFuture->await();
     }
 
+    public function testRuntimeRejectsInMemoryCredentialStoreWithProvisioner(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('durable revocation');
+        new ARCPRuntime(
+            authRouter: new AuthRouter([new NoneAuth()]),
+            credentialProvisioner: new InMemoryCredentialProvisioner(),
+            // No credentialStore given → default InMemoryCredentialStore,
+            // which now (correctly) reports no durable revocation.
+        );
+    }
+
     /**
      * @return array{0: ARCPRuntime, 1: ARCPClient, 2: RecordingTransport, 3: \Amp\Future<mixed>}
      */
@@ -196,6 +209,7 @@ final class CredentialLifecycleTest extends TestCase
         $runtime = new ARCPRuntime(
             authRouter: new AuthRouter([new NoneAuth()]),
             credentialProvisioner: $provisioner,
+            credentialStore: new FakeDurableCredentialStore(),
         );
         [$serverT, $clientT] = MemoryTransport::pair();
         $recording = new RecordingTransport($clientT);

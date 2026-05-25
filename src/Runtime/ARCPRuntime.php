@@ -102,7 +102,7 @@ final class ARCPRuntime
         $this->leases = new LeaseManager($this->clock);
         $this->artifacts = new ArtifactStore($this->clock);
         $this->subscriptions = new SubscriptionManager($this->serializer);
-        $this->jobs = new JobManager();
+        $this->jobs = new JobManager($this->clock);
         $this->credentials = $credentialStore ?? new InMemoryCredentialStore();
         if (
             $this->credentialProvisioner instanceof CredentialProvisioner
@@ -167,6 +167,10 @@ final class ARCPRuntime
         $this->tools[$ref->name][$ref->version ?? ''] = $handler;
     }
 
+    /**
+     * @throws \Arcp\Errors\AgentVersionNotAvailableException if the
+     *                                                        requested `(name, version)` pair has not been registered.
+     */
     public function setDefaultToolVersion(string $name, string $version): void
     {
         $ref = new AgentRef($name, $version);

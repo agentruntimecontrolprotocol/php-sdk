@@ -20,6 +20,8 @@ final class Job
     public JobState $state = JobState::Accepted;
     public int $heartbeatSequence = 0;
     public readonly \DateTimeImmutable $createdAt;
+    /** Wall-clock timestamp of the most recent terminal transition, if any. */
+    public ?\DateTimeImmutable $terminatedAt = null;
 
     /** @var array<string, int> */
     private array $resultChunkSeq = [];

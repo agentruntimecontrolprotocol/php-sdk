@@ -113,6 +113,23 @@ final readonly class EventLog
         return $stmt->fetchColumn() !== false;
     }
 
+    /** Fetch a single envelope by message id, or null if unknown. */
+    public function findByMessageId(string $messageId): ?Envelope
+    {
+        $stmt = $this->pdo->prepare(
+            'SELECT payload_json FROM events WHERE message_id = :id LIMIT 1',
+        );
+        $stmt->execute([':id' => $messageId]);
+        $json = $stmt->fetchColumn();
+        if ($json === false) {
+            return null;
+        }
+        if (!\is_string($json)) {
+            throw new InternalException('event log row has non-string payload_json');
+        }
+        return $this->serializer->decode($json);
+    }
+
     /**
      * Replay envelopes after `$afterMessageId` in insertion order. Pass an
      * empty string to start from the beginning.
@@ -129,6 +146,77 @@ final readonly class EventLog
             }
             yield $this->serializer->decode($json);
         }
+    }
+
+    /**
+     * Replay envelopes after `$afterMessageId` scoped to a single session.
+     * This is the resume primitive: each session may only see its own
+     * envelopes (RFC §19 invariant: only resume sessions under the same
+     * authenticated principal).
+     *
+     * If `$afterMessageId` is non-empty and references an envelope that
+     * does not belong to `$sessionId`, throws `InvalidArgumentException`.
+     *
+     * @return iterable<Envelope>
+     */
+    public function replayAfterForSession(
+        string $afterMessageId,
+        SessionId $sessionId,
+        ?int $limit = null,
+    ): iterable {
+        if ($afterMessageId !== '') {
+            $rowSessionId = $this->sessionIdFor($afterMessageId);
+            if ($rowSessionId !== (string) $sessionId) {
+                throw new InvalidArgumentException(
+                    'after_message_id does not belong to the requesting session',
+                    ['after_message_id' => $afterMessageId],
+                );
+            }
+        }
+        $startRowId = $afterMessageId === '' ? 0 : $this->rowIdFor($afterMessageId);
+        $stmt = $this->prepareReplayQueryForSession($startRowId, (string) $sessionId, $limit);
+        while (($json = $stmt->fetchColumn()) !== false) {
+            if (!\is_string($json)) {
+                throw new InternalException('event log row has non-string payload_json');
+            }
+            yield $this->serializer->decode($json);
+        }
+    }
+
+    private function sessionIdFor(string $messageId): ?string
+    {
+        $stmt = $this->pdo->prepare('SELECT session_id FROM events WHERE message_id = :id LIMIT 1');
+        $stmt->execute([':id' => $messageId]);
+        /** @var string|false|null $value */
+        $value = $stmt->fetchColumn();
+        if ($value === false) {
+            throw new InvalidArgumentException(
+                'after_message_id not present in log',
+                ['after_message_id' => $messageId],
+            );
+        }
+        return $value;
+    }
+
+    private function prepareReplayQueryForSession(
+        int $startRowId,
+        string $sessionId,
+        ?int $limit,
+    ): \PDOStatement {
+        $sql = 'SELECT payload_json FROM events
+            WHERE rowid > :rowid AND session_id = :session_id
+            ORDER BY rowid ASC';
+        if ($limit !== null) {
+            $sql .= ' LIMIT :limit';
+        }
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->bindValue(':rowid', $startRowId, \PDO::PARAM_INT);
+        $stmt->bindValue(':session_id', $sessionId, \PDO::PARAM_STR);
+        if ($limit !== null) {
+            $stmt->bindValue(':limit', $limit, \PDO::PARAM_INT);
+        }
+        $stmt->execute();
+        return $stmt;
     }
 
     private function rowIdFor(string $messageId): int

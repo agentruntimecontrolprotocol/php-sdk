@@ -30,12 +30,15 @@ final readonly class CredentialLifecycle
     }
 
     /** @param array<string, mixed> $arguments */
-    public function leaseFromArguments(array $arguments, ResolvedTool $resolved): ?LeaseGranted
-    {
+    public function leaseFromArguments(
+        array $arguments,
+        ResolvedTool $resolved,
+        ?Session $session = null,
+    ): ?LeaseGranted {
         $modelUse = ModelUse::fromInvocationArguments($arguments);
         $costBudget = CostBudget::fromInvocationArguments($arguments);
         $leaseArg = $arguments['lease'] ?? null;
-        $base = $this->baseLease($leaseArg);
+        $base = $this->baseLease($leaseArg, $session);
         if ($base instanceof LeaseGranted) {
             return $this->overlayLease($base, $leaseArg, $modelUse, $costBudget);
         }
@@ -96,13 +99,26 @@ final readonly class CredentialLifecycle
         }
     }
 
-    private function baseLease(mixed $leaseArg): ?LeaseGranted
+    private function baseLease(mixed $leaseArg, ?Session $session): ?LeaseGranted
+    {
+        $leaseId = $this->extractLeaseId($leaseArg);
+        if ($leaseId === null) {
+            return null;
+        }
+        $sessionId = $session?->sessionId;
+        if ($sessionId !== null) {
+            return $this->runtime->leases->getForSession($leaseId, $sessionId);
+        }
+        return $this->runtime->leases->get($leaseId);
+    }
+
+    private function extractLeaseId(mixed $leaseArg): ?LeaseId
     {
         if (\is_string($leaseArg)) {
-            return $this->runtime->leases->get(new LeaseId($leaseArg));
+            return new LeaseId($leaseArg);
         }
         if (\is_array($leaseArg) && isset($leaseArg['lease_id']) && \is_string($leaseArg['lease_id'])) {
-            return $this->runtime->leases->get(new LeaseId($leaseArg['lease_id']));
+            return new LeaseId($leaseArg['lease_id']);
         }
         return null;
     }
