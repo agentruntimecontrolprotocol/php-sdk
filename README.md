@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://packagist.org/packages/arcp/arcp"><img alt="Packagist" src="https://img.shields.io/packagist/v/arcp/arcp.svg"></a>
-  <a href="https://github.com/agentruntimecontrolprotocol/php-sdk/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/agentruntimecontrolprotocol/php-sdk/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/agentruntimecontrolprotocol/php-sdk/actions/workflows/test.yml"><img alt="CI" src="https://github.com/agentruntimecontrolprotocol/php-sdk/actions/workflows/test.yml/badge.svg"></a>
   <a href="https://packagist.org/packages/arcp/arcp"><img alt="PHP version" src="https://img.shields.io/packagist/php-v/arcp/arcp.svg"></a>
   <a href="https://github.com/agentruntimecontrolprotocol/spec/blob/main/docs/draft-arcp-1.1.md"><img alt="ARCP" src="https://img.shields.io/badge/ARCP-v1.1%20draft-blue"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-lightgrey"></a>
