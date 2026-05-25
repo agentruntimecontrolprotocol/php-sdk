@@ -10,6 +10,7 @@ use Arcp\Errors\LeaseRevokedException;
 use Arcp\Errors\NotFoundException;
 use Arcp\Errors\PermissionDeniedException;
 use Arcp\Ids\LeaseId;
+use Arcp\Ids\SessionId;
 use Arcp\Messages\Permissions\LeaseGranted;
 use Arcp\Runtime\LeaseManager;
 use Arcp\Runtime\LeaseScope;
@@ -89,6 +90,28 @@ final class LeaseManagerTest extends TestCase
         $newExp = $clock->now()->modify('+1 hour');
         $extended = $mgr->extend($lease->leaseId, $newExp);
         self::assertEquals($newExp, $extended->expiresAt);
+    }
+
+    public function testGetForSessionAllowsOwner(): void
+    {
+        $clock = new FakeClock();
+        $mgr = new LeaseManager($clock);
+        $lease = $this->makeLease($clock);
+        $owner = new SessionId('sess_owner');
+        $mgr->register($lease, $owner);
+        self::assertSame($lease, $mgr->getForSession($lease->leaseId, $owner));
+    }
+
+    public function testGetForSessionRejectsForeignSession(): void
+    {
+        $clock = new FakeClock();
+        $mgr = new LeaseManager($clock);
+        $lease = $this->makeLease($clock);
+        $owner = new SessionId('sess_owner');
+        $other = new SessionId('sess_other');
+        $mgr->register($lease, $owner);
+        $this->expectException(PermissionDeniedException::class);
+        $mgr->getForSession($lease->leaseId, $other);
     }
 
     public function testAllReturnsCurrentLeases(): void

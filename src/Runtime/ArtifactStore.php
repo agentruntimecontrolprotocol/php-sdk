@@ -8,6 +8,7 @@ use Arcp\Clock\ClockInterface;
 use Arcp\Clock\SystemClock;
 use Arcp\Errors\InvalidArgumentException;
 use Arcp\Errors\NotFoundException;
+use Arcp\Errors\PermissionDeniedException;
 use Arcp\Ids\ArtifactId;
 use Arcp\Messages\Artifacts\ArtifactRef;
 
@@ -63,10 +64,11 @@ final class ArtifactStore
         return $ref;
     }
 
-    public function fetch(ArtifactId $id): string
+    public function fetch(ArtifactId $id, ?Session $session = null): string
     {
         $row = $this->artifacts[(string) $id]
             ?? throw new NotFoundException(\sprintf('artifact %s not found', $id));
+        $this->assertOwnership($id, $row, $session);
         $expiresAt = $row['ref']->expiresAt;
         if ($expiresAt !== null && $expiresAt <= $this->clock->now()) {
             unset($this->artifacts[(string) $id]);
@@ -75,20 +77,41 @@ final class ArtifactStore
         return $row['bytes'];
     }
 
-    public function ref(ArtifactId $id): ArtifactRef
+    public function ref(ArtifactId $id, ?Session $session = null): ArtifactRef
     {
         $row = $this->artifacts[(string) $id]
             ?? throw new NotFoundException(\sprintf('artifact %s not found', $id));
+        $this->assertOwnership($id, $row, $session);
         return $row['ref'];
     }
 
-    public function release(ArtifactId $id): bool
+    public function release(ArtifactId $id, ?Session $session = null): bool
     {
-        if (!isset($this->artifacts[(string) $id])) {
+        $row = $this->artifacts[(string) $id] ?? null;
+        if ($row === null) {
             return false;
         }
+        $this->assertOwnership($id, $row, $session);
         unset($this->artifacts[(string) $id]);
         return true;
+    }
+
+    /**
+     * @param StoredArtifact $row
+     */
+    private function assertOwnership(ArtifactId $id, array $row, ?Session $session): void
+    {
+        if ($session === null) {
+            return; // Trusted internal caller (no session context).
+        }
+        $sessionId = $session->sessionId;
+        if ($sessionId === null || (string) $sessionId !== $row['session_key']) {
+            throw new PermissionDeniedException(
+                permission: 'artifact.access',
+                resource: (string) $id,
+                message: \sprintf('artifact %s does not belong to this session', $id),
+            );
+        }
     }
 
     /** Remove every expired artifact. */

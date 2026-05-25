@@ -12,6 +12,7 @@ use Arcp\Errors\LeaseSubsetViolationException;
 use Arcp\Errors\NotFoundException;
 use Arcp\Errors\PermissionDeniedException;
 use Arcp\Ids\LeaseId;
+use Arcp\Ids\SessionId;
 use Arcp\Messages\Permissions\LeaseGranted;
 use Arcp\Messages\Permissions\LeaseRevoked;
 
@@ -24,6 +25,9 @@ final class LeaseManager
     /** @var array<string, LeaseGranted> */
     private array $byId = [];
 
+    /** @var array<string, string> lease id → granting session id */
+    private array $owners = [];
+
     /** @var array<string, string> revoked lease id → reason */
     private array $revoked = [];
 
@@ -31,9 +35,12 @@ final class LeaseManager
     {
     }
 
-    public function register(LeaseGranted $lease): void
+    public function register(LeaseGranted $lease, ?SessionId $sessionId = null): void
     {
         $this->byId[(string) $lease->leaseId] = $lease;
+        if ($sessionId instanceof SessionId) {
+            $this->owners[(string) $lease->leaseId] = (string) $sessionId;
+        }
     }
 
     public function get(LeaseId $id): LeaseGranted
@@ -46,6 +53,28 @@ final class LeaseManager
             ?? throw new NotFoundException(\sprintf('lease %s not found', $id));
         if ($lease->expiresAt <= $this->clock->now()) {
             throw new LeaseExpiredException($id, $lease->expiresAt);
+        }
+        return $lease;
+    }
+
+    /**
+     * Like {@see get()}, but refuses to return a lease that was granted to
+     * a different session. Returns the lease only when the requesting
+     * session is the registered owner (or when the lease has no recorded
+     * owner, for legacy registrations).
+     *
+     * @throws PermissionDeniedException when the lease belongs to another session.
+     */
+    public function getForSession(LeaseId $id, SessionId $sessionId): LeaseGranted
+    {
+        $lease = $this->get($id);
+        $owner = $this->owners[(string) $id] ?? null;
+        if ($owner !== null && $owner !== (string) $sessionId) {
+            throw new PermissionDeniedException(
+                permission: 'lease.use',
+                resource: (string) $id,
+                message: \sprintf('lease %s does not belong to this session', $id),
+            );
         }
         return $lease;
     }
@@ -129,6 +158,7 @@ final class LeaseManager
         if (isset($this->byId[$key])) {
             unset($this->byId[$key]);
         }
+        unset($this->owners[$key]);
         $this->revoked[$key] = $reason;
         return new LeaseRevoked($id, $reason);
     }

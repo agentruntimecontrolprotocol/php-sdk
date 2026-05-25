@@ -35,4 +35,10 @@ final class InMemoryCredentialStoreTest extends TestCase
             ['job_id' => 'job_b', 'credential_id' => 'cred_b'],
         ], $store->outstanding());
     }
+
+    public function testDoesNotAdvertiseDurableRevocation(): void
+    {
+        $store = new InMemoryCredentialStore();
+        self::assertFalse($store->supportsDurableRevocation());
+    }
 }

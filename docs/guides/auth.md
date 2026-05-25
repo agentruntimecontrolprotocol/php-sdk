@@ -30,6 +30,10 @@ $runtime = new ARCPRuntime(
 );
 ```
 
+`BearerAuth` always resolves the principal from the token → principal
+map. The `principal` field a client may set in `PeerInfo` is ignored on
+the runtime side — only the server-side mapping is authoritative.
+
 ## Custom verifier
 
 Implement `Arcp\Auth\AuthScheme`:
@@ -54,8 +58,9 @@ final class HeaderAuth implements AuthScheme
 ## Where the principal lives
 
 After handshake, the runtime stores the resolved principal on
-`Session::$principal`. The client stores its own principal from
-`PeerInfo`.
+`Session::$principal` — server-authoritative, derived from the auth
+scheme, not from any client-supplied `PeerInfo`. The client stores its
+own principal from `PeerInfo` purely for local logging.
 
 ## Sessions, resume, and auth
 

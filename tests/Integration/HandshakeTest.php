@@ -30,15 +30,27 @@ final class HandshakeTest extends TestCase
         $client = new ARCPClient($clientT);
         $accepted = $client->open(
             Auth::bearer('t-good'),
-            new PeerInfo('test-cli', '0.1', principal: 'alice@example.com'),
+            new PeerInfo('test-cli', '0.1'),
             new Capabilities(streaming: true, humanInput: true),
         );
 
         self::assertNotEmpty((string) $accepted->sessionId);
-        self::assertSame('alice@example.com', $client->session->principal);
 
         $client->close();
         $serverFuture->await();
+    }
+
+    public function testBearerTokenIgnoresClientSuppliedPrincipal(): void
+    {
+        // Server-side regression: even when the client claims a different
+        // principal in PeerInfo, BearerAuth must use the token-mapped one.
+        $scheme = new BearerAuth(['t-good' => 'alice']);
+        $result = $scheme->verify(
+            Auth::bearer('t-good'),
+            new PeerInfo('test-cli', '0.1', principal: 'mallory@example.com'),
+        );
+        self::assertTrue($result->accepted);
+        self::assertSame('alice', $result->principal);
     }
 
     public function testBearerWithBadTokenIsRejected(): void

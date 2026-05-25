@@ -15,7 +15,6 @@ use Arcp\Auth\NoneAuth;
 use Arcp\Client\ARCPClient;
 use Arcp\Errors\AgentVersionNotAvailableException;
 use Arcp\Errors\BudgetExhaustedException;
-use Arcp\Errors\DeadlineExceededException;
 use Arcp\Errors\InvalidArgumentException;
 use Arcp\Errors\NotFoundException;
 use Arcp\Ids\IdempotencyKey;
@@ -121,17 +120,10 @@ final class JobLifecycleTest extends TestCase
         $first = $client->invokeTool('once', [], idempotencyKey: $key);
         self::assertSame(['ran' => 1], $first->value);
 
-        // Second call with the same idempotency key: runtime returns ack
-        // (not a new execution). The client's invoke contract waits for
-        // the next response, which on replay is an ack — we don't assert
-        // a value, only that no second execution happened.
-        try {
-            $client->invokeTool('once', [], deadlineSeconds: 0.5, idempotencyKey: $key);
-        } catch (DeadlineExceededException) {
-            // Expected: ack is not a ToolResult, so awaitResponse times out.
-        } catch (InvalidArgumentException) {
-            // Same expected outcome.
-        }
+        // Second call with the same idempotency key: runtime replays the
+        // original terminal ToolResult so the client sees the same value.
+        $second = $client->invokeTool('once', [], idempotencyKey: $key);
+        self::assertSame(['ran' => 1], $second->value);
         self::assertSame(1, $count, 'idempotency cache must prevent re-execution');
 
         $client->close();
@@ -230,6 +222,38 @@ final class JobLifecycleTest extends TestCase
         self::assertSame('running', $page->jobs[0]['status'] ?? null);
 
         $future->await();
+        $client->close();
+        $serverFuture->await();
+    }
+
+    public function testListJobsReturnsCompletedJobsWithinRetentionWindow(): void
+    {
+        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
+        $runtime->registerTool('fast', new class () implements ToolHandler {
+            #[\Override]
+            public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
+            {
+                return ['ok' => true];
+            }
+        });
+        [$serverT, $clientT] = MemoryTransport::pair();
+        $serverFuture = $runtime->serveAsync($serverT);
+        $client = new ARCPClient($clientT);
+        $client->open(Auth::none(), new PeerInfo('cli', '0.1', principal: 'alice'), new Capabilities(anonymous: true));
+
+        // Run two short jobs that complete immediately. With the pre-fix
+        // behavior, these would vanish from list_jobs the moment they
+        // transitioned to `completed`.
+        $client->invokeTool('fast');
+        $client->invokeTool('fast');
+
+        $page = $client->listJobs(['status' => ['completed']]);
+        self::assertGreaterThanOrEqual(2, \count($page->jobs));
+        foreach ($page->jobs as $entry) {
+            self::assertSame('completed', $entry['status'] ?? null);
+            self::assertSame('fast', $entry['agent'] ?? null);
+        }
+
         $client->close();
         $serverFuture->await();
     }

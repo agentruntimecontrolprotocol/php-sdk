@@ -2,11 +2,18 @@
 
 declare(strict_types=1);
 
-namespace Arcp\Runtime\Credentials;
+namespace Arcp\Tests\Support;
 
 use Arcp\Ids\JobId;
+use Arcp\Runtime\Credentials\Credential;
+use Arcp\Runtime\Credentials\CredentialStore;
 
-final class InMemoryCredentialStore implements CredentialStore
+/**
+ * Test double that advertises durable revocation. Used by tests that must
+ * pair a CredentialProvisioner with a store but do not need to exercise
+ * actual durability across process restarts.
+ */
+final class FakeDurableCredentialStore implements CredentialStore
 {
     /** @var array<string, array<string, Credential>> */
     private array $byJob = [];
@@ -44,16 +51,9 @@ final class InMemoryCredentialStore implements CredentialStore
         return $out;
     }
 
-    /**
-     * Process-local storage cannot survive a restart, so revocation
-     * decisions recorded here would be lost. Returning false prevents
-     * {@see \Arcp\Runtime\ARCPRuntime} from accepting this store alongside
-     * a {@see CredentialProvisioner}, which expects a durable backing
-     * store.
-     */
     #[\Override]
     public function supportsDurableRevocation(): bool
     {
-        return false;
+        return true;
     }
 }

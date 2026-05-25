@@ -172,7 +172,7 @@ printf("resolved value = %s\n", json_encode($result->value));
 
 ### Consuming events
 
-Iterate the ordered event stream — `log`, `thought`, `tool_call`, `tool_result`, `status`, `metric`, `artifact_ref`, `progress`, `result_chunk` — and optionally acknowledge progress so the runtime can release buffered events early.
+Iterate the ordered event stream — `log`, `metric`, `event.emit`, `tool.invoke`, `tool.result`, `job.progress`, `job.result_chunk`, `artifact.ref` — and optionally acknowledge progress so the runtime can release buffered events early.
 
 ```php
 use Arcp\Envelope\Envelope;

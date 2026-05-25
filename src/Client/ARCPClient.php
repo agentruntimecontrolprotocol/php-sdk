@@ -31,6 +31,8 @@ use Arcp\Json\EnvelopeSerializer;
 use Arcp\Messages\Artifacts\ArtifactFetch;
 use Arcp\Messages\Artifacts\ArtifactPut;
 use Arcp\Messages\Artifacts\ArtifactRef;
+use Arcp\Messages\Artifacts\ArtifactRelease;
+use Arcp\Messages\Control\Ack;
 use Arcp\Messages\Control\Cancel;
 use Arcp\Messages\Control\Nack;
 use Arcp\Messages\Control\Ping;
@@ -141,6 +143,11 @@ final class ARCPClient
     /**
      * Send `session.open`, await `session.accepted`, and start the read-loop.
      *
+     * @throws \Arcp\Errors\UnauthenticatedException when the runtime rejects credentials.
+     * @throws \Arcp\Errors\UnimplementedException for capability mismatches.
+     * @throws \Arcp\Errors\ARCPExceptionInterface for other handshake errors.
+     * @throws \Arcp\Errors\TransportClosedException if the transport drops.
+     *
      * @size-check-suppress public BC; mirrors RFC §8.3 session.open shape.
      */
     public function open(
@@ -168,6 +175,14 @@ final class ARCPClient
      * Invoke a tool synchronously; returns the wire `ToolResult`/throws.
      *
      * @param array<string, mixed> $arguments
+     *
+     * @throws \Arcp\Errors\ARCPExceptionInterface mapped from `tool.error`
+     *                                             or correlated `nack` (e.g. `PermissionDeniedException`,
+     *                                             `BudgetExhaustedException`, `NotFoundException`).
+     * @throws \Arcp\Errors\DeadlineExceededException when `deadlineSeconds`
+     *                                                elapses before a terminal response arrives.
+     * @throws \Arcp\Errors\CancelledException when `$cancellation` fires.
+     * @throws InvalidArgumentException for unexpected response shapes.
      *
      * @size-check-suppress public BC; tool.invoke options are RFC §10 wire fields.
      */
@@ -207,6 +222,11 @@ final class ARCPClient
      *
      * @param array<string, mixed> $filter
      * @param \Closure(Envelope): void $onEvent Called with the unwrapped envelope.
+     *
+     * @throws \Arcp\Errors\PermissionDeniedException when the filter
+     *                                                crosses session-scope boundaries.
+     * @throws \Arcp\Errors\ARCPExceptionInterface for other runtime errors.
+     * @throws InvalidArgumentException for unexpected response shapes.
      *
      * @size-check-suppress public BC; subscribe is the RFC §13 entry-point.
      */
@@ -249,7 +269,13 @@ final class ARCPClient
     }
 
     /**
+     * Page through jobs visible to this session.
+     *
      * @param array<string, mixed> $filter
+     *
+     * @throws \Arcp\Errors\ARCPExceptionInterface for runtime errors mapped
+     *                                             from a correlated `nack`.
+     * @throws InvalidArgumentException for unexpected response shapes.
      */
     public function listJobs(
         array $filter = [],
@@ -289,6 +315,13 @@ final class ARCPClient
         $this->session->transport->send($env);
     }
 
+    /**
+     * Round-trip a ping/pong heartbeat.
+     *
+     * @throws \Arcp\Errors\ARCPExceptionInterface when the runtime
+     *                                             returns a Nack instead of a Pong.
+     * @throws InvalidArgumentException for an unexpected response type.
+     */
     public function ping(?string $nonce = null, float $deadlineSeconds = 5.0): Pong
     {
         $id = MessageId::random();
@@ -299,29 +332,60 @@ final class ARCPClient
             sessionId: $this->session->sessionId,
         );
         $this->session->transport->send($env);
-        /** @var Pong $resp */
         $resp = $this->pending->awaitResponse($id, $deadlineSeconds);
+        if ($resp instanceof Nack) {
+            throw $this->errorMapper->raise($resp->error);
+        }
+        if (!$resp instanceof Pong) {
+            throw new InvalidArgumentException('expected pong as ping response');
+        }
         return $resp;
     }
 
+    /**
+     * Upload an artifact and receive its server-issued reference.
+     *
+     * @param string|null $sha256 hex-encoded SHA-256 digest of `$bytes`.
+     *                            When supplied, the runtime rejects the upload if the digest does
+     *                            not match the decoded payload.
+     *
+     * @throws \Arcp\Errors\InvalidArgumentException on digest mismatch or
+     *                                               malformed payload.
+     * @throws \Arcp\Errors\ARCPExceptionInterface on other runtime errors.
+     */
     public function putArtifact(
         string $mediaType,
         string $bytes,
         ?int $retentionSeconds = null,
+        ?string $sha256 = null,
     ): ArtifactRef {
         $id = MessageId::random();
         $env = new Envelope(
             id: $id,
-            payload: new ArtifactPut($mediaType, base64_encode($bytes), $retentionSeconds),
+            payload: new ArtifactPut($mediaType, base64_encode($bytes), $retentionSeconds, $sha256),
             timestamp: $this->clock->now(),
             sessionId: $this->session->sessionId,
         );
         $this->session->transport->send($env);
-        /** @var ArtifactRef $resp */
         $resp = $this->pending->awaitResponse($id, 30.0);
+        if ($resp instanceof Nack) {
+            throw $this->errorMapper->raise($resp->error);
+        }
+        if (!$resp instanceof ArtifactRef) {
+            throw new InvalidArgumentException('expected artifact.ref as put response');
+        }
         return $resp;
     }
 
+    /**
+     * Fetch the bytes of an artifact owned by this session.
+     *
+     * @throws \Arcp\Errors\PermissionDeniedException for cross-session ids.
+     * @throws \Arcp\Errors\NotFoundException if the artifact is unknown
+     *                                        or has expired.
+     * @throws \Arcp\Errors\ARCPExceptionInterface for other runtime errors.
+     * @throws InvalidArgumentException for malformed payload or response.
+     */
     public function fetchArtifact(ArtifactId $artifactId): string
     {
         $id = MessageId::random();
@@ -343,6 +407,34 @@ final class ARCPClient
         return $bytes !== false
             ? $bytes
             : throw new InvalidArgumentException('artifact data not base64');
+    }
+
+    /**
+     * Release an artifact owned by this session. Returns true if the
+     * runtime confirmed deletion, false if it was already unknown.
+     *
+     * @throws \Arcp\Errors\PermissionDeniedException when the artifact
+     *                                                belongs to a different session.
+     * @throws \Arcp\Errors\ARCPExceptionInterface on other runtime errors.
+     */
+    public function releaseArtifact(ArtifactId $artifactId): bool
+    {
+        $id = MessageId::random();
+        $env = new Envelope(
+            id: $id,
+            payload: new ArtifactRelease($artifactId),
+            timestamp: $this->clock->now(),
+            sessionId: $this->session->sessionId,
+        );
+        $this->session->transport->send($env);
+        $resp = $this->pending->awaitResponse($id, 30.0);
+        if ($resp instanceof Nack) {
+            throw $this->errorMapper->raise($resp->error);
+        }
+        if (!$resp instanceof Ack) {
+            throw new InvalidArgumentException('expected ack as artifact.release response');
+        }
+        return $resp->note === 'released';
     }
 
     public function close(): void

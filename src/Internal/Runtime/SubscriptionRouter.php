@@ -108,8 +108,12 @@ final readonly class SubscriptionRouter
     private function backfill(Session $session, Subscription $sub, Subscribe $msg): bool
     {
         $after = $msg->sinceMessageId ?? '';
+        $sessionId = $session->sessionId;
         try {
-            foreach ($this->runtime->eventLog->replayAfter($after) as $past) {
+            $stream = $sessionId instanceof SessionId
+                ? $this->runtime->eventLog->replayAfterForSession($after, $sessionId)
+                : $this->runtime->eventLog->replayAfter($after);
+            foreach ($stream as $past) {
                 if (!$sub->matches($past)) {
                     continue;
                 }

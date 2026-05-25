@@ -177,6 +177,10 @@ final class JobContext
      * @param array<string, mixed> $responseSchema
      * @param array<string, mixed>|null $default
      *
+     * @throws \Arcp\Errors\DeadlineExceededException when `$expiresAt`
+     *                                                elapses without a response and no `$default` is provided.
+     * @throws \Arcp\Errors\CancelledException when `$cancellation` fires.
+     *
      * @size-check-suppress public BC; mirrors RFC §12.1 human.input.request.
      */
     public function requestHumanInput(
@@ -216,6 +220,10 @@ final class JobContext
     /**
      * @param list<array{id: string, label: string}> $options
      *
+     * @throws \Arcp\Errors\DeadlineExceededException when `$expiresAt`
+     *                                                elapses before a choice arrives.
+     * @throws \Arcp\Errors\CancelledException when `$cancellation` fires.
+     *
      * @size-check-suppress public BC; mirrors RFC §12.1 human.choice.request.
      */
     public function requestHumanChoice(
@@ -240,6 +248,12 @@ final class JobContext
     }
 
     /**
+     * @throws \Arcp\Errors\PermissionDeniedException when the client
+     *                                                denies the permission request.
+     * @throws \Arcp\Errors\DeadlineExceededException when the request
+     *                                                times out before any decision arrives.
+     * @throws \Arcp\Errors\CancelledException when `$cancellation` fires.
+     *
      * @size-check-suppress public BC; protocol-level permission request fields.
      */
     public function requestPermission(
@@ -309,7 +323,7 @@ final class JobContext
             operation: $spec->operation,
             expiresAt: $expiresAt,
         );
-        $this->runtime->leases->register($granted);
+        $this->runtime->leases->register($granted, $this->session->sessionId);
         $this->runtime->emit($this->session, $granted, [
             'job_id' => $this->jobId,
             'trace_id' => $this->traceId,

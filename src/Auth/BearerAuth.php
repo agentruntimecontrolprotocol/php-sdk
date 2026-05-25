@@ -36,7 +36,8 @@ final readonly class BearerAuth implements AuthScheme
         if (!isset($this->tokens[$auth->token])) {
             return AuthResult::reject('invalid token');
         }
-        $principal = $client->principal ?? $this->tokens[$auth->token];
-        return AuthResult::accept($principal);
+        // Always use the server-side principal mapped to the token; do not
+        // trust the principal supplied in the untrusted PeerInfo block.
+        return AuthResult::accept($this->tokens[$auth->token]);
     }
 }
