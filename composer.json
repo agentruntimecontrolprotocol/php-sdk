@@ -69,6 +69,7 @@
         "test": "phpunit --testdox",
         "coverage": "phpunit --coverage-text --coverage-clover=coverage.xml",
         "audit": "composer audit",
+        "docs:api": "php scripts/gen-api-docs.php",
         "gates": [
             "@lint",
             "@stan",

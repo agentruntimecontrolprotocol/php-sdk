@@ -7,6 +7,7 @@
 /.psalm/
 /coverage.xml
 /coverage/
+/docs/api/
 /.idea/
 /.vscode/*
 !/.vscode/settings.json
