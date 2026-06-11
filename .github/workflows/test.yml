@@ -35,7 +35,7 @@ permissions:
 jobs:
   test:
     name: PHP ${{ matrix.php }}
-    runs-on: [self-hosted, linux, arm64, arcp]
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
