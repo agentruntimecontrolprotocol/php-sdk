@@ -60,6 +60,7 @@ use Arcp\Messages\Session\SessionAck;
 use Arcp\Messages\Session\SessionAuthenticate;
 use Arcp\Messages\Session\SessionChallenge;
 use Arcp\Messages\Session\SessionClose;
+use Arcp\Messages\Session\SessionClosed;
 use Arcp\Messages\Session\SessionEvicted;
 use Arcp\Messages\Session\SessionHello;
 use Arcp\Messages\Session\SessionPing;
@@ -132,6 +133,7 @@ final class MessageCatalogRoundTripTest extends TestCase
         ]], null)];
         yield 'session.evicted' => [new SessionEvicted('idle timeout', 'IDLE')];
         yield 'session.close' => [new SessionClose('client_close')];
+        yield 'session.closed' => [new SessionClosed('client_close')];
 
         yield 'session.ping' => [new SessionPing('nonce-123', $now)];
         yield 'session.pong' => [new SessionPong('nonce-123', $now)];

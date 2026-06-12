@@ -24,6 +24,8 @@ use Arcp\Messages\Human\HumanInputResponse;
 use Arcp\Messages\Permissions\LeaseExtended;
 use Arcp\Messages\Permissions\LeaseRefresh;
 use Arcp\Messages\Session\SessionAck;
+use Arcp\Messages\Session\SessionClose;
+use Arcp\Messages\Session\SessionClosed;
 use Arcp\Messages\Session\SessionPing;
 use Arcp\Messages\Session\SessionPong;
 use Arcp\Messages\Telemetry\EventEmit;
@@ -74,16 +76,17 @@ final readonly class LifecycleHandler
         }
     }
 
-    public function handleSessionClose(Session $session): void
+    /**
+     * §6.7: acknowledge with `session.closed` (echoing the reason), then
+     * release the transport. In-flight jobs MUST NOT be cancelled — they
+     * continue running and remain resumable within the resume window.
+     */
+    public function handleSessionClose(Session $session, Envelope $env, SessionClose $msg): void
     {
         $session->state = SessionState::Closing;
-        // Cancel every still-running job so the close sequence terminates
-        // promptly (RFC §9).
-        foreach ($this->runtime->jobs->all() as $job) {
-            if ($job->session === $session) {
-                $this->runtime->jobs->cancel($job->id, 'session_closing');
-            }
-        }
+        $this->runtime->emit($session, new SessionClosed($msg->reason), [
+            'correlation_id' => $env->id,
+        ]);
         $session->transport->close();
     }
 

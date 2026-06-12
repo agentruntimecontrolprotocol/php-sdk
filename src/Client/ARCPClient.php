@@ -494,18 +494,32 @@ final class ARCPClient
         return $resp->released;
     }
 
+    /**
+     * §6.7 graceful close: send `session.close` and await the runtime's
+     * `session.closed` acknowledgement (briefly) before releasing the
+     * transport. In-flight jobs on the runtime are not affected; they
+     * remain resumable within the resume window.
+     */
     public function close(): void
     {
         if ($this->session->state === SessionState::Closed) {
             return;
         }
         try {
+            $id = MessageId::random();
             $this->session->transport->send(new Envelope(
-                id: MessageId::random(),
+                id: $id,
                 payload: new SessionClose('client_close'),
                 timestamp: $this->clock->now(),
                 sessionId: $this->session->sessionId,
             ));
+            if ($this->readLoop instanceof Future) {
+                try {
+                    $this->pending->awaitResponse($id, 2.0);
+                } catch (\Throwable) {
+                    // ack lost or peer slow; proceed with local teardown.
+                }
+            }
         } catch (\Throwable) {
             // peer already gone; transport will report closed below.
         }

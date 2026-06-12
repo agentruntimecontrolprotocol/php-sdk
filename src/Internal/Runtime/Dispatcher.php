@@ -165,7 +165,7 @@ final readonly class Dispatcher
             $msg instanceof SessionPing => $this->lifecycle->handlePing($session, $env, $msg),
             $msg instanceof SessionPong => null,
             $msg instanceof SessionAck => $this->lifecycle->handleSessionAck($session, $msg),
-            $msg instanceof SessionClose => $this->lifecycle->handleSessionClose($session),
+            $msg instanceof SessionClose => $this->lifecycle->handleSessionClose($session, $env, $msg),
             $msg instanceof JobCancel => $this->lifecycle->handleCancel($session, $env, $msg),
             $msg instanceof Interrupt => $this->lifecycle->handleInterrupt($session, $env, $msg),
             $msg instanceof LeaseRefresh

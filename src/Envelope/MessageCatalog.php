@@ -48,6 +48,7 @@ use Arcp\Messages\Session\SessionAck;
 use Arcp\Messages\Session\SessionAuthenticate;
 use Arcp\Messages\Session\SessionChallenge;
 use Arcp\Messages\Session\SessionClose;
+use Arcp\Messages\Session\SessionClosed;
 use Arcp\Messages\Session\SessionEvicted;
 use Arcp\Messages\Session\SessionHello;
 use Arcp\Messages\Session\SessionPing;
@@ -94,6 +95,7 @@ final class MessageCatalog
         Jobs::class,
         SessionEvicted::class,
         SessionClose::class,
+        SessionClosed::class,
         SessionPing::class,
         SessionPong::class,
         SessionAck::class,
