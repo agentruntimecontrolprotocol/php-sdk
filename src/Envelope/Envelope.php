@@ -77,25 +77,28 @@ final readonly class Envelope
      */
     public function withCorrelationId(?MessageId $correlationId): self
     {
-        return new self(
-            id: $this->id,
-            payload: $this->payload,
-            timestamp: $this->timestamp,
-            priority: $this->priority,
-            sessionId: $this->sessionId,
-            jobId: $this->jobId,
-            streamId: $this->streamId,
-            subscriptionId: $this->subscriptionId,
-            traceId: $this->traceId,
-            spanId: $this->spanId,
-            parentSpanId: $this->parentSpanId,
-            correlationId: $correlationId,
-            causationId: $this->causationId,
-            idempotencyKey: $this->idempotencyKey,
-            source: $this->source,
-            target: $this->target,
-            arcp: $this->arcp,
-            extensions: $this->extensions,
-        );
+        return $this->with(['correlationId' => $correlationId]);
+    }
+
+    /**
+     * Return a copy carrying a different payload, preserving every other
+     * field. Used for log redaction so new envelope fields are retained
+     * automatically.
+     */
+    public function withPayload(MessageType $payload): self
+    {
+        return $this->with(['payload' => $payload]);
+    }
+
+    /**
+     * Rebuild this immutable envelope with the given field overrides.
+     * Property names match the constructor parameter names, so a new field
+     * is covered automatically without touching every wither.
+     *
+     * @param array<string, mixed> $overrides
+     */
+    private function with(array $overrides): self
+    {
+        return new self(...[...get_object_vars($this), ...$overrides]);
     }
 }
