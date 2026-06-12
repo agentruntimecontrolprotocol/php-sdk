@@ -7,6 +7,7 @@ namespace Arcp\Runtime;
 use Amp\Cancellation;
 use Amp\DeferredCancellation;
 use Arcp\Envelope\Priority;
+use Arcp\Errors\BudgetExhaustedException;
 use Arcp\Errors\DeadlineExceededException;
 use Arcp\Errors\PermissionDeniedException;
 use Arcp\Ids\JobId;
@@ -102,7 +103,18 @@ final class JobContext
     public function emitMetric(string $name, int|float $value, string $unit, array $dims = []): void
     {
         $job = $this->runtime->jobs->tryGet($this->jobId);
-        $remaining = $job?->budget?->consume($name, $value, $unit);
+        try {
+            $remaining = $job?->budget?->consume($name, $value, $unit);
+        } catch (BudgetExhaustedException $e) {
+            // Surface the consuming sample to observers before unwinding so
+            // the metric that exhausted the budget is not lost.
+            $dims['budget_remaining'] = '0';
+            $this->runtime->emit($this->session, new MetricEvent($name, $value, $unit, $dims), [
+                'job_id' => $this->jobId,
+                'trace_id' => $this->traceId,
+            ]);
+            throw $e;
+        }
         if ($remaining !== null) {
             $dims['budget_remaining'] = $remaining;
         }

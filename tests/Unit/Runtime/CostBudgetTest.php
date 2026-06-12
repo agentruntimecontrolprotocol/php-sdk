@@ -79,4 +79,29 @@ final class CostBudgetTest extends TestCase
         $budget = CostBudget::fromPatterns(['USD:0.000001']);
         self::assertSame(['USD' => '0.000001'], $budget->remaining());
     }
+
+    public function testConsumeRejectsNegativeValue(): void
+    {
+        $budget = CostBudget::fromPatterns(['USD:1.00']);
+        try {
+            $budget->consume('cost.refund', -1, 'USD');
+            self::fail('expected InvalidArgumentException');
+        } catch (InvalidArgumentException) {
+            // §9.6: negative values are rejected and produce no decrement.
+        }
+        self::assertSame(['USD' => '1'], $budget->remaining());
+    }
+
+    public function testConsumingExactRemainingReturnsZeroWithoutExhausting(): void
+    {
+        $budget = CostBudget::fromPatterns(['USD:1.00']);
+        self::assertSame('0', $budget->consume('cost.inference', 1.00, 'USD'));
+    }
+
+    public function testConsumingBeyondRemainingExhausts(): void
+    {
+        $budget = CostBudget::fromPatterns(['USD:1.00']);
+        $this->expectException(\Arcp\Errors\BudgetExhaustedException::class);
+        $budget->consume('cost.inference', 1.01, 'USD');
+    }
 }

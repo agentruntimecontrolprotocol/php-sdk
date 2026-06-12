@@ -292,7 +292,7 @@ final class JobLifecycleTest extends TestCase
             public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
             {
                 $ctx->emitMetric('cost.search', 0.60, 'USD');
-                $ctx->emitMetric('cost.search', 0.40, 'USD');
+                $ctx->emitMetric('cost.search', 0.50, 'USD');
                 return ['ok' => true];
             }
         });

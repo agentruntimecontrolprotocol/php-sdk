@@ -42,7 +42,8 @@ final class V11FeaturesTest extends TestCase
     {
         $budget = CostBudget::fromPatterns(['USD:0.10']);
         $this->expectException(BudgetExhaustedException::class);
-        $budget->consume('cost.search', 0.10, 'USD');
+        // Overspending the counter (not merely landing on zero) exhausts it.
+        $budget->consume('cost.search', 0.11, 'USD');
     }
 
     public function testCostBudgetSubsetUsesRemainingBudget(): void
