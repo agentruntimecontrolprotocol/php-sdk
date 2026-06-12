@@ -108,7 +108,7 @@ final class MessageCatalogRoundTripTest extends TestCase
     public static function specimens(): iterable
     {
         $now = new \DateTimeImmutable('2026-05-09T12:00:00Z');
-        $err = new ErrorPayload('INTERNAL', 'something went wrong');
+        $err = new ErrorPayload('INTERNAL', 'something went wrong', true);
 
         yield 'session.open' => [new SessionOpen(
             Auth::bearer('t'),
