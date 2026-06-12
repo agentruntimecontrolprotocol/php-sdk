@@ -7,8 +7,8 @@ namespace Arcp\Tests\Unit;
 use Arcp\Envelope\Envelope;
 use Arcp\Envelope\MessageTypeRegistry;
 use Arcp\Envelope\Priority;
+use Arcp\Envelope\UnknownMessage;
 use Arcp\Errors\InvalidRequestException;
-use Arcp\Errors\UnimplementedException;
 use Arcp\Extensions\ExtensionRegistry;
 use Arcp\Ids\IdempotencyKey;
 use Arcp\Ids\MessageId;
@@ -109,16 +109,96 @@ final class EnvelopeTest extends TestCase
         $this->newSerializer()->decode('{"arcp":"1.1","id":"a","timestamp":"2026-05-09T13:00:00Z","payload":{}}');
     }
 
-    public function testDecodeRejectsUnknownTypeWithUnimplemented(): void
+    public function testDecodeUnknownTypeYieldsUnknownMessageMarker(): void
     {
+        // §5: unrecognized message types are ignored, not rejected (#133).
         $serializer = $this->newSerializer();
-        $this->expectException(UnimplementedException::class);
-        $serializer->decode((string) json_encode([
+        $env = $serializer->decode((string) json_encode([
             'arcp' => '1.1',
             'id' => 'msg_x',
             'type' => 'totally.unknown',
             'timestamp' => '2026-05-09T13:00:00Z',
-            'payload' => [],
+            'payload' => ['some' => 'field'],
+        ]));
+        self::assertInstanceOf(UnknownMessage::class, $env->payload);
+        self::assertSame('totally.unknown', $env->type());
+        self::assertSame(['some' => 'field'], $env->payload->payload);
+
+        // Re-encoding preserves the original wire type and payload.
+        /** @var array<string, mixed> $again */
+        $again = json_decode($serializer->encode($env), associative: true);
+        self::assertSame('totally.unknown', $again['type']);
+        self::assertSame(['some' => 'field'], $again['payload']);
+    }
+
+    public function testDecodeIgnoresUnknownTopLevelEnvelopeFields(): void
+    {
+        // §5: unknown top-level envelope fields MUST be ignored.
+        $env = $this->newSerializer()->decode((string) json_encode([
+            'arcp' => '1.1',
+            'id' => 'msg_x',
+            'type' => 'event.emit',
+            'timestamp' => '2026-05-09T13:00:00Z',
+            'payload' => ['type' => 'demo'],
+            'a_future_field' => ['nested' => true],
+        ]));
+        self::assertSame('event.emit', $env->type());
+    }
+
+    public function testEventSeqRoundTrips(): void
+    {
+        // §5/§8.3: event_seq is a session-scoped monotonically increasing
+        // sequence stamped on sequenced messages (#132, #152).
+        $serializer = $this->newSerializer();
+        $env = new Envelope(
+            id: new MessageId('msg_seq'),
+            payload: new EventEmit('demo'),
+            timestamp: new \DateTimeImmutable('2026-05-09T13:00:00Z'),
+            eventSeq: 1827,
+        );
+        /** @var array<string, mixed> $arr */
+        $arr = json_decode($serializer->encode($env), associative: true);
+        self::assertSame(1827, $arr['event_seq']);
+
+        $back = $serializer->decode($serializer->encode($env));
+        self::assertSame(1827, $back->eventSeq);
+    }
+
+    public function testEventSeqOmittedWhenAbsent(): void
+    {
+        $env = new Envelope(
+            id: new MessageId('msg_x'),
+            payload: new EventEmit('demo'),
+            timestamp: new \DateTimeImmutable('2026-05-09T13:00:00Z'),
+        );
+        $arr = $this->newSerializer()->envelopeToArray($env);
+        self::assertArrayNotHasKey('event_seq', $arr);
+        self::assertNull($this->newSerializer()->decode(
+            $this->newSerializer()->encode($env),
+        )->eventSeq);
+    }
+
+    public function testEnvelopeRejectsNegativeEventSeq(): void
+    {
+        $this->expectException(InvalidRequestException::class);
+        new Envelope(
+            id: new MessageId('msg_x'),
+            payload: new EventEmit('demo'),
+            timestamp: new \DateTimeImmutable('now'),
+            eventSeq: -1,
+        );
+    }
+
+    public function testDecodeRejectsNonIntEventSeq(): void
+    {
+        $this->expectException(InvalidRequestException::class);
+        $this->newSerializer()->decode((string) json_encode([
+            'arcp' => '1.1',
+            'id' => 'msg_x',
+            'type' => 'event.emit',
+            'timestamp' => '2026-05-09T13:00:00Z',
+            'event_seq' => 'twelve',
+            'payload' => ['type' => 'demo'],
         ]));
     }
 
@@ -234,37 +314,55 @@ final class EnvelopeTest extends TestCase
         ]));
     }
 
-    public function testExtensionAdvertisedButUnregisteredYieldsUnimplemented(): void
+    public function testExtensionAdvertisedButUnregisteredYieldsUnknownMarker(): void
     {
+        // Advertised extension with no registered class decodes to the
+        // ignorable marker (§5 leniency) rather than throwing.
         $exts = new ExtensionRegistry(['arcpx.acme.v1']);
         $serializer = $this->newSerializer($exts);
 
-        $this->expectException(UnimplementedException::class);
-        $serializer->decode((string) json_encode([
+        $env = $serializer->decode((string) json_encode([
             'arcp' => '1.1',
             'id' => 'msg_x',
             'type' => 'arcpx.acme.v1',
             'timestamp' => '2026-05-09T13:00:00Z',
             'payload' => [],
         ]));
+        self::assertInstanceOf(UnknownMessage::class, $env->payload);
+        self::assertSame('arcpx.acme.v1', $env->type());
     }
 
-    public function testExtensionOptionalDropsViaUnimplemented(): void
+    public function testExtensionOptionalUnadvertisedDropsViaUnknownMarker(): void
     {
         // RFC §21.3: an optional unadvertised extension is dropped silently.
-        // Our serializer surfaces this as `UnimplementedException` so the
-        // dispatcher above can choose to drop or nack.
         $exts = new ExtensionRegistry();
         $serializer = $this->newSerializer($exts);
 
-        $this->expectException(UnimplementedException::class);
-        $serializer->decode((string) json_encode([
+        $env = $serializer->decode((string) json_encode([
             'arcp' => '1.1',
             'id' => 'msg_x',
             'type' => 'arcpx.unknown.v1',
             'timestamp' => '2026-05-09T13:00:00Z',
             'payload' => [],
             'extensions' => ['optional' => true],
+        ]));
+        self::assertInstanceOf(UnknownMessage::class, $env->payload);
+    }
+
+    public function testExtensionMandatoryUnadvertisedIsRejected(): void
+    {
+        // RFC §21.3 disposition `nack`: a mandatory unadvertised extension
+        // still raises so the dispatcher can nack INVALID_REQUEST.
+        $exts = new ExtensionRegistry();
+        $serializer = $this->newSerializer($exts);
+
+        $this->expectException(InvalidRequestException::class);
+        $serializer->decode((string) json_encode([
+            'arcp' => '1.1',
+            'id' => 'msg_x',
+            'type' => 'arcpx.unknown.v1',
+            'timestamp' => '2026-05-09T13:00:00Z',
+            'payload' => [],
         ]));
     }
 }

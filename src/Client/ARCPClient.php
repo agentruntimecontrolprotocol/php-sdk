@@ -15,6 +15,7 @@ use Arcp\Clock\SystemClock;
 use Arcp\Envelope\Envelope;
 use Arcp\Envelope\MessageCatalog;
 use Arcp\Envelope\MessageTypeRegistry;
+use Arcp\Envelope\UnknownMessage;
 use Arcp\Errors\InvalidRequestException;
 use Arcp\Errors\TransportClosedException;
 use Arcp\Ids\ArtifactId;
@@ -499,6 +500,11 @@ final class ARCPClient
         }
         if (!$env instanceof Envelope) {
             return false;
+        }
+        if ($env->payload instanceof UnknownMessage) {
+            // §5: unrecognized message types are ignored, not fatal.
+            $this->logger->info('ignored unknown message type', ['type' => $env->type()]);
+            return true;
         }
         if ($env->payload instanceof ResultChunk) {
             $this->resultChunks->push($env->payload);

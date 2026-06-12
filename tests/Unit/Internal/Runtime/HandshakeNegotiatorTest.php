@@ -8,7 +8,6 @@ use Amp\Cancellation;
 use Arcp\Auth\AuthRouter;
 use Arcp\Auth\NoneAuth;
 use Arcp\Client\ARCPClient;
-use Arcp\Errors\UnauthenticatedException;
 use Arcp\Errors\InvalidRequestException;
 use Arcp\Errors\UnauthenticatedException;
 use Arcp\Ids\IdempotencyKey;

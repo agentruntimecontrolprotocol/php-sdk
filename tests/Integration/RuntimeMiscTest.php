@@ -58,7 +58,7 @@ final class RuntimeMiscTest extends TestCase
         $serverFuture->await();
     }
 
-    public function testDeferredFeaturesAreNackedWithUnimplemented(): void
+    public function testDeferredFeaturesAreNackedWithInvalidRequest(): void
     {
         [, $client, $serverFuture] = $this->client();
 
@@ -73,13 +73,13 @@ final class RuntimeMiscTest extends TestCase
         $client->session->transport->send($env);
         $response = $client->pending->awaitResponse($msgId, 5.0);
         self::assertInstanceOf(Nack::class, $response);
-        self::assertSame('UNIMPLEMENTED', $response->error->code);
+        self::assertSame('INVALID_REQUEST', $response->error->code);
 
         $client->close();
         $serverFuture->await();
     }
 
-    public function testAgentDelegateNacksAsUnimplemented(): void
+    public function testAgentDelegateNacksAsInvalidRequest(): void
     {
         [, $client, $serverFuture] = $this->client();
         $msgId = MessageId::random();
@@ -92,7 +92,7 @@ final class RuntimeMiscTest extends TestCase
         $client->session->transport->send($env);
         $response = $client->pending->awaitResponse($msgId, 5.0);
         self::assertInstanceOf(Nack::class, $response);
-        self::assertSame('UNIMPLEMENTED', $response->error->code);
+        self::assertSame('INVALID_REQUEST', $response->error->code);
         $client->close();
         $serverFuture->await();
     }

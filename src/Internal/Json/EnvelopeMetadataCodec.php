@@ -50,7 +50,7 @@ final readonly class EnvelopeMetadataCodec
     }
 
     /**
-     * @return array<string, string>
+     * @return array<string, int|string>
      */
     private function scopeIdsToArray(Envelope $env): array
     {
@@ -60,6 +60,9 @@ final readonly class EnvelopeMetadataCodec
         }
         if ($env->jobId instanceof JobId) {
             $out['job_id'] = (string) $env->jobId;
+        }
+        if ($env->eventSeq !== null) {
+            $out['event_seq'] = $env->eventSeq;
         }
         if ($env->streamId instanceof StreamId) {
             $out['stream_id'] = (string) $env->streamId;
@@ -186,6 +189,20 @@ final readonly class EnvelopeMetadataCodec
         }
         if ($data[$key] === '') {
             throw new InvalidRequestException(\sprintf('envelope.%s must be non-empty', $key));
+        }
+        return $data[$key];
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    public function optionalInt(array $data, string $key): ?int
+    {
+        if (!isset($data[$key])) {
+            return null;
+        }
+        if (!\is_int($data[$key])) {
+            throw new InvalidRequestException(\sprintf('envelope.%s must be an integer', $key));
         }
         return $data[$key];
     }

@@ -7,6 +7,7 @@ namespace Arcp\Json;
 use Arcp\Envelope\Envelope;
 use Arcp\Envelope\MessageType;
 use Arcp\Envelope\MessageTypeRegistry;
+use Arcp\Envelope\UnknownMessage;
 use Arcp\Errors\InvalidRequestException;
 use Arcp\Extensions\ExtensionRegistry;
 use Arcp\Ids\IdempotencyKey;
@@ -106,6 +107,7 @@ final readonly class EnvelopeSerializer
             priority: $meta->parsePriority($data),
             sessionId: $meta->optionalId($data, 'session_id', SessionId::class),
             jobId: $meta->optionalId($data, 'job_id', JobId::class),
+            eventSeq: $meta->optionalInt($data, 'event_seq'),
             streamId: $meta->optionalId($data, 'stream_id', StreamId::class),
             subscriptionId: $meta->optionalId($data, 'subscription_id', SubscriptionId::class),
             traceId: $meta->optionalId($data, 'trace_id', TraceId::class),
@@ -126,11 +128,6 @@ final readonly class EnvelopeSerializer
      */
     private function decodePayload(string $type, array $envelopeData): MessageType
     {
-        $class = $this->registry->classFor($type);
-        if ($class === null) {
-            $this->rejectUnknownType($type, $envelopeData);
-        }
-
         $payloadData = [];
         if (isset($envelopeData['payload'])) {
             if (!\is_array($envelopeData['payload'])) {
@@ -140,28 +137,37 @@ final readonly class EnvelopeSerializer
             $payloadData = $envelopeData['payload'];
         }
 
+        $class = $this->registry->classFor($type);
+        if ($class === null) {
+            return $this->unknownPayload($type, $payloadData, $envelopeData);
+        }
+
         return $class::fromArray($payloadData);
     }
 
     /**
-     * @param array<string, mixed> $envelopeData
+     * §5: unrecognized message types MUST be ignored, not rejected. Decode
+     * them into an {@see UnknownMessage} marker the dispatch loops skip.
+     * The one exception is a *mandatory* unadvertised extension type when
+     * an extension registry is present (RFC §21.3 disposition `nack`).
      *
-     * @return never
+     * @param array<string, mixed> $payloadData
+     * @param array<string, mixed> $envelopeData
      */
-    private function rejectUnknownType(string $type, array $envelopeData): void
-    {
-        // Honor extension dispatch rules (RFC §21.3) when an extension
-        // registry is present. Without one, default to UNIMPLEMENTED.
+    private function unknownPayload(
+        string $type,
+        array $payloadData,
+        array $envelopeData,
+    ): UnknownMessage {
         if ($this->extensions instanceof ExtensionRegistry) {
             $optional = $this->isOptionalExtension($envelopeData);
-            $disposition = $this->extensions->dispositionFor($type, $optional);
-            if ($disposition === 'drop' || $disposition === 'advertised') {
+            if ($this->extensions->dispositionFor($type, $optional) === 'nack') {
                 throw new InvalidRequestException(
-                    \sprintf('extension type %s has no registered class', $type),
+                    \sprintf('mandatory extension type %s not negotiated', $type),
                 );
             }
         }
-        throw new InvalidRequestException(\sprintf('unknown message type %s', $type));
+        return new UnknownMessage($type, $payloadData);
     }
 
     /**

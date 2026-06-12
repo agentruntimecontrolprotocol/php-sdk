@@ -53,7 +53,7 @@ final class LifecycleHandlerTest extends TestCase
         return [$runtime, $client, $serverFuture];
     }
 
-    public function testCancelNonJobTargetIsNackedAsUnimplemented(): void
+    public function testCancelNonJobTargetIsNackedAsInvalidRequest(): void
     {
         [, $client, $serverFuture] = $this->pair();
         $msgId = MessageId::random();
@@ -66,13 +66,13 @@ final class LifecycleHandlerTest extends TestCase
         $client->session->transport->send($env);
         $response = $client->pending->awaitResponse($msgId, 5.0);
         self::assertInstanceOf(Nack::class, $response);
-        self::assertSame('UNIMPLEMENTED', $response->error->code);
+        self::assertSame('INVALID_REQUEST', $response->error->code);
 
         $client->close();
         $serverFuture->await();
     }
 
-    public function testCancelUnknownJobReturnsNotFound(): void
+    public function testCancelUnknownJobReturnsJobNotFound(): void
     {
         [, $client, $serverFuture] = $this->pair();
         $msgId = MessageId::random();
@@ -85,7 +85,7 @@ final class LifecycleHandlerTest extends TestCase
         $client->session->transport->send($env);
         $response = $client->pending->awaitResponse($msgId, 5.0);
         self::assertInstanceOf(Nack::class, $response);
-        self::assertSame('NOT_FOUND', $response->error->code);
+        self::assertSame('JOB_NOT_FOUND', $response->error->code);
 
         $client->close();
         $serverFuture->await();
@@ -156,7 +156,7 @@ final class LifecycleHandlerTest extends TestCase
         $client->session->transport->send($env);
         $response = $client->pending->awaitResponse($msgId, 5.0);
         self::assertInstanceOf(Nack::class, $response);
-        self::assertSame('NOT_FOUND', $response->error->code);
+        self::assertSame('JOB_NOT_FOUND', $response->error->code);
 
         $client->close();
         $serverFuture->await();
@@ -240,7 +240,7 @@ final class LifecycleHandlerTest extends TestCase
         $serverFuture->await();
     }
 
-    public function testResumeWithCheckpointIsNackedAsUnimplemented(): void
+    public function testResumeWithCheckpointIsNackedAsInvalidRequest(): void
     {
         [, $client, $serverFuture] = $this->pair();
         $msgId = MessageId::random();
@@ -253,13 +253,13 @@ final class LifecycleHandlerTest extends TestCase
         $client->session->transport->send($env);
         $response = $client->pending->awaitResponse($msgId, 5.0);
         self::assertInstanceOf(Nack::class, $response);
-        self::assertSame('UNIMPLEMENTED', $response->error->code);
+        self::assertSame('INVALID_REQUEST', $response->error->code);
 
         $client->close();
         $serverFuture->await();
     }
 
-    public function testResumeWithUnknownAfterMessageIdYieldsDataLossNack(): void
+    public function testResumeWithUnknownAfterMessageIdYieldsResumeWindowExpiredNack(): void
     {
         [, $client, $serverFuture] = $this->pair();
 
@@ -273,7 +273,7 @@ final class LifecycleHandlerTest extends TestCase
         $client->session->transport->send($env);
         $response = $client->pending->awaitResponse($msgId, 5.0);
         self::assertInstanceOf(Nack::class, $response);
-        self::assertSame('DATA_LOSS', $response->error->code);
+        self::assertSame('RESUME_WINDOW_EXPIRED', $response->error->code);
 
         $client->close();
         $serverFuture->await();
@@ -293,7 +293,7 @@ final class LifecycleHandlerTest extends TestCase
         $client->session->transport->send($env);
         $response = $client->pending->awaitResponse($msgId, 5.0);
         self::assertInstanceOf(Nack::class, $response);
-        self::assertSame('NOT_FOUND', $response->error->code);
+        self::assertSame('PERMISSION_DENIED', $response->error->code);
 
         $client->close();
         $serverFuture->await();

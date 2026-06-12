@@ -16,9 +16,11 @@ use Arcp\Ids\TraceId;
 use Arcp\Version;
 
 /**
- * Canonical ARCP message container (RFC §6.1).
+ * Canonical ARCP message container (ARCP v1.1 §5).
  *
  * Required fields: `arcp`, `id`, `type`, `timestamp`, `payload`.
+ * `event_seq` is the session-scoped, monotonically increasing sequence
+ * number stamped on sequenced messages (job events and results, §8.3).
  * Conditional fields are populated based on context (sessions, jobs,
  * streams, subscriptions). `correlation_id` and `causation_id` are
  * **distinct**: `correlation_id` answers "which command does this
@@ -41,6 +43,7 @@ final readonly class Envelope
         public Priority $priority = Priority::Normal,
         public ?SessionId $sessionId = null,
         public ?JobId $jobId = null,
+        public ?int $eventSeq = null,
         public ?StreamId $streamId = null,
         public ?SubscriptionId $subscriptionId = null,
         public ?TraceId $traceId = null,
@@ -57,6 +60,9 @@ final readonly class Envelope
         if (trim($this->arcp) === '') {
             throw new InvalidRequestException('envelope.arcp must be non-empty');
         }
+        if ($this->eventSeq !== null && $this->eventSeq < 0) {
+            throw new InvalidRequestException('envelope.event_seq must be non-negative');
+        }
         if ($this->source !== null && trim($this->source) === '') {
             throw new InvalidRequestException('envelope.source must be non-empty when present');
         }
@@ -67,7 +73,9 @@ final readonly class Envelope
 
     public function type(): string
     {
-        return $this->payload::typeName();
+        return $this->payload instanceof UnknownMessage
+            ? $this->payload->wireType
+            : $this->payload::typeName();
     }
 
     /**

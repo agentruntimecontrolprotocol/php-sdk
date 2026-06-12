@@ -65,7 +65,7 @@ final class SubscriptionRouterTest extends TestCase
         $serverFuture->await();
     }
 
-    public function testUnsubscribeWithoutSubscriptionIdIsNackedAsInvalidArgument(): void
+    public function testUnsubscribeWithoutSubscriptionIdIsNackedAsInvalidRequest(): void
     {
         [, $client, $serverFuture] = $this->pair();
 
@@ -81,7 +81,7 @@ final class SubscriptionRouterTest extends TestCase
         $client->session->transport->send($env);
         $response = $client->pending->awaitResponse($msgId, 5.0);
         self::assertInstanceOf(Nack::class, $response);
-        self::assertSame('INVALID_ARGUMENT', $response->error->code);
+        self::assertSame('INVALID_REQUEST', $response->error->code);
 
         $client->close();
         $serverFuture->await();

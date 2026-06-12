@@ -33,6 +33,8 @@ use Arcp\Internal\Runtime\SubscriptionRouter;
 use Arcp\Internal\Runtime\ToolInvocationHandler;
 use Arcp\Json\EnvelopeSerializer;
 use Arcp\Messages\Execution\JobAccepted;
+use Arcp\Messages\Execution\JobProgress;
+use Arcp\Messages\Execution\ResultChunk;
 use Arcp\Messages\Session\Capabilities;
 use Arcp\Messages\Session\PeerInfo;
 use Arcp\Messages\Telemetry\EventEmit;
@@ -318,6 +320,7 @@ final class ARCPRuntime
             priority: $hints['priority'] ?? Priority::Normal,
             sessionId: $session->sessionId,
             jobId: $hints['job_id'] ?? null,
+            eventSeq: $this->isSequenced($payload) ? $session->nextEventSeq() : null,
             streamId: $hints['stream_id'] ?? null,
             subscriptionId: $hints['subscription_id'] ?? null,
             traceId: $hints['trace_id'] ?? null,
@@ -341,6 +344,17 @@ final class ARCPRuntime
         $this->eventLog->append($logEnv);
         $this->subscriptions->dispatch($logEnv);
         return $id;
+    }
+
+    /**
+     * §5/§8.3: sequenced messages — job events and job results — carry the
+     * session-scoped monotonically increasing `event_seq`. Session control
+     * messages (heartbeats, acks, handshake) are NOT sequenced.
+     */
+    private function isSequenced(MessageType $payload): bool
+    {
+        return $payload instanceof JobProgress
+            || $payload instanceof ResultChunk;
     }
 
     private function redactedPayload(MessageType $payload): MessageType

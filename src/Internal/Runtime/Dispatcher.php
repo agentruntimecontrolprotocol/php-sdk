@@ -7,6 +7,7 @@ namespace Arcp\Internal\Runtime;
 use Amp\Cancellation;
 use Arcp\Envelope\Envelope;
 use Arcp\Envelope\MessageType;
+use Arcp\Envelope\UnknownMessage;
 use Arcp\Errors\ARCPException;
 use Arcp\Errors\ErrorPayload;
 use Arcp\Errors\InternalErrorException;
@@ -73,6 +74,14 @@ final readonly class Dispatcher
             }
             if (!$env instanceof Envelope) {
                 return;
+            }
+            if ($env->payload instanceof UnknownMessage) {
+                // §5: unrecognized message types are ignored, not fatal.
+                $this->runtime->logger->info(
+                    'ignored unknown message type',
+                    ['type' => $env->type()],
+                );
+                continue;
             }
             if (!$this->shouldDispatch($env)) {
                 continue;
