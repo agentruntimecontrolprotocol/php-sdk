@@ -8,6 +8,7 @@ use Amp\Cancellation;
 use Amp\DeferredCancellation;
 use Arcp\Envelope\Priority;
 use Arcp\Errors\BudgetExhaustedException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Errors\PermissionDeniedException;
 use Arcp\Errors\TimeoutException;
 use Arcp\Ids\JobId;
@@ -17,8 +18,8 @@ use Arcp\Ids\StreamId;
 use Arcp\Ids\TraceId;
 use Arcp\Internal\Runtime\PermissionRequestSpec;
 use Arcp\Messages\Artifacts\ArtifactRef;
+use Arcp\Messages\Execution\JobEvent;
 use Arcp\Messages\Execution\JobHeartbeat;
-use Arcp\Messages\Execution\JobProgress;
 use Arcp\Messages\Execution\ResultChunk;
 use Arcp\Messages\Execution\ResultChunkEncoding;
 use Arcp\Messages\Human\HumanChoiceRequest;
@@ -34,8 +35,6 @@ use Arcp\Messages\Streaming\StreamChunk;
 use Arcp\Messages\Streaming\StreamClose;
 use Arcp\Messages\Streaming\StreamKind;
 use Arcp\Messages\Streaming\StreamOpen;
-use Arcp\Messages\Telemetry\LogEvent;
-use Arcp\Messages\Telemetry\MetricEvent;
 
 /**
  * Handle passed to a {@see ToolHandler} to interact with the runtime
@@ -83,24 +82,61 @@ final class JobContext
         return $this->runtime->jobs->tryGet($this->jobId)?->takeInterruptResponse();
     }
 
-    public function reportProgress(int $percent, ?string $message = null): void
-    {
-        $this->runtime->emit($this->session, new JobProgress($percent, $message), [
-            'job_id' => $this->jobId,
-            'trace_id' => $this->traceId,
-        ]);
+    /**
+     * Emit a §8.2.1 `progress` job event: `{current, total?, units?,
+     * message?}`. `current` MUST be non-negative; when `total` is present
+     * `current` must not exceed it. Advisory only — the protocol does
+     * not act on progress events.
+     */
+    public function reportProgress(
+        int $current,
+        ?int $total = null,
+        ?string $units = null,
+        ?string $message = null,
+    ): void {
+        if ($current < 0) {
+            throw new InvalidRequestException('progress current must be non-negative');
+        }
+        if ($total !== null && $total < 0) {
+            throw new InvalidRequestException('progress total must be non-negative');
+        }
+        if ($total !== null && $current > $total) {
+            throw new InvalidRequestException('progress current must not exceed total');
+        }
+        $body = ['current' => $current];
+        if ($total !== null) {
+            $body['total'] = $total;
+        }
+        if ($units !== null) {
+            $body['units'] = $units;
+        }
+        if ($message !== null) {
+            $body['message'] = $message;
+        }
+        $this->emitJobEvent('progress', $body);
     }
 
-    /** @param array<string, mixed> $attributes */
+    /**
+     * Emit a §8.2 `log` job event: `{level, message}` (plus optional
+     * structured attributes).
+     *
+     * @param array<string, mixed> $attributes
+     */
     public function emitLog(string $level, string $message, array $attributes = []): void
     {
-        $this->runtime->emit($this->session, new LogEvent($level, $message, $attributes), [
-            'job_id' => $this->jobId,
-            'trace_id' => $this->traceId,
-        ]);
+        $body = ['level' => $level, 'message' => $message];
+        if ($attributes !== []) {
+            $body['attributes'] = $attributes;
+        }
+        $this->emitJobEvent('log', $body);
     }
 
-    /** @param array<string, bool|float|int|string> $dims */
+    /**
+     * Emit a §8.2 `metric` job event: `{name, value, unit?, dimensions?}`.
+     * `cost.*` samples decrement the job's §9.6 budget counters.
+     *
+     * @param array<string, bool|float|int|string> $dims
+     */
     public function emitMetric(string $name, int|float $value, string $unit, array $dims = []): void
     {
         $job = $this->runtime->jobs->tryGet($this->jobId);
@@ -110,19 +146,41 @@ final class JobContext
             // Surface the consuming sample to observers before unwinding so
             // the metric that exhausted the budget is not lost.
             $dims['budget_remaining'] = '0';
-            $this->runtime->emit($this->session, new MetricEvent($name, $value, $unit, $dims), [
-                'job_id' => $this->jobId,
-                'trace_id' => $this->traceId,
-            ]);
+            $this->emitJobEvent('metric', $this->metricBody($name, $value, $unit, $dims));
             throw $e;
         }
         if ($remaining !== null) {
             $dims['budget_remaining'] = $remaining;
         }
-        $this->runtime->emit($this->session, new MetricEvent($name, $value, $unit, $dims), [
-            'job_id' => $this->jobId,
-            'trace_id' => $this->traceId,
-        ]);
+        $this->emitJobEvent('metric', $this->metricBody($name, $value, $unit, $dims));
+    }
+
+    /**
+     * @param array<string, bool|float|int|string> $dims
+     *
+     * @return array<string, mixed>
+     */
+    private function metricBody(string $name, int|float $value, string $unit, array $dims): array
+    {
+        $body = ['name' => $name, 'value' => $value, 'unit' => $unit];
+        if ($dims !== []) {
+            $body['dimensions'] = $dims;
+        }
+        return $body;
+    }
+
+    /**
+     * Emit a §8.1 `job.event` envelope with this job's id and trace.
+     *
+     * @param array<string, mixed> $body
+     */
+    private function emitJobEvent(string $kind, array $body): void
+    {
+        $this->runtime->emit(
+            $this->session,
+            new JobEvent($kind, $this->runtime->clock->now(), $body),
+            ['job_id' => $this->jobId, 'trace_id' => $this->traceId],
+        );
     }
 
     /**

@@ -36,7 +36,7 @@ final class JobLifecycleTest extends TestCase
             #[\Override]
             public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
             {
-                $ctx->reportProgress(50, 'halfway');
+                $ctx->reportProgress(50, total: 100, units: 'percent', message: 'halfway');
                 return ['echoed' => $arguments];
             }
         });

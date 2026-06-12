@@ -17,10 +17,10 @@ use Arcp\Auth\AuthRouter;
 use Arcp\Client\ARCPClient;
 use Arcp\Envelope\Envelope;
 use Arcp\Ids\JobId;
+use Arcp\Messages\Execution\JobEvent;
 use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\Capabilities;
 use Arcp\Messages\Session\PeerInfo;
-use Arcp\Messages\Telemetry\EventEmit;
 use Arcp\Runtime\ARCPRuntime;
 use Arcp\Runtime\JobContext;
 use Arcp\Runtime\ToolHandler;
@@ -84,7 +84,7 @@ final class SubscriptionTest extends TestCase
             $jobId,
             function (Envelope $env) use ($sawBackfillMarker): void {
                 $payload = $env->payload;
-                if ($payload instanceof EventEmit && $payload->eventType === 'subscription.backfill_complete' && !$sawBackfillMarker->isComplete()) {
+                if ($payload instanceof JobEvent && $payload->eventKind === 'status' && ($payload->body['phase'] ?? null) === 'backfill_complete' && !$sawBackfillMarker->isComplete()) {
                     $sawBackfillMarker->complete(true);
                 }
             },
@@ -109,8 +109,11 @@ final class SubscriptionTest extends TestCase
         $client->subscribe(
             $jobId,
             function (Envelope $env) use (&$observed, &$seqs): void {
-                $observed[] = $env->type();
-                if (\in_array($env->type(), ['job.event', 'job.progress', 'job.result'], true)) {
+                $payload = $env->payload;
+                $observed[] = $payload instanceof JobEvent
+                    ? $env->type() . ':' . $payload->eventKind
+                    : $env->type();
+                if (\in_array($env->type(), ['job.event', 'job.result'], true)) {
                     $seqs[] = $env->eventSeq;
                 }
             },
@@ -119,8 +122,8 @@ final class SubscriptionTest extends TestCase
         $jobFuture->await();
         delay(0.05);
 
-        self::assertContains('log', $observed, 'expected the job log envelope');
-        self::assertContains('job.progress', $observed, 'expected the job progress envelope');
+        self::assertContains('job.event:log', $observed, 'expected the log job.event');
+        self::assertContains('job.event:progress', $observed, 'expected the progress job.event');
         self::assertContains('job.result', $observed, 'expected the terminal job.result');
 
         // §8.3: sequenced job messages carry the session-scoped,

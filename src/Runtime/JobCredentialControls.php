@@ -6,7 +6,7 @@ namespace Arcp\Runtime;
 
 use Arcp\Errors\InvalidRequestException;
 use Arcp\Errors\PermissionDeniedException;
-use Arcp\Messages\Telemetry\EventEmit;
+use Arcp\Messages\Execution\JobEvent;
 use Arcp\Runtime\Credentials\Credential;
 use Arcp\Runtime\Credentials\CredentialProvisioner;
 
@@ -32,11 +32,18 @@ trait JobCredentialControls
         $this->runtime->credentials->add($this->jobId, $new);
         $this->runtime->credentials->remove($this->jobId, $previousCredentialId);
         $this->revokePreviousCredential($provisioner, $previousCredentialId);
-        $this->runtime->emit($this->session, new EventEmit('status', [
-            'phase' => 'credential_rotated',
-            'id' => $new->id,
-            'value' => $new->value,
-        ]), [
+        // §8.2 / §9.8.2: announce the rotation as a `status` job event.
+        // Only the submitting session may see the new value (§14); the
+        // runtime redacts it before logging and never fans it out.
+        $this->runtime->emit($this->session, new JobEvent(
+            'status',
+            $this->runtime->clock->now(),
+            [
+                'phase' => 'credential_rotated',
+                'id' => $new->id,
+                'value' => $new->value,
+            ],
+        ), [
             'job_id' => $this->jobId,
             'trace_id' => $this->traceId,
         ]);

@@ -8,7 +8,6 @@ use Arcp\Errors\ErrorPayload;
 use Arcp\Errors\InvalidRequestException;
 use Arcp\Messages\Control\CheckpointRestore;
 use Arcp\Messages\Execution\JobError;
-use Arcp\Messages\Execution\JobProgress;
 use Arcp\Messages\Execution\JobResult;
 use Arcp\Messages\Execution\JobSubmit;
 use Arcp\Messages\Human\HumanChoiceRequest;
@@ -18,8 +17,6 @@ use Arcp\Messages\Session\SessionAck;
 use Arcp\Messages\Session\SessionChallenge;
 use Arcp\Messages\Session\SessionPing;
 use Arcp\Messages\Subscriptions\SubscribeEvent;
-use Arcp\Messages\Telemetry\LogEvent;
-use Arcp\Messages\Telemetry\MetricEvent;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -89,12 +86,6 @@ final class MessageValidationTest extends TestCase
         new JobError('finished', new ErrorPayload('CANCELLED', 'x'));
     }
 
-    public function testJobProgressRejectsOutOfRange(): void
-    {
-        $this->expectException(InvalidRequestException::class);
-        new JobProgress(101);
-    }
-
     public function testHumanChoiceRequestRejectsEmptyOptions(): void
     {
         $this->expectException(InvalidRequestException::class);
@@ -105,30 +96,6 @@ final class MessageValidationTest extends TestCase
     {
         $this->expectException(InvalidRequestException::class);
         new SubscribeEvent([]);
-    }
-
-    public function testLogEventRejectsBadLevel(): void
-    {
-        $this->expectException(InvalidRequestException::class);
-        new LogEvent('verbose', 'oh no');
-    }
-
-    public function testLogEventRejectsEmptyMessage(): void
-    {
-        $this->expectException(InvalidRequestException::class);
-        new LogEvent('info', '');
-    }
-
-    public function testMetricEventRejectsEmptyName(): void
-    {
-        $this->expectException(InvalidRequestException::class);
-        new MetricEvent('', 0, 'count');
-    }
-
-    public function testMetricEventRejectsEmptyUnit(): void
-    {
-        $this->expectException(InvalidRequestException::class);
-        new MetricEvent('m', 0, '');
     }
 
     public function testAuthRoundTripWithToken(): void

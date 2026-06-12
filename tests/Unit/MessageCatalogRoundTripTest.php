@@ -31,7 +31,6 @@ use Arcp\Messages\Execution\JobCheckpoint;
 use Arcp\Messages\Execution\JobError;
 use Arcp\Messages\Execution\JobEvent;
 use Arcp\Messages\Execution\JobHeartbeat;
-use Arcp\Messages\Execution\JobProgress;
 use Arcp\Messages\Execution\JobResult;
 use Arcp\Messages\Execution\JobSchedule;
 use Arcp\Messages\Execution\JobSubmit;
@@ -79,9 +78,6 @@ use Arcp\Messages\Subscriptions\JobSubscribed;
 use Arcp\Messages\Subscriptions\JobUnsubscribe;
 use Arcp\Messages\Subscriptions\SubscribeClosed;
 use Arcp\Messages\Subscriptions\SubscribeEvent;
-use Arcp\Messages\Telemetry\EventEmit;
-use Arcp\Messages\Telemetry\LogEvent;
-use Arcp\Messages\Telemetry\MetricEvent;
 use Arcp\Messages\Telemetry\TraceSpan;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -186,7 +182,6 @@ final class MessageCatalogRoundTripTest extends TestCase
             JobError::TIMED_OUT,
             new ErrorPayload('TIMEOUT', 'job exceeded max_runtime_sec', true),
         )];
-        yield 'job.progress' => [new JobProgress(50, 'midway')];
         yield 'job.result_chunk' => [new ResultChunk('res_x', 0, 'hello', ResultChunkEncoding::Utf8, true)];
         yield 'job.heartbeat' => [new JobHeartbeat(17, 60000, 'running')];
         yield 'job.checkpoint' => [new JobCheckpoint('chk_a', ['progress' => 50])];
@@ -265,9 +260,6 @@ final class MessageCatalogRoundTripTest extends TestCase
         yield 'artifact.release' => [new ArtifactRelease(new ArtifactId('art_x'))];
         yield 'artifact.released' => [new ArtifactReleased(true)];
 
-        yield 'event.emit' => [new EventEmit('demo', ['count' => 1])];
-        yield 'log' => [new LogEvent('warn', 'retrying', ['attempt' => 2])];
-        yield 'metric' => [new MetricEvent('tokens.used', 1432, 'tokens', ['kind' => 'input'])];
         yield 'trace.span' => [new TraceSpan(
             'tool.invoke',
             $now,

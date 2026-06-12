@@ -6,17 +6,16 @@ namespace Arcp\Internal\Runtime;
 
 use Arcp\Envelope\Envelope;
 use Arcp\Ids\MessageId;
+use Arcp\Messages\Execution\JobEvent;
 use Arcp\Messages\Subscriptions\JobSubscribe;
 use Arcp\Messages\Subscriptions\JobSubscribed;
 use Arcp\Messages\Subscriptions\JobUnsubscribe;
 use Arcp\Messages\Subscriptions\SubscribeClosed;
 use Arcp\Messages\Subscriptions\SubscribeEvent;
-use Arcp\Messages\Telemetry\EventEmit;
 use Arcp\Runtime\ARCPRuntime;
 use Arcp\Runtime\Job;
 use Arcp\Runtime\Session;
 use Arcp\Runtime\Subscription;
-use Arcp\Version;
 
 /**
  * Handles `job.subscribe` / `job.unsubscribe` (ARCP v1.1 §7.6):
@@ -143,14 +142,14 @@ final readonly class SubscriptionRouter
 
     private function emitBackfillComplete(Session $session, Subscription $sub, Job $job): void
     {
-        $timestamp = $this->runtime->clock->now()->format(\DateTimeInterface::RFC3339_EXTENDED);
-        $this->runtime->emit($session, new SubscribeEvent([
-            'arcp' => Version::PROTOCOL_VERSION,
-            'id' => (string) MessageId::random(),
-            'type' => 'event.emit',
-            'timestamp' => $timestamp,
-            'job_id' => (string) $job->id,
-            'payload' => new EventEmit('subscription.backfill_complete')->toArray(),
-        ]), ['subscription_id' => $sub->id, 'job_id' => $job->id]);
+        // §8.2: implementation-defined `status` phase marking the end of
+        // the §7.6 history replay. Emitted as a regular sequenced
+        // job.event so the subscription wrapper carries an event_seq from
+        // the session's normal sequence space (§8.3).
+        $this->runtime->emit($session, new JobEvent(
+            'status',
+            $this->runtime->clock->now(),
+            ['phase' => 'backfill_complete'],
+        ), ['subscription_id' => $sub->id, 'job_id' => $job->id]);
     }
 }

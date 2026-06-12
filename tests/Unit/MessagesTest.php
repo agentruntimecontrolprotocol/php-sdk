@@ -6,66 +6,62 @@ namespace Arcp\Tests\Unit;
 
 use Arcp\Envelope\MessageTypeRegistry;
 use Arcp\Errors\InvalidRequestException;
-use Arcp\Messages\Telemetry\EventEmit;
+use Arcp\Messages\Execution\JobEvent;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Phase 1 smoke covers `event.emit` only — the rest of the message-type
- * catalog is registered in Phase 2 and exercised there.
+ * Smoke coverage for the §8.1 `job.event` shape and the message-type
+ * registry; the full catalog is exercised by the round-trip suite.
  */
 final class MessagesTest extends TestCase
 {
-    public function testEventEmitRoundTrip(): void
+    public function testJobEventRoundTrip(): void
     {
-        $msg = new EventEmit('subscription.backfill_complete', ['count' => 12]);
+        $ts = new \DateTimeImmutable('2026-05-09T12:00:00Z');
+        $msg = new JobEvent('status', $ts, ['phase' => 'backfill_complete', 'count' => 12]);
         $arr = $msg->toArray();
-        self::assertSame('subscription.backfill_complete', $arr['type']);
-        self::assertArrayHasKey('attributes', $arr);
-        $attributes = $arr['attributes'];
-        self::assertIsArray($attributes);
-        self::assertSame(12, $attributes['count']);
+        self::assertSame('status', $arr['kind']);
+        self::assertArrayHasKey('body', $arr);
+        $body = $arr['body'];
+        self::assertIsArray($body);
+        self::assertSame(12, $body['count']);
 
-        $back = EventEmit::fromArray($arr);
-        self::assertEquals($msg, $back);
+        $back = JobEvent::fromArray($arr);
+        self::assertEquals($msg->body, $back->body);
+        self::assertSame($msg->eventKind, $back->eventKind);
     }
 
-    public function testEventEmitOmitsEmptyAttributes(): void
-    {
-        $msg = new EventEmit('demo');
-        self::assertSame(['type' => 'demo'], $msg->toArray());
-    }
-
-    public function testEventEmitRejectsEmptyType(): void
+    public function testJobEventRejectsEmptyKind(): void
     {
         $this->expectException(InvalidRequestException::class);
-        new EventEmit('');
+        new JobEvent('', new \DateTimeImmutable());
     }
 
-    public function testEventEmitFromArrayRequiresType(): void
+    public function testJobEventFromArrayRequiresKind(): void
     {
         $this->expectException(InvalidRequestException::class);
-        EventEmit::fromArray([]);
+        JobEvent::fromArray(['ts' => '2026-05-09T12:00:00Z']);
     }
 
-    public function testEventEmitFromArrayRejectsBadAttributes(): void
+    public function testJobEventFromArrayRejectsBadBody(): void
     {
         $this->expectException(InvalidRequestException::class);
-        EventEmit::fromArray(['type' => 'demo', 'attributes' => 'not-an-object']);
+        JobEvent::fromArray(['kind' => 'status', 'ts' => '2026-05-09T12:00:00Z', 'body' => 'nope']);
     }
 
     public function testRegistryRejectsDuplicateRegistration(): void
     {
         $registry = new MessageTypeRegistry();
-        $registry->register(EventEmit::class);
+        $registry->register(JobEvent::class);
         $this->expectException(InvalidRequestException::class);
-        $registry->register(EventEmit::class);
+        $registry->register(JobEvent::class);
     }
 
     public function testRegistryClassFor(): void
     {
         $registry = new MessageTypeRegistry();
-        $registry->register(EventEmit::class);
-        self::assertSame(EventEmit::class, $registry->classFor('event.emit'));
+        $registry->register(JobEvent::class);
+        self::assertSame(JobEvent::class, $registry->classFor('job.event'));
         self::assertNull($registry->classFor('not.registered'));
     }
 
@@ -73,11 +69,11 @@ final class MessagesTest extends TestCase
     {
         $registry = new MessageTypeRegistry();
         self::assertSame([], $registry->listTypes());
-        self::assertFalse($registry->has('event.emit'));
+        self::assertFalse($registry->has('job.event'));
 
-        $registry->register(EventEmit::class);
-        self::assertTrue($registry->has('event.emit'));
-        self::assertSame(['event.emit'], $registry->listTypes());
+        $registry->register(JobEvent::class);
+        self::assertTrue($registry->has('job.event'));
+        self::assertSame(['job.event'], $registry->listTypes());
     }
 
     public function testRegistryRejectsNonMessageTypeClass(): void

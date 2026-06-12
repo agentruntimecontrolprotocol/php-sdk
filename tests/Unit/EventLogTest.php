@@ -11,7 +11,7 @@ use Arcp\Errors\InvalidRequestException;
 use Arcp\Ids\MessageId;
 use Arcp\Ids\SessionId;
 use Arcp\Json\EnvelopeSerializer;
-use Arcp\Messages\Telemetry\EventEmit;
+use Arcp\Messages\Execution\JobEvent;
 use Arcp\Store\EventLog;
 use Arcp\Store\IdempotencyRecord;
 use PHPUnit\Framework\TestCase;
@@ -26,7 +26,7 @@ final class EventLogTest extends TestCase
     protected function setUp(): void
     {
         $registry = new MessageTypeRegistry();
-        $registry->register(EventEmit::class);
+        $registry->register(JobEvent::class);
         $serializer = new EnvelopeSerializer($registry);
         $this->clock = new FakeClock(new \DateTimeImmutable('2026-05-09T12:00:00Z'));
         $this->log = EventLog::inMemory($serializer, $this->clock);
@@ -35,12 +35,12 @@ final class EventLogTest extends TestCase
 
     private function envelope(
         string $id,
-        string $type = 'subscription.backfill_complete',
+        string $phase = 'backfill_complete',
         ?int $eventSeq = null,
     ): Envelope {
         return new Envelope(
             id: new MessageId($id),
-            payload: new EventEmit($type),
+            payload: new JobEvent('status', $this->clock->now(), ['phase' => $phase]),
             timestamp: $this->clock->now(),
             sessionId: $this->sess,
             eventSeq: $eventSeq,

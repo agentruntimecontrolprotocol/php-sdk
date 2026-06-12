@@ -35,7 +35,6 @@ use Arcp\Json\EnvelopeSerializer;
 use Arcp\Messages\Execution\JobAccepted;
 use Arcp\Messages\Execution\JobError;
 use Arcp\Messages\Execution\JobEvent;
-use Arcp\Messages\Execution\JobProgress;
 use Arcp\Messages\Execution\JobResult;
 use Arcp\Messages\Execution\ResultChunk;
 use Arcp\Messages\Session\Capabilities;
@@ -43,7 +42,6 @@ use Arcp\Messages\Session\PeerInfo;
 use Arcp\Messages\Session\SessionAck;
 use Arcp\Messages\Session\SessionPing;
 use Arcp\Messages\Session\SessionPong;
-use Arcp\Messages\Telemetry\EventEmit;
 use Arcp\Runtime\Credentials\CredentialProvisioner;
 use Arcp\Runtime\Credentials\CredentialStore;
 use Arcp\Runtime\Credentials\InMemoryCredentialStore;
@@ -488,7 +486,6 @@ final class ARCPRuntime
         return $payload instanceof JobEvent
             || $payload instanceof JobResult
             || $payload instanceof JobError
-            || $payload instanceof JobProgress
             || $payload instanceof ResultChunk;
     }
 
@@ -498,11 +495,11 @@ final class ARCPRuntime
             return $payload->redacted();
         }
         if (
-            $payload instanceof EventEmit
-            && $payload->eventType === 'status'
-            && ($payload->attributes['phase'] ?? null) === 'credential_rotated'
+            $payload instanceof JobEvent
+            && $payload->eventKind === 'status'
+            && ($payload->body['phase'] ?? null) === 'credential_rotated'
         ) {
-            return new EventEmit('status', [...$payload->attributes, 'value' => '***']);
+            return new JobEvent($payload->eventKind, $payload->ts, [...$payload->body, 'value' => '***']);
         }
         return $payload;
     }

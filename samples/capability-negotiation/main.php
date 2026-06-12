@@ -18,8 +18,8 @@ use Arcp\Errors\ARCPException;
 use Arcp\Errors\ErrorCode;
 use Arcp\Errors\InternalErrorException;
 use Arcp\Ids\TraceId;
+use Arcp\Messages\Execution\JobEvent;
 use Arcp\Messages\Execution\JobResult;
-use Arcp\Messages\Telemetry\MetricEvent;
 
 const PEERS = [
     'anthropic-haiku',
@@ -148,24 +148,30 @@ final class Usage
 function consumeMetric(Envelope $env, array &$totals): void
 {
     $msg = $env->payload;
-    if (!$msg instanceof MetricEvent) {
+    // §8.2: metrics ride as job.event kind "metric" with body
+    // {name, value, unit?, dimensions?}.
+    if (!$msg instanceof JobEvent || $msg->eventKind !== 'metric') {
         return;
     }
-    $dims = $msg->dims;
+    $body = $msg->body;
+    $name = asString($body['name'] ?? '');
+    $value = $body['value'] ?? 0;
+    $value = is_int($value) || is_float($value) ? (float) $value : 0.0;
+    $dims = is_array($body['dimensions'] ?? null) ? $body['dimensions'] : [];
     $tenant = asString($dims['tenant'] ?? 'unknown');
     $totals[$tenant] ??= new Usage();
     $u = $totals[$tenant];
-    if ($msg->name === 'tokens.used') {
+    if ($name === 'tokens.used') {
         $kind = asString($dims['kind'] ?? '');
         if ($kind === 'input') {
-            $u->tokensIn += (int) $msg->value;
+            $u->tokensIn += (int) $value;
         } elseif ($kind === 'output') {
-            $u->tokensOut += (int) $msg->value;
+            $u->tokensOut += (int) $value;
         }
-    } elseif ($msg->name === 'cost.usd') {
-        $u->costUsd += (float) $msg->value;
+    } elseif ($name === 'cost.usd') {
+        $u->costUsd += $value;
         $peer = asString($dims['peer'] ?? 'unknown');
-        $u->byPeer[$peer] = ($u->byPeer[$peer] ?? 0.0) + (float) $msg->value;
+        $u->byPeer[$peer] = ($u->byPeer[$peer] ?? 0.0) + $value;
     }
 }
 

@@ -18,10 +18,10 @@ use Arcp\Errors\CancelledException;
 use Arcp\Errors\InvalidRequestException;
 use Arcp\Errors\PermissionDeniedException;
 use Arcp\Messages\Execution\JobAccepted;
+use Arcp\Messages\Execution\JobEvent;
 use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\Capabilities;
 use Arcp\Messages\Session\PeerInfo;
-use Arcp\Messages\Telemetry\EventEmit;
 use Arcp\Runtime\ARCPRuntime;
 use Arcp\Runtime\Credentials\Credential;
 use Arcp\Runtime\Credentials\InMemoryCredentialProvisioner;
@@ -125,10 +125,10 @@ final class CredentialLifecycleTest extends TestCase
 
         self::assertSame(['ok' => true], $client->invokeTool('rotate', $this->leaseArguments())->result);
 
-        $status = $recording->firstPayload(EventEmit::class, fn (EventEmit $event): bool => $event->eventType === 'status');
-        self::assertInstanceOf(EventEmit::class, $status);
-        self::assertSame('credential_rotated', $status->attributes['phase'] ?? null);
-        self::assertSame('rotated', $status->attributes['value'] ?? null);
+        $status = $recording->firstPayload(JobEvent::class, fn (JobEvent $event): bool => $event->eventKind === 'status' && ($event->body['phase'] ?? null) === 'credential_rotated');
+        self::assertInstanceOf(JobEvent::class, $status);
+        self::assertSame('credential_rotated', $status->body['phase'] ?? null);
+        self::assertSame('rotated', $status->body['value'] ?? null);
         self::assertContains('cred_1', $provisioner->revoked);
         self::assertContains('cred_2', $provisioner->revoked);
 

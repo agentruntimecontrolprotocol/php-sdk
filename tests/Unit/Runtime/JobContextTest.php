@@ -53,6 +53,77 @@ final class JobContextTest extends TestCase
         $serverFuture->await();
     }
 
+    public function testProgressBodyMatchesSpecShape(): void
+    {
+        [$runtime, $client, $serverFuture] = $this->pair();
+        $runtime->registerTool('progress_tool', new class () implements ToolHandler {
+            #[\Override]
+            public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
+            {
+                $ctx->reportProgress(47, total: 120, units: 'files', message: 'refactoring');
+                return ['ok' => true];
+            }
+        });
+
+        $client->invokeTool('progress_tool');
+        // §8.2.1: progress rides as job.event kind "progress" with body
+        // {current, total?, units?, message?}.
+        $found = null;
+        foreach ($runtime->eventLog->replaySince($this->requireSessionId($client), 0) as $env) {
+            $payload = $env->payload;
+            if ($payload instanceof \Arcp\Messages\Execution\JobEvent && $payload->eventKind === 'progress') {
+                $found = $payload->body;
+            }
+        }
+        self::assertSame(
+            ['current' => 47, 'total' => 120, 'units' => 'files', 'message' => 'refactoring'],
+            $found,
+        );
+
+        $client->close();
+        $serverFuture->await();
+    }
+
+    public function testProgressRejectsNegativeCurrentAndOverflow(): void
+    {
+        [$runtime, $client, $serverFuture] = $this->pair();
+        $runtime->registerTool('bad_progress', new class () implements ToolHandler {
+            #[\Override]
+            public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
+            {
+                $mode = $arguments['mode'] ?? 'negative';
+                if ($mode === 'negative') {
+                    $ctx->reportProgress(-1);
+                } else {
+                    $ctx->reportProgress(5, total: 3);
+                }
+                return null;
+            }
+        });
+
+        $rejected = 0;
+        foreach (['negative', 'overflow'] as $mode) {
+            try {
+                $client->invokeTool('bad_progress', ['mode' => $mode]);
+                self::fail('expected InvalidRequestException for ' . $mode);
+            } catch (\Arcp\Errors\InvalidRequestException) {
+                // §8.2.1: current MUST be >= 0 and SHOULD be <= total.
+                ++$rejected;
+            }
+        }
+        self::assertSame(2, $rejected);
+
+        $client->close();
+        $serverFuture->await();
+    }
+
+    private function requireSessionId(ARCPClient $client): \Arcp\Ids\SessionId
+    {
+        $sid = $client->session->sessionId;
+        self::assertNotNull($sid);
+        return $sid;
+    }
+
     public function testOpenStreamEmitsOpenChunksAndClose(): void
     {
         [$runtime, $client, $serverFuture] = $this->pair();

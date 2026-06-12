@@ -21,6 +21,7 @@ use Arcp\Messages\Control\Interrupt;
 use Arcp\Messages\Control\Nack;
 use Arcp\Messages\Execution\JobCancel;
 use Arcp\Messages\Execution\JobCancelled;
+use Arcp\Messages\Execution\JobEvent;
 use Arcp\Messages\Execution\JobSubmit;
 use Arcp\Messages\Human\HumanChoiceRequest;
 use Arcp\Messages\Human\HumanChoiceResponse;
@@ -32,7 +33,6 @@ use Arcp\Messages\Permissions\LeaseRefresh;
 use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\Capabilities;
 use Arcp\Messages\Session\PeerInfo;
-use Arcp\Messages\Telemetry\EventEmit;
 use Arcp\Runtime\ARCPRuntime;
 use Arcp\Runtime\JobContext;
 use Arcp\Runtime\ToolHandler;
@@ -211,7 +211,9 @@ final class LifecycleHandlerTest extends TestCase
             sessionId: $client->session->sessionId,
         ));
         $response = $client->pending->awaitResponse($intId, 5.0);
-        self::assertInstanceOf(EventEmit::class, $response);
+        self::assertInstanceOf(JobEvent::class, $response);
+        self::assertSame('status', $response->eventKind);
+        self::assertSame('interrupt_accepted', $response->body['phase'] ?? null);
 
         // Give the HumanInputRequest a moment to arrive at the client.
         delay(0.05);

@@ -8,7 +8,7 @@ use function Amp\Future\await;
 
 use Arcp\Envelope\Envelope;
 use Arcp\Ids\MessageId;
-use Arcp\Messages\Telemetry\EventEmit;
+use Arcp\Messages\Execution\JobEvent;
 use Arcp\Transport\MemoryTransport;
 use PHPUnit\Framework\TestCase;
 
@@ -18,7 +18,7 @@ final class MemoryTransportTest extends TestCase
     {
         return new Envelope(
             id: MessageId::random(),
-            payload: new EventEmit('demo', ['seq' => $seq]),
+            payload: new JobEvent('status', new \DateTimeImmutable('2026-05-09T12:00:00Z'), ['phase' => 'demo', 'seq' => $seq]),
             timestamp: new \DateTimeImmutable('2026-01-01T00:00:00Z'),
         );
     }
@@ -27,8 +27,8 @@ final class MemoryTransportTest extends TestCase
     {
         self::assertInstanceOf(Envelope::class, $env);
         $payload = $env->payload;
-        self::assertInstanceOf(EventEmit::class, $payload);
-        $seq = $payload->attributes['seq'];
+        self::assertInstanceOf(JobEvent::class, $payload);
+        $seq = $payload->body['seq'] ?? null;
         self::assertIsInt($seq);
 
         return $seq;

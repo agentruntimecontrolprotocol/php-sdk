@@ -23,7 +23,6 @@ use Arcp\Messages\Execution\JobCheckpoint;
 use Arcp\Messages\Execution\JobError;
 use Arcp\Messages\Execution\JobEvent;
 use Arcp\Messages\Execution\JobHeartbeat;
-use Arcp\Messages\Execution\JobProgress;
 use Arcp\Messages\Execution\JobResult;
 use Arcp\Messages\Execution\JobSchedule;
 use Arcp\Messages\Execution\JobSubmit;
@@ -66,9 +65,6 @@ use Arcp\Messages\Subscriptions\JobSubscribed;
 use Arcp\Messages\Subscriptions\JobUnsubscribe;
 use Arcp\Messages\Subscriptions\SubscribeClosed;
 use Arcp\Messages\Subscriptions\SubscribeEvent;
-use Arcp\Messages\Telemetry\EventEmit;
-use Arcp\Messages\Telemetry\LogEvent;
-use Arcp\Messages\Telemetry\MetricEvent;
 use Arcp\Messages\Telemetry\TraceSpan;
 
 /**
@@ -113,7 +109,6 @@ final class MessageCatalog
         JobResult::class,
         JobError::class,
         JobCancelled::class,
-        JobProgress::class,
         JobHeartbeat::class,
         JobCheckpoint::class,
         ResultChunk::class,
@@ -154,9 +149,6 @@ final class MessageCatalog
         ArtifactRelease::class,
         ArtifactReleased::class,
         // Telemetry
-        EventEmit::class,
-        LogEvent::class,
-        MetricEvent::class,
         TraceSpan::class,
     ];
 

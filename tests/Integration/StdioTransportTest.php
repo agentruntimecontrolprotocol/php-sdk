@@ -10,7 +10,7 @@ use Arcp\Envelope\Envelope;
 use Arcp\Envelope\MessageCatalog;
 use Arcp\Ids\MessageId;
 use Arcp\Json\EnvelopeSerializer;
-use Arcp\Messages\Telemetry\EventEmit;
+use Arcp\Messages\Execution\JobEvent;
 use Arcp\Transport\StdioTransport;
 use PHPUnit\Framework\TestCase;
 
@@ -46,14 +46,14 @@ final class StdioTransportTest extends TestCase
 
         $env = new Envelope(
             id: new MessageId('msg_t'),
-            payload: new EventEmit('demo', ['hello' => 'world']),
+            payload: new JobEvent('status', new \DateTimeImmutable('2026-05-09T12:00:00Z'), ['phase' => 'demo', 'hello' => 'world']),
             timestamp: new \DateTimeImmutable('2026-05-09T12:00:00Z'),
         );
         $a->send($env);
         $received = $b->receive();
         self::assertNotNull($received);
         self::assertSame('msg_t', (string) $received->id);
-        self::assertSame('event.emit', $received->type());
+        self::assertSame('job.event', $received->type());
 
         $a->close();
         $b->close();
@@ -71,7 +71,7 @@ final class StdioTransportTest extends TestCase
 
         $env = new Envelope(
             id: new MessageId('msg_eof'),
-            payload: new EventEmit('demo'),
+            payload: new JobEvent('status', new \DateTimeImmutable('2026-05-09T12:00:00Z'), ['phase' => 'demo']),
             timestamp: new \DateTimeImmutable('2026-05-09T12:00:00Z'),
         );
         // Note: NO trailing newline.
@@ -99,7 +99,7 @@ final class StdioTransportTest extends TestCase
         for ($i = 1; $i <= 3; ++$i) {
             $env = new Envelope(
                 id: new MessageId('msg_' . $i),
-                payload: new EventEmit('demo'),
+                payload: new JobEvent('status', new \DateTimeImmutable('2026-05-09T12:00:00Z'), ['phase' => 'demo']),
                 timestamp: new \DateTimeImmutable('2026-05-09T12:00:00Z'),
             );
             $writer->write($serializer->encode($env) . "\n");

@@ -133,7 +133,7 @@ final class RelayScenarioTest extends TestCase
             #[\Override]
             public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
             {
-                $ctx->reportProgress(10, 'asking human');
+                $ctx->reportProgress(10, message: 'asking human');
                 $resp = $ctx->requestHumanChoice(
                     'Three test files failed. How should I proceed?',
                     [
@@ -143,7 +143,7 @@ final class RelayScenarioTest extends TestCase
                     ],
                     new \DateTimeImmutable('+5 minutes'),
                 );
-                $ctx->reportProgress(95, 'finishing');
+                $ctx->reportProgress(95, message: 'finishing');
                 return ['choice' => $resp->choiceId, 'responded_by' => $resp->respondedBy];
             }
         });

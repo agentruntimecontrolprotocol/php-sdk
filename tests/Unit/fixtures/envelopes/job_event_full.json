@@ -1,11 +1,13 @@
 {
     "arcp": "1.1",
     "id": "msg_01JABC",
-    "type": "event.emit",
+    "type": "job.event",
     "timestamp": "2026-05-09T13:00:00.000+00:00",
     "payload": {
-        "type": "subscription.backfill_complete",
-        "attributes": {
+        "kind": "status",
+        "ts": "2026-05-09T12:00:00.000+00:00",
+        "body": {
+            "phase": "backfill_complete",
             "scanned": 412
         }
     },

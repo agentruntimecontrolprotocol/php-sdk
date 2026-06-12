@@ -19,6 +19,7 @@ use Arcp\Messages\Control\Interrupt;
 use Arcp\Messages\Control\Nack;
 use Arcp\Messages\Execution\JobCancel;
 use Arcp\Messages\Execution\JobCancelled;
+use Arcp\Messages\Execution\JobEvent;
 use Arcp\Messages\Human\HumanInputRequest;
 use Arcp\Messages\Human\HumanInputResponse;
 use Arcp\Messages\Permissions\LeaseExtended;
@@ -28,7 +29,6 @@ use Arcp\Messages\Session\SessionClose;
 use Arcp\Messages\Session\SessionClosed;
 use Arcp\Messages\Session\SessionPing;
 use Arcp\Messages\Session\SessionPong;
-use Arcp\Messages\Telemetry\EventEmit;
 use Arcp\Runtime\ARCPRuntime;
 use Arcp\Runtime\Job;
 use Arcp\Runtime\Session;
@@ -139,8 +139,15 @@ final readonly class LifecycleHandler
             'priority' => Priority::High,
         ]);
         $this->awaitInterruptResponse($job, $requestId);
-        $this->runtime->emit($session, new EventEmit('interrupt.accepted'), [
+        // §8.2: acknowledge via a `status` job event (this SDK's interrupt
+        // surface is an extension; the ack rides the standard event kinds).
+        $this->runtime->emit($session, new JobEvent(
+            'status',
+            $this->runtime->clock->now(),
+            ['phase' => 'interrupt_accepted'],
+        ), [
             'correlation_id' => $env->id,
+            'job_id' => $job->id,
         ]);
     }
 

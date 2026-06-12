@@ -16,7 +16,7 @@ use Arcp\Ids\SessionId;
 use Arcp\Ids\SpanId;
 use Arcp\Ids\TraceId;
 use Arcp\Json\EnvelopeSerializer;
-use Arcp\Messages\Telemetry\EventEmit;
+use Arcp\Messages\Execution\JobEvent;
 use PHPUnit\Framework\TestCase;
 
 final class EnvelopeTest extends TestCase
@@ -24,7 +24,7 @@ final class EnvelopeTest extends TestCase
     private function newSerializer(?ExtensionRegistry $exts = null): EnvelopeSerializer
     {
         $registry = new MessageTypeRegistry();
-        $registry->register(EventEmit::class);
+        $registry->register(JobEvent::class);
         return new EnvelopeSerializer($registry, $exts);
     }
 
@@ -32,7 +32,7 @@ final class EnvelopeTest extends TestCase
     {
         return new Envelope(
             id: new MessageId('msg_01JABC'),
-            payload: new EventEmit('subscription.backfill_complete', ['scanned' => 412]),
+            payload: new JobEvent('status', new \DateTimeImmutable('2026-05-09T12:00:00Z'), ['phase' => 'backfill_complete', 'scanned' => 412]),
             timestamp: new \DateTimeImmutable('2026-05-09T13:00:00.000000+00:00'),
             priority: Priority::High,
             sessionId: new SessionId('sess_42'),
@@ -84,7 +84,7 @@ final class EnvelopeTest extends TestCase
 
         /** @var array<string, mixed> $fixture */
         $fixture = json_decode(
-            (string) file_get_contents(__DIR__ . '/fixtures/envelopes/event_emit_full.json'),
+            (string) file_get_contents(__DIR__ . '/fixtures/envelopes/job_event_full.json'),
             associative: true,
             flags: JSON_THROW_ON_ERROR,
         );
@@ -96,7 +96,7 @@ final class EnvelopeTest extends TestCase
     {
         $env = new Envelope(
             id: new MessageId('msg_x'),
-            payload: new EventEmit('demo'),
+            payload: new JobEvent('status', new \DateTimeImmutable('2026-05-09T12:00:00Z'), ['phase' => 'demo']),
             timestamp: new \DateTimeImmutable('2026-05-09T13:00:00Z'),
         );
         $arr = $this->newSerializer()->envelopeToArray($env);
@@ -152,7 +152,7 @@ final class EnvelopeTest extends TestCase
         $serializer = $this->newSerializer();
         $env = new Envelope(
             id: new MessageId('msg_seq'),
-            payload: new EventEmit('demo'),
+            payload: new JobEvent('status', new \DateTimeImmutable('2026-05-09T12:00:00Z'), ['phase' => 'demo']),
             timestamp: new \DateTimeImmutable('2026-05-09T13:00:00Z'),
             eventSeq: 1827,
         );
@@ -168,7 +168,7 @@ final class EnvelopeTest extends TestCase
     {
         $env = new Envelope(
             id: new MessageId('msg_x'),
-            payload: new EventEmit('demo'),
+            payload: new JobEvent('status', new \DateTimeImmutable('2026-05-09T12:00:00Z'), ['phase' => 'demo']),
             timestamp: new \DateTimeImmutable('2026-05-09T13:00:00Z'),
         );
         $arr = $this->newSerializer()->envelopeToArray($env);
@@ -183,7 +183,7 @@ final class EnvelopeTest extends TestCase
         $this->expectException(InvalidRequestException::class);
         new Envelope(
             id: new MessageId('msg_x'),
-            payload: new EventEmit('demo'),
+            payload: new JobEvent('status', new \DateTimeImmutable('2026-05-09T12:00:00Z'), ['phase' => 'demo']),
             timestamp: new \DateTimeImmutable('now'),
             eventSeq: -1,
         );
@@ -243,7 +243,7 @@ final class EnvelopeTest extends TestCase
         $this->expectException(InvalidRequestException::class);
         new Envelope(
             id: new MessageId('msg_x'),
-            payload: new EventEmit('demo'),
+            payload: new JobEvent('status', new \DateTimeImmutable('2026-05-09T12:00:00Z'), ['phase' => 'demo']),
             timestamp: new \DateTimeImmutable('now'),
             source: '   ',
         );
@@ -254,7 +254,7 @@ final class EnvelopeTest extends TestCase
         $this->expectException(InvalidRequestException::class);
         new Envelope(
             id: new MessageId('msg_x'),
-            payload: new EventEmit('demo'),
+            payload: new JobEvent('status', new \DateTimeImmutable('2026-05-09T12:00:00Z'), ['phase' => 'demo']),
             timestamp: new \DateTimeImmutable('now'),
             target: '   ',
         );
@@ -265,7 +265,7 @@ final class EnvelopeTest extends TestCase
         $this->expectException(InvalidRequestException::class);
         new Envelope(
             id: new MessageId('msg_x'),
-            payload: new EventEmit('demo'),
+            payload: new JobEvent('status', new \DateTimeImmutable('2026-05-09T12:00:00Z'), ['phase' => 'demo']),
             timestamp: new \DateTimeImmutable('now'),
             arcp: '',
         );
