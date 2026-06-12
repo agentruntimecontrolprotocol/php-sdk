@@ -101,7 +101,7 @@ final class ARCPRuntime
         $this->pending = new PendingRegistry();
         $this->leases = new LeaseManager($this->clock);
         $this->artifacts = new ArtifactStore($this->clock);
-        $this->subscriptions = new SubscriptionManager($this->serializer);
+        $this->subscriptions = new SubscriptionManager($this->serializer, $this->clock, $this->logger);
         $this->jobs = new JobManager($this->clock);
         $this->credentials = $credentialStore ?? new InMemoryCredentialStore();
         if (

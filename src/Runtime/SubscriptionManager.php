@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Arcp\Runtime;
 
+use Arcp\Clock\ClockInterface;
+use Arcp\Clock\SystemClock;
 use Arcp\Envelope\Envelope;
 use Arcp\Envelope\Priority;
 use Arcp\Errors\InvalidArgumentException;
@@ -13,6 +15,8 @@ use Arcp\Ids\SubscriptionId;
 use Arcp\Json\EnvelopeSerializer;
 use Arcp\Messages\Subscriptions\Subscribe;
 use Arcp\Messages\Subscriptions\SubscribeEvent;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 
 /**
  * Holds active subscriptions and dispatches matching envelopes through
@@ -25,8 +29,16 @@ final class SubscriptionManager
     /** @var array<string, Subscription> */
     private array $byId = [];
 
-    public function __construct(private readonly EnvelopeSerializer $serializer)
-    {
+    private readonly ClockInterface $clock;
+    private readonly LoggerInterface $logger;
+
+    public function __construct(
+        private readonly EnvelopeSerializer $serializer,
+        ?ClockInterface $clock = null,
+        ?LoggerInterface $logger = null,
+    ) {
+        $this->clock = $clock ?? new SystemClock();
+        $this->logger = $logger ?? new NullLogger();
     }
 
     public function compile(Session $session, Subscribe $msg): Subscription
@@ -43,7 +55,7 @@ final class SubscriptionManager
         $jobIds     = $this->extractStringList($msg->filter, 'job_id');
         $streamIds  = $this->extractStringList($msg->filter, 'stream_id');
         $types      = $this->extractStringList($msg->filter, 'types');
-        $min = Priority::Low;
+        $min = null;
         if (isset($msg->filter['min_priority']) && \is_string($msg->filter['min_priority'])) {
             $min = Priority::tryFrom($msg->filter['min_priority'])
                 ?? throw new InvalidArgumentException(
@@ -77,6 +89,8 @@ final class SubscriptionManager
 
     public function dispatch(Envelope $env): void
     {
+        /** @var list<SubscriptionId> $failed */
+        $failed = [];
         foreach ($this->byId as $sub) {
             if (!$sub->matches($env)) {
                 continue;
@@ -91,14 +105,24 @@ final class SubscriptionManager
                 $session->transport->send(new Envelope(
                     id: MessageId::random(),
                     payload: $wrapper,
-                    timestamp: new \DateTimeImmutable('now', new \DateTimeZone('UTC')),
+                    timestamp: $this->clock->now(),
                     priority: $env->priority,
                     sessionId: $session->sessionId,
                     subscriptionId: $sub->id,
                 ));
-            } catch (\Throwable) {
-                $this->close($sub->id);
+            } catch (\Throwable $e) {
+                // Collect failures and close after iterating so the loop does
+                // not mutate $byId mid-traversal; surface the cause.
+                $this->logger->warning('subscription dispatch failed; closing subscription', [
+                    'subscription_id' => (string) $sub->id,
+                    'error' => $e->getMessage(),
+                    'exception' => $e::class,
+                ]);
+                $failed[] = $sub->id;
             }
+        }
+        foreach ($failed as $id) {
+            $this->close($id);
         }
     }
 

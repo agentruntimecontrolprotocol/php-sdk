@@ -18,42 +18,67 @@ use Arcp\Ids\TraceId;
  */
 final readonly class Subscription
 {
+    /** @var array<string, int> */
+    private array $sessionIdSet;
+
+    /** @var array<string, int> */
+    private array $traceIdSet;
+
+    /** @var array<string, int> */
+    private array $jobIdSet;
+
+    /** @var array<string, int> */
+    private array $streamIdSet;
+
+    /** @var array<string, int> */
+    private array $typeSet;
+
     public function __construct(
         public SubscriptionId $id,
         public Session $session,
         public SubscriptionFilter $filter = new SubscriptionFilter(),
     ) {
+        // Precompute O(1) membership maps so matches() does not re-scan the
+        // filter lists on every dispatched envelope.
+        $this->sessionIdSet = array_flip($filter->sessionIds);
+        $this->traceIdSet = array_flip($filter->traceIds);
+        $this->jobIdSet = array_flip($filter->jobIds);
+        $this->streamIdSet = array_flip($filter->streamIds);
+        $this->typeSet = array_flip($filter->types);
     }
 
     public function matches(Envelope $env): bool
     {
-        if ($this->filter->sessionIds !== [] && (
+        if ($this->sessionIdSet !== [] && (
             !$env->sessionId instanceof SessionId
-            || !\in_array((string) $env->sessionId, $this->filter->sessionIds, true)
+            || !isset($this->sessionIdSet[(string) $env->sessionId])
         )) {
             return false;
         }
-        if ($this->filter->traceIds !== [] && (
+        if ($this->traceIdSet !== [] && (
             !$env->traceId instanceof TraceId
-            || !\in_array((string) $env->traceId, $this->filter->traceIds, true)
+            || !isset($this->traceIdSet[(string) $env->traceId])
         )) {
             return false;
         }
-        if ($this->filter->jobIds !== [] && (
+        if ($this->jobIdSet !== [] && (
             !$env->jobId instanceof JobId
-            || !\in_array((string) $env->jobId, $this->filter->jobIds, true)
+            || !isset($this->jobIdSet[(string) $env->jobId])
         )) {
             return false;
         }
-        if ($this->filter->streamIds !== [] && (
+        if ($this->streamIdSet !== [] && (
             !$env->streamId instanceof StreamId
-            || !\in_array((string) $env->streamId, $this->filter->streamIds, true)
+            || !isset($this->streamIdSet[(string) $env->streamId])
         )) {
             return false;
         }
-        if ($this->filter->types !== [] && !\in_array($env->type(), $this->filter->types, true)) {
+        if ($this->typeSet !== [] && !isset($this->typeSet[$env->type()])) {
             return false;
         }
-        return $env->priority->weight() >= $this->filter->minPriority->weight();
+        // An unset min_priority floor matches every priority, so adding a
+        // new lower-weight Priority case never silently drops events.
+        return $this->filter->minPriority === null
+            || $env->priority->weight() >= $this->filter->minPriority->weight();
     }
 }
