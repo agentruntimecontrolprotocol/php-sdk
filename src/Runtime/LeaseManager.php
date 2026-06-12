@@ -79,9 +79,20 @@ final class LeaseManager
         return $lease;
     }
 
-    public function ensureUsable(LeaseId $id, LeaseScope $scope): LeaseGranted
+    /**
+     * Resolve a lease and assert it matches the requested scope. When
+     * `$sessionId` is supplied the lookup is session-scoped (leases are
+     * session-scoped per RFC §15.5), so a caller holding a lease id from a
+     * different session cannot pass scope checks.
+     *
+     * @throws PermissionDeniedException when the lease belongs to another
+     *                                   session or the scope does not match.
+     */
+    public function ensureUsable(LeaseId $id, LeaseScope $scope, ?SessionId $sessionId = null): LeaseGranted
     {
-        $lease = $this->get($id);
+        $lease = $sessionId instanceof SessionId
+            ? $this->getForSession($id, $sessionId)
+            : $this->get($id);
         if (
             $lease->permission !== $scope->permission
             || $lease->resource !== $scope->resource

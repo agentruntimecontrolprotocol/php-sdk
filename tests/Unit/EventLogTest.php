@@ -156,7 +156,8 @@ final class EventLogTest extends TestCase
             $this->log->lookupIdempotent('alice', 'refund-1'),
             'expired entry should not be returned',
         );
-        // After lazy GC, a fresh remember succeeds with the new outcome.
+        // An expired entry is overwritten in place, so a fresh remember
+        // succeeds with the new outcome.
         $newExpires = $this->clock->now()->modify('+1 hour');
         self::assertNull($this->log->rememberIdempotent(
             new IdempotencyRecord('alice', 'refund-1', 'msg_y', $newExpires),
@@ -176,5 +177,32 @@ final class EventLogTest extends TestCase
 
         self::assertSame('msg_a', $this->log->lookupIdempotent('alice', 'refund-1'));
         self::assertSame('msg_b', $this->log->lookupIdempotent('bob', 'refund-1'));
+    }
+
+    public function testLookupIdempotentDoesNotDeleteExpiredRows(): void
+    {
+        $this->log->rememberIdempotent(
+            new IdempotencyRecord('alice', 'refund-1', 'msg_x', $this->clock->now()->modify('+5 seconds')),
+        );
+        $this->clock->advance(10);
+
+        // A read must not mutate the store: the expired row survives lookup
+        // and is only removed by an explicit purge.
+        self::assertNull($this->log->lookupIdempotent('alice', 'refund-1'));
+        self::assertSame(1, $this->log->purgeExpiredIdempotent());
+    }
+
+    public function testPurgeExpiredIdempotentRemovesOnlyExpiredRows(): void
+    {
+        $this->log->rememberIdempotent(
+            new IdempotencyRecord('alice', 'expired', 'msg_old', $this->clock->now()->modify('+5 seconds')),
+        );
+        $this->log->rememberIdempotent(
+            new IdempotencyRecord('alice', 'live', 'msg_new', $this->clock->now()->modify('+1 hour')),
+        );
+        $this->clock->advance(10);
+
+        self::assertSame(1, $this->log->purgeExpiredIdempotent());
+        self::assertSame('msg_new', $this->log->lookupIdempotent('alice', 'live'));
     }
 }
