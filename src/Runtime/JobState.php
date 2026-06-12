@@ -12,6 +12,7 @@ enum JobState: string
     case Running = 'running';
     case Blocked = 'blocked';
     case Paused = 'paused';
+    case Cancelling = 'cancelling';
     case Completed = 'completed';
     case Failed = 'failed';
     case Cancelled = 'cancelled';

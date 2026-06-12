@@ -69,11 +69,7 @@ final class ArtifactStore
         $row = $this->artifacts[(string) $id]
             ?? throw new NotFoundException(\sprintf('artifact %s not found', $id));
         $this->assertOwnership($id, $row, $session);
-        $expiresAt = $row['ref']->expiresAt;
-        if ($expiresAt !== null && $expiresAt <= $this->clock->now()) {
-            unset($this->artifacts[(string) $id]);
-            throw new NotFoundException(\sprintf('artifact %s expired', $id));
-        }
+        $this->assertNotExpired($id, $row);
         return $row['bytes'];
     }
 
@@ -82,7 +78,23 @@ final class ArtifactStore
         $row = $this->artifacts[(string) $id]
             ?? throw new NotFoundException(\sprintf('artifact %s not found', $id));
         $this->assertOwnership($id, $row, $session);
+        $this->assertNotExpired($id, $row);
         return $row['ref'];
+    }
+
+    /**
+     * Drop and reject an artifact whose ref has expired, so ref() and
+     * fetch() agree on visibility.
+     *
+     * @param StoredArtifact $row
+     */
+    private function assertNotExpired(ArtifactId $id, array $row): void
+    {
+        $expiresAt = $row['ref']->expiresAt;
+        if ($expiresAt !== null && $expiresAt <= $this->clock->now()) {
+            unset($this->artifacts[(string) $id]);
+            throw new NotFoundException(\sprintf('artifact %s expired', $id));
+        }
     }
 
     public function release(ArtifactId $id, ?Session $session = null): bool
