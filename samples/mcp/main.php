@@ -6,11 +6,11 @@ declare(strict_types=1);
  * mcp — ARCP runtime fronting an MCP server (RFC §20).
  *
  * MCP describes capabilities; ARCP operationalizes them. This bridge
- * translates inbound ARCP `tool.invoke` envelopes into MCP `call_tool`
+ * translates inbound ARCP `job.submit` envelopes into MCP `call_tool`
  * calls against an upstream MCP server, and emits the ARCP job
  * lifecycle back to the calling client.
  *
- *   ARCP client --tool.invoke--> bridge --call_tool--> MCP server
+ *   ARCP client --job.submit--> bridge --call_tool--> MCP server
  *   ARCP client <-job.{accepted,started,completed,failed}- bridge
  */
 
@@ -19,22 +19,21 @@ require __DIR__ . '/upstream.php';
 
 use Arcp\Clock\SystemClock;
 use Arcp\Envelope\Envelope;
-
 use Arcp\Errors\InternalErrorException;
 use Arcp\Errors\InvalidRequestException;
 use Arcp\Ids\JobId;
 use Arcp\Ids\MessageId;
 use Arcp\Messages\Execution\JobAccepted;
-use Arcp\Messages\Execution\JobCompleted;
-use Arcp\Messages\Execution\JobFailed;
-use Arcp\Messages\Execution\JobStarted;
-use Arcp\Messages\Execution\ToolInvoke;
+use Arcp\Messages\Execution\JobError;
+use Arcp\Messages\Execution\JobEvent;
+use Arcp\Messages\Execution\JobResult;
+use Arcp\Messages\Execution\JobSubmit;
 use Arcp\Samples\Mcp\McpClientSession;
 
 use function Arcp\Samples\Mcp\upstreamParams;
 
 // Per RFC §20:
-//   MCP tool schema -> ARCP capability  (advertised at session.accepted)
+//   MCP tool schema -> ARCP capability  (advertised at session.welcome)
 //   MCP tool call   -> ARCP job
 //   MCP resource    -> ARCP stream of kind: event  (delegated to MCP)
 
@@ -53,10 +52,10 @@ function advertiseFromMcp(McpClientSession $mcp): array
 }
 
 /**
- * Translate ARCP `tool.invoke.payload` into MCP `call_tool`.
+ * Translate ARCP `job.submit.payload` into MCP `call_tool`.
  *
  * MCP returns a list of typed content blocks; we flatten to a
- * JSON-serializable array for the ARCP `tool.result` / `job.completed`
+ * JSON-serializable array for the ARCP `job.result`
  * payload. MCP errors become canonical ARCP error codes.
  *
  * @param array<string, mixed> $arguments
@@ -85,18 +84,29 @@ function callViaMcp(McpClientSession $mcp, string $tool, array $arguments): arra
 }
 
 /**
- * One inbound ARCP `tool.invoke` -> MCP call -> ARCP job lifecycle.
+ * One inbound ARCP `job.submit` (§7.1) -> MCP call -> ARCP job lifecycle
+ * (§7.3): job.accepted, a status job.event, then job.result / job.error.
  *
  * @param callable(Envelope): void $send
  */
-function handleInvoke(callable $send, McpClientSession $mcp, Envelope $request): void
+function handleSubmit(callable $send, McpClientSession $mcp, Envelope $request): void
 {
     $clock = new SystemClock();
     $jobId = JobId::random();
 
+    $submit = $request->payload;
+    if (!$submit instanceof JobSubmit) {
+        throw new InternalErrorException('expected job.submit payload');
+    }
+
     $send(new Envelope(
         id: MessageId::random(),
-        payload: new JobAccepted(note: 'accepted'),
+        payload: new JobAccepted(
+            jobId: $jobId,
+            agent: $submit->agent,
+            acceptedAt: $clock->now(),
+            traceId: $request->traceId,
+        ),
         timestamp: $clock->now(),
         sessionId: $request->sessionId,
         jobId: $jobId,
@@ -104,36 +114,33 @@ function handleInvoke(callable $send, McpClientSession $mcp, Envelope $request):
     ));
     $send(new Envelope(
         id: MessageId::random(),
-        payload: new JobStarted(startedAt: $clock->now()),
+        payload: new JobEvent('status', $clock->now(), ['phase' => 'running']),
         timestamp: $clock->now(),
         sessionId: $request->sessionId,
         jobId: $jobId,
     ));
 
-    $invoke = $request->payload;
-    if (!$invoke instanceof ToolInvoke) {
-        throw new InternalErrorException('expected tool.invoke payload');
-    }
-
     try {
-        $result = callViaMcp($mcp, $invoke->tool, $invoke->arguments);
+        $result = callViaMcp($mcp, $submit->agent, $submit->input);
     } catch (\Arcp\Errors\ARCPException $exc) {
         $send(new Envelope(
             id: MessageId::random(),
-            payload: new JobFailed(new \Arcp\Errors\ErrorPayload($exc->code()->value, $exc->getMessage())),
+            payload: new JobError(JobError::ERROR, new \Arcp\Errors\ErrorPayload($exc->code()->value, $exc->getMessage())),
             timestamp: $clock->now(),
             sessionId: $request->sessionId,
             jobId: $jobId,
+            correlationId: $request->id,
         ));
         return;
     }
 
     $send(new Envelope(
         id: MessageId::random(),
-        payload: new JobCompleted(value: $result),
+        payload: new JobResult(result: $result),
         timestamp: $clock->now(),
         sessionId: $request->sessionId,
         jobId: $jobId,
+        correlationId: $request->id,
     ));
 }
 
@@ -149,13 +156,13 @@ function runBridge(callable $send, iterable $inbound): void
     $mcp->initialize();
     $extensions = advertiseFromMcp($mcp);
     // In production this list would feed Capabilities.extensions at the
-    // runtime's session.accepted so clients negotiate exactly the MCP
+    // runtime's session.welcome so clients negotiate exactly the MCP
     // tools they expect to use.
     fwrite(STDERR, 'bridged: ' . implode(',', $extensions) . "\n");
 
     foreach ($inbound as $env) {
-        if ($env->payload instanceof ToolInvoke) {
-            handleInvoke($send, $mcp, $env);
+        if ($env->payload instanceof JobSubmit) {
+            handleSubmit($send, $mcp, $env);
         }
     }
 }
@@ -163,7 +170,7 @@ function runBridge(callable $send, iterable $inbound): void
 function main(): void
 {
     // Production version: instantiate an Arcp\Runtime\ARCPRuntime, point
-    // its tool-invoke handler at handleInvoke, and let the WebSocket
+    // its job.submit handler at handleSubmit, and let the WebSocket
     // transport carry inbound envelopes from real ARCP clients. We
     // elide the runtime wiring (symmetric with examples in
     // Arcp\Runtime) so this file stays focused on the §20 translation

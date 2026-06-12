@@ -34,22 +34,22 @@ use Arcp\Messages\Artifacts\ArtifactPut;
 use Arcp\Messages\Artifacts\ArtifactRef;
 use Arcp\Messages\Artifacts\ArtifactRelease;
 use Arcp\Messages\Artifacts\ArtifactReleased;
-use Arcp\Messages\Execution\JobCancel;
 use Arcp\Messages\Control\Nack;
-use Arcp\Messages\Session\SessionAck;
-use Arcp\Messages\Session\SessionPing;
-use Arcp\Messages\Session\SessionPong;
+use Arcp\Messages\Execution\JobCancel;
+use Arcp\Messages\Execution\JobError;
+use Arcp\Messages\Execution\JobResult;
+use Arcp\Messages\Execution\JobSubmit;
 use Arcp\Messages\Execution\ResultChunk;
-use Arcp\Messages\Execution\ToolError;
-use Arcp\Messages\Execution\ToolInvoke;
-use Arcp\Messages\Execution\ToolResult;
 use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\Capabilities;
 use Arcp\Messages\Session\Jobs;
 use Arcp\Messages\Session\ListJobs;
 use Arcp\Messages\Session\PeerInfo;
-use Arcp\Messages\Session\SessionWelcome;
+use Arcp\Messages\Session\SessionAck;
 use Arcp\Messages\Session\SessionClose;
+use Arcp\Messages\Session\SessionPing;
+use Arcp\Messages\Session\SessionPong;
+use Arcp\Messages\Session\SessionWelcome;
 use Arcp\Messages\Subscriptions\JobSubscribe;
 use Arcp\Messages\Subscriptions\JobSubscribed;
 use Arcp\Messages\Subscriptions\JobUnsubscribe;
@@ -174,19 +174,25 @@ final class ARCPClient
     }
 
     /**
-     * Invoke a tool synchronously; returns the wire `ToolResult`/throws.
+     * Submit a job to the named agent (`job.submit`, §7.1) and block until
+     * its terminal `job.result`. The legacy tool-invocation surface keeps
+     * its name; only the wire shape changed (#134).
      *
-     * @param array<string, mixed> $arguments
+     * @param array<string, mixed> $arguments Becomes `payload.input`.
+     * @param array<string, mixed>|null $leaseRequest §9.2 capability map
+     *                                                (`payload.lease_request`).
+     * @param array<string, mixed>|null $leaseConstraints e.g. `{expires_at}`
+     *                                                    (`payload.lease_constraints`).
      *
-     * @throws \Arcp\Errors\ARCPExceptionInterface mapped from `tool.error`
+     * @throws \Arcp\Errors\ARCPExceptionInterface mapped from `job.error`
      *                                             or correlated `nack` (e.g. `PermissionDeniedException`,
-     *                                             `BudgetExhaustedException`, `JobNotFoundException`).
+     *                                             `BudgetExhaustedException`, `AgentNotAvailableException`).
      * @throws \Arcp\Errors\TimeoutException when `deadlineSeconds`
-     *                                                elapses before a terminal response arrives.
+     *                                       elapses before a terminal response arrives.
      * @throws \Arcp\Errors\CancelledException when `$cancellation` fires.
      * @throws InvalidRequestException for unexpected response shapes.
      *
-     * @size-check-suppress public BC; tool.invoke options are RFC §10 wire fields.
+     * @size-check-suppress public BC; job.submit options are §7.1 wire fields.
      */
     public function invokeTool(
         string $tool,
@@ -195,11 +201,21 @@ final class ARCPClient
         ?TraceId $traceId = null,
         ?IdempotencyKey $idempotencyKey = null,
         ?Cancellation $cancellation = null,
-    ): ToolResult {
+        ?array $leaseRequest = null,
+        ?array $leaseConstraints = null,
+        ?int $maxRuntimeSec = null,
+    ): JobResult {
         $id = MessageId::random();
         $env = new Envelope(
             id: $id,
-            payload: new ToolInvoke($tool, $arguments),
+            payload: new JobSubmit(
+                $tool,
+                $arguments,
+                $leaseRequest,
+                $leaseConstraints,
+                $idempotencyKey instanceof IdempotencyKey ? (string) $idempotencyKey : null,
+                $maxRuntimeSec,
+            ),
             timestamp: $this->clock->now(),
             sessionId: $this->session->sessionId,
             traceId: $traceId ?? TraceId::random(),
@@ -207,13 +223,13 @@ final class ARCPClient
         );
         $this->session->transport->send($env);
         $response = $this->pending->awaitResponse($id, $deadlineSeconds, $cancellation);
-        if ($response instanceof ToolError) {
+        if ($response instanceof JobError) {
             throw $this->errorMapper->raise($response->error);
         }
         if ($response instanceof Nack) {
             throw $this->errorMapper->raise($response->error);
         }
-        if (!$response instanceof ToolResult) {
+        if (!$response instanceof JobResult) {
             throw new InvalidRequestException('unexpected terminal: ' . $response::class);
         }
         return $response;
@@ -226,7 +242,7 @@ final class ARCPClient
      * @param \Closure(Envelope): void $onEvent Called with the unwrapped envelope.
      *
      * @throws \Arcp\Errors\JobNotFoundException when the job does not
-     *                                            exist or is not visible.
+     *                                           exist or is not visible.
      * @throws \Arcp\Errors\PermissionDeniedException when this principal
      *                                                may not observe the job.
      * @throws \Arcp\Errors\ARCPExceptionInterface for other runtime errors.
@@ -380,7 +396,7 @@ final class ARCPClient
      *                            not match the decoded payload.
      *
      * @throws \Arcp\Errors\InvalidRequestException on digest mismatch or
-     *                                               malformed payload.
+     *                                              malformed payload.
      * @throws \Arcp\Errors\ARCPExceptionInterface on other runtime errors.
      */
     public function putArtifact(

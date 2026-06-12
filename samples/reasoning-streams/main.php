@@ -19,6 +19,7 @@ use function Amp\async;
 use Arcp\Client\ARCPClient;
 use Arcp\Clock\SystemClock;
 use Arcp\Envelope\Envelope;
+use Arcp\Ids\JobId;
 use Arcp\Ids\MessageId;
 use Arcp\Ids\StreamId;
 use Arcp\Messages\Execution\AgentDelegate;
@@ -76,14 +77,14 @@ function runPrimary(ARCPClient $client, string $request, \SplQueue $inboundCriti
 // Mirror side (a peer runtime — both reads thought stream AND delegates
 // critique events back) -------------------------------------------------
 
-function runMirror(ARCPClient $mirror, string $targetSessionId): void
+function runMirror(ARCPClient $mirror, JobId $targetJobId): void
 {
     $spent = 0;
-    /** @var \Arcp\Ids\SubscriptionId|null $sub */
-    $sub = null;
-    $sub = $mirror->subscribe(
-        ['session_id' => [$targetSessionId], 'types' => ['stream.chunk']],
-        function (Envelope $env) use ($mirror, &$spent, &$sub): void {
+    // §7.6: attach to the primary's reasoning job; thought chunks arrive
+    // as that job's envelopes.
+    $mirror->subscribe(
+        $targetJobId,
+        function (Envelope $env) use ($mirror, &$spent, $targetJobId): void {
             $chunk = $env->payload;
             if (!$chunk instanceof StreamChunk) {
                 return;
@@ -92,9 +93,7 @@ function runMirror(ARCPClient $mirror, string $targetSessionId): void
                 return;
             }
             if ($spent >= TOKEN_BUDGET) {
-                if ($sub !== null) {
-                    $mirror->unsubscribe($sub);
-                }
+                $mirror->unsubscribe($targetJobId);
                 return;
             }
             [$severity, $summary, $suggestion, $consumed] = critiqueThought((string) $chunk->content);
@@ -133,8 +132,12 @@ function main(): void
     /** @var \SplQueue<array<string, mixed>> $inbound */
     $inbound = new \SplQueue();
 
-    // Primary subscribes to its own session for inbound delegate envelopes.
-    $primary->subscribe(['types' => ['agent.delegate']], static function (Envelope $env) use ($inbound): void {
+    // The primary's reasoning runs as a job; both peers address it by id.
+    $primaryJob = new JobId('job_reasoning');
+
+    // Primary attaches to its own job to observe inbound delegate
+    // envelopes routed onto the job's stream.
+    $primary->subscribe($primaryJob, static function (Envelope $env) use ($inbound): void {
         $msg = $env->payload;
         if (!$msg instanceof AgentDelegate) {
             return;
@@ -147,7 +150,7 @@ function main(): void
         }
     });
 
-    async(static fn () => runMirror($mirror, (string) $primary->session->sessionId));
+    async(static fn () => runMirror($mirror, $primaryJob));
 
     $answer = runPrimary($primary, 'Argue both sides: serializable vs snapshot iso?', $inbound);
     echo $answer, "\n";

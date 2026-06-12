@@ -52,8 +52,8 @@ final class PermissionLeaseTest extends TestCase
         );
         $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(anonymous: true));
         $result = $client->invokeTool('refund');
-        self::assertIsArray($result->value);
-        $lease = $result->value['lease'] ?? null;
+        self::assertIsArray($result->result);
+        $lease = $result->result['lease'] ?? null;
         self::assertIsString($lease);
         self::assertStringStartsWith('lease_', $lease);
         // Lease should now exist in the runtime's lease manager.
@@ -101,8 +101,8 @@ final class PermissionLeaseTest extends TestCase
         $second = $client->invokeTool('spend', $args);
 
         // Both jobs start at the granted USD:0.50 and succeed independently.
-        self::assertSame(['ok' => true], $first->value);
-        self::assertSame(['ok' => true], $second->value);
+        self::assertSame(['ok' => true], $first->result);
+        self::assertSame(['ok' => true], $second->result);
 
         $client->close();
         $serverFuture->await();

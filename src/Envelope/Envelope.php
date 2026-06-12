@@ -107,6 +107,15 @@ final readonly class Envelope
      */
     private function with(array $overrides): self
     {
-        return new self(...[...get_object_vars($this), ...$overrides]);
+        $args = [...get_object_vars($this), ...$overrides];
+        /**
+         * Named-arg spread of get_object_vars(): keys mirror the promoted
+         * constructor parameters by construction.
+         *
+         * @psalm-suppress MixedArgument
+         *
+         * @phpstan-ignore argument.type
+         */
+        return new self(...$args);
     }
 }

@@ -18,12 +18,10 @@ use Arcp\Ids\JobId;
 use Arcp\Ids\LeaseId;
 use Arcp\Ids\MessageId;
 use Arcp\Messages\Control\Interrupt;
+use Arcp\Messages\Control\Nack;
 use Arcp\Messages\Execution\JobCancel;
 use Arcp\Messages\Execution\JobCancelled;
-use Arcp\Messages\Telemetry\EventEmit;
-use Arcp\Messages\Control\Nack;
-use Arcp\Messages\Session\SessionResume;
-use Arcp\Messages\Execution\ToolInvoke;
+use Arcp\Messages\Execution\JobSubmit;
 use Arcp\Messages\Human\HumanChoiceRequest;
 use Arcp\Messages\Human\HumanChoiceResponse;
 use Arcp\Messages\Human\HumanInputRequest;
@@ -34,6 +32,8 @@ use Arcp\Messages\Permissions\LeaseRefresh;
 use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\Capabilities;
 use Arcp\Messages\Session\PeerInfo;
+use Arcp\Messages\Session\SessionResume;
+use Arcp\Messages\Telemetry\EventEmit;
 use Arcp\Runtime\ARCPRuntime;
 use Arcp\Runtime\JobContext;
 use Arcp\Runtime\ToolHandler;
@@ -90,7 +90,7 @@ final class LifecycleHandlerTest extends TestCase
         $invokeId = MessageId::random();
         $invokeEnv = new Envelope(
             id: $invokeId,
-            payload: new ToolInvoke('slow', []),
+            payload: new JobSubmit('slow'),
             timestamp: new \DateTimeImmutable(),
             sessionId: $client->session->sessionId,
         );
@@ -185,7 +185,7 @@ final class LifecycleHandlerTest extends TestCase
         $invokeId = MessageId::random();
         $client->session->transport->send(new Envelope(
             id: $invokeId,
-            payload: new ToolInvoke('slow', []),
+            payload: new JobSubmit('slow'),
             timestamp: new \DateTimeImmutable(),
             sessionId: $client->session->sessionId,
         ));

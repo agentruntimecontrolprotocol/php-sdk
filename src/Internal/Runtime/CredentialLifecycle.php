@@ -9,7 +9,7 @@ use Arcp\Errors\ARCPException;
 use Arcp\Errors\ErrorPayload;
 use Arcp\Errors\InvalidRequestException;
 use Arcp\Ids\LeaseId;
-use Arcp\Messages\Execution\ToolError;
+use Arcp\Messages\Execution\JobError;
 use Arcp\Messages\Permissions\LeaseGranted;
 use Arcp\Runtime\ARCPRuntime;
 use Arcp\Runtime\CostBudget;
@@ -188,8 +188,8 @@ final readonly class CredentialLifecycle
         Job $job,
         ErrorPayload $payload,
     ): void {
-        $this->runtime->jobs->transition($job, JobState::Failed);
-        $this->runtime->emit($session, new ToolError($payload), [
+        $this->runtime->jobs->transition($job, JobState::Error);
+        $this->runtime->emit($session, new JobError(JobError::ERROR, $payload), [
             'correlation_id' => $env->id,
             'job_id' => $job->id,
             'trace_id' => $env->traceId,
@@ -211,7 +211,7 @@ final readonly class CredentialLifecycle
                     // Brief backoff so the retry has a chance to clear a
                     // transient upstream failure rather than failing twice
                     // back-to-back.
-                    \Amp\delay(0.02 * $attempt);
+                    \Amp\delay(0.02 * (float) $attempt);
 
                     continue;
                 }

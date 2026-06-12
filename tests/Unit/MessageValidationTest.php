@@ -4,16 +4,19 @@ declare(strict_types=1);
 
 namespace Arcp\Tests\Unit;
 
+use Arcp\Errors\ErrorPayload;
 use Arcp\Errors\InvalidRequestException;
-use Arcp\Messages\Session\SessionAck;
-use Arcp\Messages\Session\SessionPing;
 use Arcp\Messages\Control\CheckpointRestore;
+use Arcp\Messages\Execution\JobError;
 use Arcp\Messages\Execution\JobProgress;
-use Arcp\Messages\Execution\ToolInvoke;
+use Arcp\Messages\Execution\JobResult;
+use Arcp\Messages\Execution\JobSubmit;
 use Arcp\Messages\Human\HumanChoiceRequest;
 use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\PeerInfo;
+use Arcp\Messages\Session\SessionAck;
 use Arcp\Messages\Session\SessionChallenge;
+use Arcp\Messages\Session\SessionPing;
 use Arcp\Messages\Subscriptions\SubscribeEvent;
 use Arcp\Messages\Telemetry\LogEvent;
 use Arcp\Messages\Telemetry\MetricEvent;
@@ -61,16 +64,29 @@ final class MessageValidationTest extends TestCase
         new SessionChallenge('');
     }
 
-    public function testToolInvokeRejectsEmptyName(): void
+    public function testJobSubmitRejectsEmptyAgent(): void
     {
         $this->expectException(InvalidRequestException::class);
-        new ToolInvoke('');
+        new JobSubmit('');
     }
 
-    public function testToolInvokeFromArrayRejectsBadArguments(): void
+    public function testJobSubmitFromArrayRejectsBadInput(): void
     {
         $this->expectException(InvalidRequestException::class);
-        ToolInvoke::fromArray(['tool' => 't', 'arguments' => 'not-an-object']);
+        JobSubmit::fromArray(['agent' => 'a', 'input' => 'not-an-object']);
+    }
+
+    public function testJobResultRejectsInlineResultWithResultId(): void
+    {
+        // §8.4: inline result and streamed chunks are mutually exclusive.
+        $this->expectException(InvalidRequestException::class);
+        new JobResult(JobResult::SUCCESS, ['inline' => true], 'res_x');
+    }
+
+    public function testJobErrorRejectsUnknownFinalStatus(): void
+    {
+        $this->expectException(InvalidRequestException::class);
+        new JobError('finished', new ErrorPayload('CANCELLED', 'x'));
     }
 
     public function testJobProgressRejectsOutOfRange(): void

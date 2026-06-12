@@ -3,16 +3,19 @@
 declare(strict_types=1);
 
 /*
- * subscriptions — three Observer clients on one producing session,
- * three filters, three sinks. None of them ever issue a command.
+ * subscriptions — three Observer clients attached to one job submitted
+ * elsewhere, each routing a slice of its event stream to a sink. None
+ * of them ever issue a command (§7.6: subscription does not grant
+ * cancel authority).
  *
- * RFC §5 (roles), §13 (subscriptions, filters, backfill).
+ * ARCP v1.1 §7.6 (job.subscribe / job.subscribed), §8 (job events).
  */
 
 require __DIR__ . '/../../vendor/autoload.php';
 
 use Arcp\Client\ARCPClient;
 use Arcp\Envelope\Envelope;
+use Arcp\Ids\JobId;
 use Arcp\Samples\Subscriptions\OtlpSink;
 use Arcp\Samples\Subscriptions\SqliteSink;
 use Arcp\Samples\Subscriptions\StdoutSink;
@@ -23,47 +26,51 @@ require __DIR__ . '/sinks/OtlpSink.php';
 
 const STDOUT_TYPES = [
     'log',
-    'job.started',
+    'job.event',
     'job.progress',
-    'job.completed',
-    'job.failed',
-    'tool.error',
+    'job.result',
+    'job.error',
 ];
 const OTLP_TYPES = ['metric', 'trace.span'];
 
 /**
- * @param list<string>|null $types
+ * @param list<string>|null $types Client-side type slice; null = everything.
  * @param callable(Envelope): void $handler
  */
-function attach(string $sessionId, ?array $types, callable $handler): void
+function attach(JobId $jobId, ?array $types, callable $handler): void
 {
     /** @var ARCPClient $client */
     $client = elided(); // transport, identity, auth elided
-    $filter = ['session_id' => [$sessionId]];
-    if ($types !== null) {
-        $filter['types'] = $types;
-    }
-    $sub = $client->subscribe($filter, static function (Envelope $env) use ($handler): void {
-        $handler($env);
-    });
-    // Run for the producing session's lifetime; in production the
-    // observer client lives in its own process.
-    register_shutdown_function(static function () use ($client, $sub): void {
-        $client->unsubscribe($sub);
+    // §7.6: attach to the job with history replay so late observers see
+    // buffered events before the live tail begins.
+    $client->subscribe(
+        $jobId,
+        static function (Envelope $env) use ($types, $handler): void {
+            if ($types !== null && !in_array($env->type(), $types, true)) {
+                return;
+            }
+            $handler($env);
+        },
+        history: true,
+    );
+    // Run for the job's lifetime; in production the observer client
+    // lives in its own process.
+    register_shutdown_function(static function () use ($client, $jobId): void {
+        $client->unsubscribe($jobId);
         $client->close();
     });
 }
 
 function main(): void
 {
-    $targetSession = '...';
+    $targetJob = new JobId('job_01JABC');
     $stdout = new StdoutSink();
     $otlp = new OtlpSink('https://otlp.internal:4318');
     $sqlite = new SqliteSink('replay.sqlite');
 
-    attach($targetSession, STDOUT_TYPES, [$stdout, 'handle']);
-    attach($targetSession, null, [$sqlite, 'handle']);
-    attach($targetSession, OTLP_TYPES, [$otlp, 'handle']);
+    attach($targetJob, STDOUT_TYPES, [$stdout, 'handle']);
+    attach($targetJob, null, [$sqlite, 'handle']);
+    attach($targetJob, OTLP_TYPES, [$otlp, 'handle']);
 }
 
 function elided(): ARCPClient

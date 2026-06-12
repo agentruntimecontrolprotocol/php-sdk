@@ -90,7 +90,7 @@ foreach ($recording->received as $env) {
         break;
     }
 }
-print_r($result->value);
+print_r($result->result);
 print_r(['revoked' => $provisioner->revoked]);
 
 $client->close();

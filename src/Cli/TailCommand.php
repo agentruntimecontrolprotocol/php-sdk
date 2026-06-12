@@ -11,6 +11,7 @@ use Arcp\Client\ARCPClient;
 use Arcp\Envelope\Envelope;
 use Arcp\Envelope\MessageCatalog;
 use Arcp\Errors\InvalidRequestException;
+use Arcp\Ids\JobId;
 use Arcp\Json\EnvelopeSerializer;
 use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\Capabilities;
@@ -24,7 +25,7 @@ use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
-#[AsCommand(name: 'tail', description: 'Subscribe to a runtime and print every envelope as JSON')]
+#[AsCommand(name: 'tail', description: 'Subscribe to a job and print every envelope as JSON')]
 final class TailCommand extends Command
 {
     #[\Override]
@@ -34,6 +35,11 @@ final class TailCommand extends Command
             'uri',
             InputArgument::REQUIRED,
             'WebSocket URI, e.g. ws://localhost:8765/',
+        );
+        $this->addArgument(
+            'job-id',
+            InputArgument::REQUIRED,
+            'Job id to attach to (§7.6 job.subscribe)',
         );
     }
 
@@ -56,13 +62,18 @@ final class TailCommand extends Command
             new Capabilities(subscriptions: true, anonymous: true, features: ['subscribe']),
         );
 
+        $rawJobId = $input->getArgument('job-id');
+        if (!\is_string($rawJobId) || $rawJobId === '') {
+            throw new InvalidRequestException('job-id is required');
+        }
         $client->subscribe(
-            ['types' => []],
+            new JobId($rawJobId),
             function (Envelope $env) use ($output, $serializer): void {
                 $output->writeln(
                     json_encode($serializer->envelopeToArray($env), \JSON_THROW_ON_ERROR),
                 );
             },
+            history: true,
         );
 
         EventLoop::run();

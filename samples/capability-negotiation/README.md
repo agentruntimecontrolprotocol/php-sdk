@@ -28,7 +28,7 @@ metrics, keyed by tenant + peer.
 ## ARCP primitives
 
 - Capability extensions on the session — RFC §7, §21.
-- `tool.invoke` / `tool.error` — §6.3.
+- `job.submit` / `job.error` — §7.1, §12.
 - Canonical retry classification — §18.3.
 - Standard metric names (`tokens.used`, `cost.usd`) — §17.3.1.
 - Envelope `extensions` for per-call routing context — §6.1.

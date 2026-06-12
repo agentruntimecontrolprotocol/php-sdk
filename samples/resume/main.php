@@ -24,11 +24,11 @@ use Arcp\Clock\SystemClock;
 use Arcp\Envelope\Envelope;
 use Arcp\Ids\JobId;
 use Arcp\Ids\MessageId;
-use Arcp\Messages\Session\SessionResume;
 use Arcp\Messages\Execution\JobCheckpoint;
-use Arcp\Messages\Execution\JobCompleted;
 use Arcp\Messages\Execution\JobProgress;
+use Arcp\Messages\Execution\JobResult;
 use Arcp\Messages\Execution\WorkflowStart;
+use Arcp\Messages\Session\SessionResume;
 
 use function Arcp\Samples\Resumability\runStep;
 
@@ -123,8 +123,8 @@ function issueResume(ARCPClient $client, JobId $jobId, string $afterMessageId, ?
 
     // Drain replay; capture the last checkpoint label, return when
     // backfill_complete arrives (replay window closed; now live).
-    // Real impl uses a dedicated subscribe + Future. Throws DataLoss
-    // on retention expiry.
+    // Real impl uses a dedicated subscribe + Future. Throws
+    // ResumeWindowExpired on retention expiry (§6.3 / §12).
     throw new \RuntimeException('not implemented');
 }
 
@@ -151,7 +151,7 @@ function main(): void
                 $final = executeSteps($client, $jobId, '<replayed>', STEPS[$nextIdx], null);
                 $client->session->transport->send(new Envelope(
                     id: MessageId::random(),
-                    payload: new JobCompleted(value: $final),
+                    payload: new JobResult(result: $final),
                     timestamp: new SystemClock()->now(),
                     sessionId: $client->session->sessionId,
                     jobId: $jobId,
@@ -172,7 +172,7 @@ function main(): void
         $final = executeSteps($client, $jobId, $request, STEPS[0], $crash);
         $client->session->transport->send(new Envelope(
             id: MessageId::random(),
-            payload: new JobCompleted(value: $final),
+            payload: new JobResult(result: $final),
             timestamp: new SystemClock()->now(),
             sessionId: $client->session->sessionId,
             jobId: $jobId,

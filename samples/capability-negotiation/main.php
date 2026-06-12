@@ -18,7 +18,7 @@ use Arcp\Errors\ARCPException;
 use Arcp\Errors\ErrorCode;
 use Arcp\Errors\InternalErrorException;
 use Arcp\Ids\TraceId;
-use Arcp\Messages\Execution\ToolResult;
+use Arcp\Messages\Execution\JobResult;
 use Arcp\Messages\Telemetry\MetricEvent;
 
 const PEERS = [
@@ -112,7 +112,7 @@ function candidateChain(array $profiles, string $requestClass): array
  * @param list<string> $chain
  * @param array<string, mixed> $arguments
  */
-function invokeWithFallback(array $clients, array $chain, string $tool, array $arguments, TraceId $traceId): ToolResult
+function invokeWithFallback(array $clients, array $chain, string $tool, array $arguments, TraceId $traceId): JobResult
 {
     $last = null;
     foreach ($chain as $name) {
@@ -185,11 +185,9 @@ function main(): void
 
     /** @var array<string, Usage> $totals */
     $totals = [];
-    foreach ($clients as $c) {
-        $c->subscribe(['types' => ['metric']], static function (Envelope $env) use (&$totals): void {
-            consumeMetric($env, $totals);
-        });
-    }
+    // Real impl: after job.accepted, attach to each peer's job with
+    // $c->subscribe($jobId, ...) (§7.6) and feed metric envelopes into
+    // consumeMetric() from those per-job streams.
 
     $chain = candidateChain($profiles, 'balanced');
     $reply = invokeWithFallback(
@@ -199,7 +197,7 @@ function main(): void
         ['prompt' => 'Hello', 'tenant' => 'acme-corp'],
         TraceId::random(),
     );
-    printf("got tool.result; usage=%s\n", json_encode($totals));
+    printf("got job.result; usage=%s\n", json_encode($totals));
 
     foreach ($clients as $c) {
         $c->close();

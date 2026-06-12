@@ -54,7 +54,7 @@ final class HumanInputTest extends TestCase
         );
         $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(humanInput: true, anonymous: true));
         $result = $client->invokeTool('ask');
-        self::assertSame(['chosen' => ['branch' => 'fix/jwt']], $result->value);
+        self::assertSame(['chosen' => ['branch' => 'fix/jwt']], $result->result);
 
         $client->close();
         $serverFuture->await();
@@ -86,7 +86,7 @@ final class HumanInputTest extends TestCase
         );
         $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(humanInput: true, anonymous: true));
         $result = $client->invokeTool('pick');
-        self::assertSame(['chosen' => 'b'], $result->value);
+        self::assertSame(['chosen' => 'b'], $result->result);
 
         $client->close();
         $serverFuture->await();
@@ -116,7 +116,7 @@ final class HumanInputTest extends TestCase
         $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(anonymous: true));
 
         $result = $client->invokeTool('ask', deadlineSeconds: 5.0);
-        self::assertSame(['chosen' => ['used' => 'fallback']], $result->value);
+        self::assertSame(['chosen' => ['used' => 'fallback']], $result->result);
 
         $client->close();
         $serverFuture->await();

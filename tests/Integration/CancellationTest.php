@@ -16,7 +16,7 @@ use Arcp\Auth\AuthRouter;
 use Arcp\Auth\NoneAuth;
 use Arcp\Client\ARCPClient;
 use Arcp\Ids\JobId;
-use Arcp\Messages\Execution\ToolResult;
+use Arcp\Messages\Execution\JobResult;
 use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\Capabilities;
 use Arcp\Messages\Session\PeerInfo;
@@ -60,7 +60,7 @@ final class CancellationTest extends TestCase
         $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(anonymous: true));
 
         // Issue the tool invocation in a background fiber so we can cancel.
-        $invocation = async(fn (): ToolResult => $client->invokeTool('block'));
+        $invocation = async(fn (): JobResult => $client->invokeTool('block'));
 
         $jobId = $started->getFuture()->await();
 

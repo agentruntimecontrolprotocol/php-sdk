@@ -8,8 +8,8 @@ use Amp\Cancellation;
 use Amp\DeferredCancellation;
 use Arcp\Envelope\Priority;
 use Arcp\Errors\BudgetExhaustedException;
-use Arcp\Errors\TimeoutException;
 use Arcp\Errors\PermissionDeniedException;
+use Arcp\Errors\TimeoutException;
 use Arcp\Ids\JobId;
 use Arcp\Ids\LeaseId;
 use Arcp\Ids\SessionId;
@@ -201,7 +201,7 @@ final class JobContext
      * @param array<string, mixed>|null $default
      *
      * @throws \Arcp\Errors\TimeoutException when `$expiresAt`
-     *                                                elapses without a response and no `$default` is provided.
+     *                                       elapses without a response and no `$default` is provided.
      * @throws \Amp\CancelledException when `$cancellation` fires.
      *
      * @size-check-suppress public BC; mirrors RFC §12.1 human.input.request.
@@ -244,7 +244,7 @@ final class JobContext
      * @param list<array{id: string, label: string}> $options
      *
      * @throws \Arcp\Errors\TimeoutException when `$expiresAt`
-     *                                                elapses before a choice arrives.
+     *                                       elapses before a choice arrives.
      * @throws \Amp\CancelledException when `$cancellation` fires.
      *
      * @size-check-suppress public BC; mirrors RFC §12.1 human.choice.request.
@@ -274,7 +274,7 @@ final class JobContext
      * @throws \Arcp\Errors\PermissionDeniedException when the client
      *                                                denies the permission request.
      * @throws \Arcp\Errors\TimeoutException when the request
-     *                                                times out before any decision arrives.
+     *                                       times out before any decision arrives.
      * @throws \Amp\CancelledException when `$cancellation` fires.
      *
      * @size-check-suppress public BC; protocol-level permission request fields.

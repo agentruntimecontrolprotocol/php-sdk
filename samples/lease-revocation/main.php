@@ -98,13 +98,11 @@ function main(): void
     /** @var array<string, array{0: string, 1: \DateTimeImmutable}> $leases */
     $leases = [];
 
-    // JobSubscribe to lease lifecycle events; revocations drop cache entries.
-    $client->subscribe(
-        ['types' => ['lease.revoked', 'lease.extended']],
-        static function (Envelope $env) use (&$leases): void {
-            handleInbound($env, $leases);
-        },
-    );
+    // Lease lifecycle envelopes (`lease.revoked` / `lease.extended`)
+    // arrive on the session stream; a production client routes them from
+    // its read loop into handleInbound() so revocations drop cache
+    // entries immediately. (job.subscribe is job-scoped per §7.6 and is
+    // not the vehicle for lease lifecycle events.)
 
     // Pre-grant the broad reads at session open. From here on, SELECT
     // against these tables runs free.

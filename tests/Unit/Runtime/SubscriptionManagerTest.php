@@ -10,6 +10,7 @@ use Arcp\Envelope\Envelope;
 use Arcp\Envelope\MessageCatalog;
 use Arcp\Envelope\Priority;
 use Arcp\Errors\TransportClosedException;
+use Arcp\Ids\JobId;
 use Arcp\Ids\MessageId;
 use Arcp\Ids\SessionId;
 use Arcp\Json\EnvelopeSerializer;
@@ -17,7 +18,6 @@ use Arcp\Messages\Subscriptions\JobSubscribe;
 use Arcp\Messages\Subscriptions\SubscribeEvent;
 use Arcp\Runtime\Session;
 use Arcp\Runtime\SubscriptionManager;
-use Arcp\Transport\MemoryTransport;
 use Arcp\Transport\Transport;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\AbstractLogger;
@@ -29,13 +29,9 @@ final class SubscriptionManagerTest extends TestCase
         return new EnvelopeSerializer(MessageCatalog::create());
     }
 
-    private function session(): Session
+    private function jobId(): JobId
     {
-        [$a] = MemoryTransport::pair();
-        $session = new Session($a);
-        $session->sessionId = SessionId::random();
-
-        return $session;
+        return new JobId('job_filter');
     }
 
     private function envelopeFor(Session $session): Envelope
@@ -45,43 +41,47 @@ final class SubscriptionManagerTest extends TestCase
             payload: new SubscribeEvent(['hello' => 'world']),
             timestamp: new \DateTimeImmutable('2000-01-01T00:00:00Z'),
             sessionId: $session->sessionId,
+            jobId: $this->jobId(),
         );
     }
 
     public function testDispatchStampsWrapperWithInjectedClock(): void
     {
-        $captured = null;
         $clock = new FakeClock(new \DateTimeImmutable('2026-05-09T12:34:56Z'));
-        $session = new Session(new class ($captured) implements Transport {
-            public function __construct(private mixed &$captured)
-            {
-            }
+        $transport = new class () implements Transport {
+            public ?Envelope $captured = null;
 
-            public function send(Envelope $env, ?Cancellation $c = null): void
+            #[\Override]
+            public function send(Envelope $env, ?Cancellation $cancellation = null): void
             {
                 $this->captured = $env;
             }
 
-            public function receive(?Cancellation $c = null): ?Envelope
+            #[\Override]
+            public function receive(?Cancellation $cancellation = null): ?Envelope
             {
                 return null;
             }
 
+            #[\Override]
             public function close(): void
             {
             }
 
+            #[\Override]
             public function isClosed(): bool
             {
                 return false;
             }
-        });
+        };
+        $session = new Session($transport);
         $session->sessionId = SessionId::random();
 
         $manager = new SubscriptionManager($this->serializer(), $clock);
-        $manager->compile($session, new JobSubscribe([]));
+        $manager->compile($session, new JobSubscribe($this->jobId()));
         $manager->dispatch($this->envelopeFor($session));
 
+        $captured = $transport->captured;
         self::assertInstanceOf(Envelope::class, $captured);
         self::assertEquals($clock->now(), $captured->timestamp);
     }
@@ -92,6 +92,7 @@ final class SubscriptionManagerTest extends TestCase
             /** @var list<string> */
             public array $warnings = [];
 
+            #[\Override]
             public function log($level, string|\Stringable $message, array $context = []): void
             {
                 if ($level === 'warning') {
@@ -101,20 +102,24 @@ final class SubscriptionManagerTest extends TestCase
         };
 
         $session = new Session(new class () implements Transport {
-            public function send(Envelope $env, ?Cancellation $c = null): void
+            #[\Override]
+            public function send(Envelope $env, ?Cancellation $cancellation = null): void
             {
                 throw new TransportClosedException('boom');
             }
 
-            public function receive(?Cancellation $c = null): ?Envelope
+            #[\Override]
+            public function receive(?Cancellation $cancellation = null): ?Envelope
             {
                 return null;
             }
 
+            #[\Override]
             public function close(): void
             {
             }
 
+            #[\Override]
             public function isClosed(): bool
             {
                 return false;
@@ -123,7 +128,7 @@ final class SubscriptionManagerTest extends TestCase
         $session->sessionId = SessionId::random();
 
         $manager = new SubscriptionManager($this->serializer(), new FakeClock(), $logger);
-        $manager->compile($session, new JobSubscribe([]));
+        $manager->compile($session, new JobSubscribe($this->jobId()));
         self::assertSame(1, $manager->count());
 
         $manager->dispatch($this->envelopeFor($session));
@@ -134,36 +139,38 @@ final class SubscriptionManagerTest extends TestCase
 
     public function testFilterWithoutMinPriorityMatchesLowPriority(): void
     {
-        $captured = [];
-        $session = new Session(new class ($captured) implements Transport {
-            /** @param list<Envelope> $captured */
-            public function __construct(private array &$captured)
-            {
-            }
+        $transport = new class () implements Transport {
+            /** @var list<Envelope> */
+            public array $captured = [];
 
-            public function send(Envelope $env, ?Cancellation $c = null): void
+            #[\Override]
+            public function send(Envelope $env, ?Cancellation $cancellation = null): void
             {
                 $this->captured[] = $env;
             }
 
-            public function receive(?Cancellation $c = null): ?Envelope
+            #[\Override]
+            public function receive(?Cancellation $cancellation = null): ?Envelope
             {
                 return null;
             }
 
+            #[\Override]
             public function close(): void
             {
             }
 
+            #[\Override]
             public function isClosed(): bool
             {
                 return false;
             }
-        });
+        };
+        $session = new Session($transport);
         $session->sessionId = SessionId::random();
 
         $manager = new SubscriptionManager($this->serializer(), new FakeClock());
-        $manager->compile($session, new JobSubscribe([]));
+        $manager->compile($session, new JobSubscribe($this->jobId()));
 
         $low = new Envelope(
             id: MessageId::random(),
@@ -171,8 +178,9 @@ final class SubscriptionManagerTest extends TestCase
             timestamp: new \DateTimeImmutable('2000-01-01T00:00:00Z'),
             priority: Priority::Low,
             sessionId: $session->sessionId,
+            jobId: $this->jobId(),
         );
         $manager->dispatch($low);
-        self::assertCount(1, $captured);
+        self::assertCount(1, $transport->captured);
     }
 }

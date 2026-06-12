@@ -23,7 +23,7 @@ function elidedClient(): ARCPClient
 $client = elidedClient();
 
 $result = $client->invokeTool('reporter');
-$value = $result->value;
+$value = $result->result;
 $resultId = is_array($value) ? ($value['result_id'] ?? null) : null;
 if (is_string($resultId) && $client->resultChunks->isComplete($resultId)) {
     printf("%s\n", $client->resultChunks->assemble($resultId));

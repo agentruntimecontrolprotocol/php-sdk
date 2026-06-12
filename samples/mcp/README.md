@@ -1,6 +1,6 @@
 # mcp
 
-ARCP runtime that fronts an MCP server. Inbound `tool.invoke`
+ARCP runtime that fronts an MCP server. Inbound `job.submit`
 envelopes translate to MCP `call_tool`; the bridge emits the ARCP
 job lifecycle back to the calling client.
 
@@ -19,7 +19,7 @@ Per RFC §20:
 | MCP         | ARCP                                              |
 |-------------|---------------------------------------------------|
 | tool schema | capability (`arcpx.mcp.tool.<name>.v1`)           |
-| tool call   | job (`tool.invoke` → `job.completed`)             |
+| tool call   | job (`job.submit` → `job.result`)                 |
 | resource    | stream of `kind: event` (delegated)               |
 
 The bridge advertises the upstream server's tools as namespaced
@@ -45,8 +45,8 @@ unexpected exceptions at the boundary).
 ## ARCP primitives
 
 - MCP compatibility — RFC §20 (the whole point).
-- `tool.invoke` / `job.accepted` / `job.started` /
-  `job.completed` / `job.failed` lifecycle — §6.3, §10.
+- `job.submit` / `job.accepted` / `job.event` /
+  `job.result` / `job.error` lifecycle — §7.1, §7.3.
 - Capability extensions for advertised tools — §7, §21.
 - Canonical error mapping — §18.2.
 
@@ -64,6 +64,6 @@ unexpected exceptions at the boundary).
   set of tools under `arcpx.mcp.<server>.tool.<name>.v1`.
 - Bridge MCP resources to ARCP streams of `kind: event` so ARCP
   observers can subscribe to MCP resource changes.
-- Layer ARCP leases on top: gate `tool.invoke` for any
+- Layer ARCP leases on top: gate `job.submit` for any
   side-effecting MCP tool through `permission.request` before
   forwarding to MCP.

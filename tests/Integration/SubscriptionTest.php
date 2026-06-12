@@ -4,16 +4,19 @@ declare(strict_types=1);
 
 namespace Arcp\Tests\Integration;
 
+use function Amp\async;
+
 use Amp\Cancellation;
 use Amp\DeferredFuture;
 
 use function Amp\delay;
 
+use Amp\Future;
 use Arcp\Auth\AuthRouter;
 use Arcp\Auth\NoneAuth;
 use Arcp\Client\ARCPClient;
 use Arcp\Envelope\Envelope;
-use Arcp\Errors\PermissionDeniedException;
+use Arcp\Ids\JobId;
 use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\Capabilities;
 use Arcp\Messages\Session\PeerInfo;
@@ -26,17 +29,59 @@ use PHPUnit\Framework\TestCase;
 
 final class SubscriptionTest extends TestCase
 {
-    public function testSubscribeReceivesBackfillCompleteMarker(): void
+    private function runtime(): ARCPRuntime
     {
         $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
+        $runtime->registerTool('emit_progress', new class () implements ToolHandler {
+            #[\Override]
+            public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
+            {
+                // Hold the job open long enough for a subscriber to attach.
+                delay(0.1, cancellation: $cancellation);
+                $ctx->reportProgress(50);
+                $ctx->emitLog('info', 'midway');
+                return null;
+            }
+        });
+        return $runtime;
+    }
+
+    /** @return array{0: ARCPClient, 1: Future<mixed>} */
+    private function client(ARCPRuntime $runtime, string $name = 'cli'): array
+    {
         [$serverT, $clientT] = MemoryTransport::pair();
         $serverFuture = $runtime->serveAsync($serverT);
         $client = new ARCPClient($clientT);
-        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(subscriptions: true, anonymous: true, features: ['subscribe']));
+        $client->open(
+            Auth::none(),
+            new PeerInfo($name, '0.1'),
+            new Capabilities(subscriptions: true, anonymous: true, features: ['subscribe']),
+        );
+        return [$client, $serverFuture];
+    }
+
+    /** @return array{0: JobId, 1: Future<mixed>} */
+    private function startJob(ARCPRuntime $runtime, ARCPClient $client): array
+    {
+        $future = async(fn () => $client->invokeTool('emit_progress'));
+        $deadline = microtime(true) + 2.0;
+        while ($runtime->jobs->count() === 0 && microtime(true) < $deadline) {
+            delay(0.01);
+        }
+        $jobs = $runtime->jobs->all();
+        self::assertNotSame([], $jobs);
+        return [$jobs[0]->id, $future];
+    }
+
+    public function testSubscribeReceivesBackfillCompleteMarker(): void
+    {
+        $runtime = $this->runtime();
+        [$client, $serverFuture] = $this->client($runtime);
+        [$jobId, $jobFuture] = $this->startJob($runtime, $client);
 
         $sawBackfillMarker = new DeferredFuture();
         $client->subscribe(
-            ['types' => ['event.emit']],
+            $jobId,
             function (Envelope $env) use ($sawBackfillMarker): void {
                 $payload = $env->payload;
                 if ($payload instanceof EventEmit && $payload->eventType === 'subscription.backfill_complete' && !$sawBackfillMarker->isComplete()) {
@@ -48,114 +93,92 @@ final class SubscriptionTest extends TestCase
         $marker = $sawBackfillMarker->getFuture()->await();
         self::assertTrue($marker, 'received backfill_complete marker');
 
+        $jobFuture->await();
         $client->close();
         $serverFuture->await();
     }
 
-    public function testSubscriptionFiltersByType(): void
+    public function testSubscriberObservesJobEventsLive(): void
     {
-        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
-        $runtime->registerTool('emit_progress', new class () implements ToolHandler {
-            #[\Override]
-            public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
-            {
-                $ctx->reportProgress(50);
-                $ctx->emitLog('info', 'midway');
-                return null;
-            }
-        });
-        [$serverT, $clientT] = MemoryTransport::pair();
-        $serverFuture = $runtime->serveAsync($serverT);
-        $client = new ARCPClient($clientT);
-        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(subscriptions: true, anonymous: true, features: ['subscribe']));
+        $runtime = $this->runtime();
+        [$client, $serverFuture] = $this->client($runtime);
+        [$jobId, $jobFuture] = $this->startJob($runtime, $client);
 
         $observed = [];
         $client->subscribe(
-            ['types' => ['log']],
+            $jobId,
             function (Envelope $env) use (&$observed): void {
                 $observed[] = $env->type();
             },
         );
 
-        // Give the subscription a beat to settle.
-        delay(0.01);
-        $client->invokeTool('emit_progress');
+        $jobFuture->await();
         delay(0.05);
 
-        // Should observe at least one log envelope, and no `job.progress`.
-        self::assertContains('log', $observed, 'expected log envelope');
-        self::assertNotContains('job.progress', $observed, 'progress should be filtered out');
+        self::assertContains('log', $observed, 'expected the job log envelope');
+        self::assertContains('job.progress', $observed, 'expected the job progress envelope');
+        self::assertContains('job.result', $observed, 'expected the terminal job.result');
 
         $client->close();
         $serverFuture->await();
     }
 
-    public function testCannotSubscribeToOtherSession(): void
+    public function testSamePrincipalSecondSessionCanSubscribe(): void
     {
-        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
-        [$serverT, $clientT] = MemoryTransport::pair();
-        $serverFuture = $runtime->serveAsync($serverT);
-        $client = new ARCPClient($clientT);
-        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(subscriptions: true, anonymous: true, features: ['subscribe']));
+        // §7.6: a dashboard session under the same principal may attach to
+        // a job submitted from a different session and observe it live.
+        $runtime = $this->runtime();
+        [$clientA, $futureA] = $this->client($runtime, 'cli-a');
+        [$clientB, $futureB] = $this->client($runtime, 'cli-b');
+        [$jobId, $jobFuture] = $this->startJob($runtime, $clientA);
 
-        $caught = null;
-        try {
-            $client->subscribe(['session_id' => ['sess_someoneElse']], fn (): null => null);
-        } catch (PermissionDeniedException $e) {
-            $caught = $e;
-        } finally {
-            $client->close();
-            $serverFuture->await();
-        }
-        self::assertInstanceOf(PermissionDeniedException::class, $caught);
-    }
-
-    public function testEmptyFilterDoesNotObserveOtherSessions(): void
-    {
-        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
-        $runtime->registerTool('emit_progress', new class () implements ToolHandler {
-            #[\Override]
-            public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
-            {
-                $ctx->reportProgress(50);
-                $ctx->emitLog('info', 'midway');
-                return null;
-            }
-        });
-        [$serverTA, $clientTA] = MemoryTransport::pair();
-        [$serverTB, $clientTB] = MemoryTransport::pair();
-        $serverFutureA = $runtime->serveAsync($serverTA);
-        $serverFutureB = $runtime->serveAsync($serverTB);
-        $clientA = new ARCPClient($clientTA);
-        $clientB = new ARCPClient($clientTB);
-        $clientA->open(Auth::none(), new PeerInfo('cli-a', '0.1'), new Capabilities(subscriptions: true, anonymous: true, features: ['subscribe']));
-        $clientB->open(Auth::none(), new PeerInfo('cli-b', '0.1'), new Capabilities(subscriptions: true, anonymous: true, features: ['subscribe']));
-
-        $aObservedSessions = [];
-        $clientA->subscribe(
-            [],
-            function (Envelope $env) use (&$aObservedSessions): void {
-                if ($env->sessionId !== null) {
-                    $aObservedSessions[(string) $env->sessionId] = true;
-                }
+        $observed = [];
+        $subscribed = $clientB->subscribe(
+            $jobId,
+            function (Envelope $env) use (&$observed): void {
+                $observed[] = $env->type();
             },
         );
-        delay(0.01);
+        self::assertSame('running', $subscribed->currentStatus);
+        self::assertSame('emit_progress', $subscribed->agent);
 
-        // Drive activity on B; A's empty-filter subscription must NOT see it.
-        $clientB->invokeTool('emit_progress');
+        $jobFuture->await();
         delay(0.05);
-
-        $aSessionId = (string) $clientA->session->sessionId;
-        $bSessionId = (string) $clientB->session->sessionId;
-        self::assertArrayNotHasKey($bSessionId, $aObservedSessions);
-        // Allow A to see its own envelopes (e.g. backfill marker).
-        $foreign = array_diff(array_keys($aObservedSessions), [$aSessionId]);
-        self::assertEmpty($foreign);
+        self::assertContains('job.result', $observed, 'cross-session subscriber sees events');
 
         $clientA->close();
         $clientB->close();
-        $serverFutureA->await();
-        $serverFutureB->await();
+        $futureA->await();
+        $futureB->await();
+    }
+
+    public function testSubscriberDoesNotObserveOtherJobs(): void
+    {
+        $runtime = $this->runtime();
+        [$client, $serverFuture] = $this->client($runtime);
+        [$jobAId, $jobAFuture] = $this->startJob($runtime, $client);
+
+        $observedJobs = [];
+        $client->subscribe(
+            $jobAId,
+            function (Envelope $env) use (&$observedJobs): void {
+                if ($env->jobId !== null) {
+                    $observedJobs[(string) $env->jobId] = true;
+                }
+            },
+        );
+        $jobAFuture->await();
+
+        // A second job in the same session must not reach the job-A
+        // subscriber (§7.6: subscriptions are job-scoped).
+        $jobBFuture = async(fn () => $client->invokeTool('emit_progress'));
+        $jobBFuture->await();
+        delay(0.05);
+
+        $foreign = array_diff(array_keys($observedJobs), [(string) $jobAId]);
+        self::assertEmpty($foreign, 'subscriber observed envelopes from other jobs');
+
+        $client->close();
+        $serverFuture->await();
     }
 }

@@ -13,10 +13,10 @@ use function Amp\delay;
 use Arcp\Auth\AuthRouter;
 use Arcp\Auth\NoneAuth;
 use Arcp\Client\ARCPClient;
+use Arcp\Errors\AgentNotAvailableException;
 use Arcp\Errors\AgentVersionNotAvailableException;
 use Arcp\Errors\BudgetExhaustedException;
 use Arcp\Errors\InvalidRequestException;
-use Arcp\Errors\AgentNotAvailableException;
 use Arcp\Ids\IdempotencyKey;
 use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\Capabilities;
@@ -29,7 +29,7 @@ use PHPUnit\Framework\TestCase;
 
 final class JobLifecycleTest extends TestCase
 {
-    public function testToolInvokeReturnsToolResult(): void
+    public function testSubmitReturnsJobResult(): void
     {
         $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
         $runtime->registerTool('echo', new class () implements ToolHandler {
@@ -46,13 +46,13 @@ final class JobLifecycleTest extends TestCase
         $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(anonymous: true));
 
         $result = $client->invokeTool('echo', ['foo' => 'bar']);
-        self::assertSame(['echoed' => ['foo' => 'bar']], $result->value);
+        self::assertSame(['echoed' => ['foo' => 'bar']], $result->result);
 
         $client->close();
         $serverFuture->await();
     }
 
-    public function testToolErrorPropagatesAsException(): void
+    public function testJobErrorPropagatesAsException(): void
     {
         $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
         $runtime->registerTool('boom', new class () implements ToolHandler {
@@ -76,7 +76,7 @@ final class JobLifecycleTest extends TestCase
         }
     }
 
-    public function testUnknownToolReturnsNotFound(): void
+    public function testUnknownAgentReturnsAgentNotAvailable(): void
     {
         $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
         [$serverT, $clientT] = MemoryTransport::pair();
@@ -118,12 +118,12 @@ final class JobLifecycleTest extends TestCase
 
         $key = new IdempotencyKey('refund-1');
         $first = $client->invokeTool('once', [], idempotencyKey: $key);
-        self::assertSame(['ran' => 1], $first->value);
+        self::assertSame(['ran' => 1], $first->result);
 
         // Second call with the same idempotency key: runtime replays the
-        // original terminal ToolResult so the client sees the same value.
+        // original terminal job.result so the client sees the same value.
         $second = $client->invokeTool('once', [], idempotencyKey: $key);
-        self::assertSame(['ran' => 1], $second->value);
+        self::assertSame(['ran' => 1], $second->result);
         self::assertSame(1, $count, 'idempotency cache must prevent re-execution');
 
         $client->close();
@@ -149,8 +149,8 @@ final class JobLifecycleTest extends TestCase
 
         $r1 = $client->invokeTool('add', ['a' => 2, 'b' => 3]);
         $r2 = $client->invokeTool('add', ['a' => 10, 'b' => 100]);
-        self::assertSame(['sum' => 5], $r1->value);
-        self::assertSame(['sum' => 110], $r2->value);
+        self::assertSame(['sum' => 5], $r1->result);
+        self::assertSame(['sum' => 110], $r2->result);
 
         $client->close();
         $serverFuture->await();
@@ -179,8 +179,8 @@ final class JobLifecycleTest extends TestCase
         $accepted = $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(anonymous: true));
 
         self::assertNotEmpty($accepted->capabilities->agents);
-        self::assertSame(['version' => '1.0.0'], $client->invokeTool('planner@1.0.0')->value);
-        self::assertSame(['version' => '2.0.0'], $client->invokeTool('planner')->value);
+        self::assertSame(['version' => '1.0.0'], $client->invokeTool('planner@1.0.0')->result);
+        self::assertSame(['version' => '2.0.0'], $client->invokeTool('planner')->result);
 
         $caught = null;
         try {
@@ -226,7 +226,7 @@ final class JobLifecycleTest extends TestCase
         $serverFuture->await();
     }
 
-    public function testListJobsReturnsCompletedJobsWithinRetentionWindow(): void
+    public function testListJobsReturnsTerminalJobsWithinRetentionWindow(): void
     {
         $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
         $runtime->registerTool('fast', new class () implements ToolHandler {
@@ -243,14 +243,14 @@ final class JobLifecycleTest extends TestCase
 
         // Run two short jobs that complete immediately. With the pre-fix
         // behavior, these would vanish from list_jobs the moment they
-        // transitioned to `completed`.
+        // reached the `success` terminal (§7.3).
         $client->invokeTool('fast');
         $client->invokeTool('fast');
 
-        $page = $client->listJobs(['status' => ['completed']]);
+        $page = $client->listJobs(['status' => ['success']]);
         self::assertGreaterThanOrEqual(2, \count($page->jobs));
         foreach ($page->jobs as $entry) {
-            self::assertSame('completed', $entry['status'] ?? null);
+            self::assertSame('success', $entry['status'] ?? null);
             self::assertSame('fast', $entry['agent'] ?? null);
         }
 
@@ -276,7 +276,7 @@ final class JobLifecycleTest extends TestCase
         $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(anonymous: true));
 
         $result = $client->invokeTool('chunker');
-        self::assertSame(['result_id' => 'res_x'], $result->value);
+        self::assertSame(['result_id' => 'res_x'], $result->result);
         self::assertTrue($client->resultChunks->isComplete('res_x'));
         self::assertSame('hello, world', $client->resultChunks->assemble('res_x'));
 

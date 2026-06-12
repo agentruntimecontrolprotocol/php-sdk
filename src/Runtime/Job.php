@@ -18,7 +18,24 @@ use Arcp\Messages\Permissions\LeaseGranted;
  */
 final class Job
 {
-    public JobState $state = JobState::Accepted;
+    public JobState $state = JobState::Pending;
+
+    /**
+     * True once cancellation has been requested (§7.4). The state stays
+     * `running` until the cooperating fiber unwinds to the `cancelled`
+     * terminal; §7.3 defines no intermediate cancelling state.
+     */
+    public bool $cancelRequested = false;
+
+    /**
+     * True when the cancellation was triggered by `max_runtime_sec`
+     * expiry, so the terminal is `timed_out`/TIMEOUT instead of
+     * `cancelled`/CANCELLED (§7.3).
+     */
+    public bool $timedOut = false;
+
+    /** Event-loop timer id enforcing `max_runtime_sec`, when armed. */
+    public ?string $runtimeTimerId = null;
     public int $heartbeatSequence = 0;
     public readonly \DateTimeImmutable $createdAt;
     /** Wall-clock timestamp of the most recent terminal transition, if any. */

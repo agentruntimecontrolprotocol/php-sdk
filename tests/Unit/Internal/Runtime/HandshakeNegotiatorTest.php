@@ -142,8 +142,8 @@ final class HandshakeNegotiatorTest extends TestCase
         $first = $clientA->invokeTool('once', [], idempotencyKey: $key);
         $second = $clientB->invokeTool('once', [], idempotencyKey: $key);
 
-        self::assertSame(['ran' => 1], $first->value);
-        self::assertSame(['ran' => 2], $second->value, 'distinct principals must not share idempotency');
+        self::assertSame(['ran' => 1], $first->result);
+        self::assertSame(['ran' => 2], $second->result, 'distinct principals must not share idempotency');
 
         $clientA->close();
         $clientB->close();

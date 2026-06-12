@@ -3,7 +3,7 @@
 Two scenarios that exercise the §10.4–§10.5 control surface that
 distinguishes ARCP from "agent over plain HTTP":
 
-- `cancel`: cooperative termination with a deadline.
+- `job.cancel`: cooperative termination (§7.4).
 - `interrupt`: pause the job and keep the job in a blocked state
   without terminating it.
 
@@ -29,13 +29,13 @@ interruptJob($client, $jobId, 'Pause and ask before touching prod.');
 
 ## ARCP primitives
 
-- `cancel` cooperative contract — RFC §10.4 (`cancel.accepted` /
+- `job.cancel` cooperative contract — §7.4 (`job.cancelled` ack /
   `cancel.refused`, `deadline_ms`, escalation to `ABORTED`).
 - `interrupt` (distinct from cancel) — §10.5; leaves the job in
   `blocked` so a caller can decide whether to resume or cancel.
-- `capabilities.interrupt: false` fallback to `cancel` (advertised
+- `capabilities.interrupt: false` fallback to `job.cancel` (advertised
   per §10.5; clients that find `interrupt: false` on a peer fall
-  through to `cancel`).
+  through to `job.cancel`).
 
 ## File tour
 
@@ -44,7 +44,7 @@ interruptJob($client, $jobId, 'Pause and ask before touching prod.');
 
 ## Variations
 
-- Send `cancel` against a `stream_id` instead of a `job_id` to
+- Send `job.cancel` for an unknown `job_id` to
   terminate just one stream — terminal is a `stream.error` with
   `code: CANCELLED` (§10.4).
 - Race many peers, cancel the slowest once N succeed.

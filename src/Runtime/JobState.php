@@ -4,23 +4,24 @@ declare(strict_types=1);
 
 namespace Arcp\Runtime;
 
-/** RFC §10.2 — durable job lifecycle. */
+/**
+ * ARCP v1.1 §7.3 — job lifecycle states. Terminal states are `success`,
+ * `error`, `cancelled`, and `timed_out`; `BUDGET_EXHAUSTED` and
+ * `LEASE_EXPIRED` failures terminate as `error`.
+ */
 enum JobState: string
 {
-    case Accepted = 'accepted';
-    case Queued = 'queued';
+    case Pending = 'pending';
     case Running = 'running';
-    case Blocked = 'blocked';
-    case Paused = 'paused';
-    case Cancelling = 'cancelling';
-    case Completed = 'completed';
-    case Failed = 'failed';
+    case Success = 'success';
+    case Error = 'error';
     case Cancelled = 'cancelled';
+    case TimedOut = 'timed_out';
 
     public function isTerminal(): bool
     {
         return match ($this) {
-            self::Completed, self::Failed, self::Cancelled => true,
+            self::Success, self::Error, self::Cancelled, self::TimedOut => true,
             default => false,
         };
     }

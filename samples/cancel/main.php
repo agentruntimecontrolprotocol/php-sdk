@@ -3,9 +3,11 @@
 declare(strict_types=1);
 
 /*
- * cancellation — two scenarios over the §10.4 / §10.5 control surface:
- *  - `cancel`:    cooperative termination with a deadline.
- *  - `interrupt`: pause the job and route through a human, no termination.
+ * cancellation — two scenarios over the §7.4 control surface:
+ *  - `job.cancel`: cooperative termination; runtime acknowledges with
+ *    `job.cancelled` and the job terminates with `job.error`
+ *    (code CANCELLED, final_status "cancelled").
+ *  - `interrupt`:  route through a human, no termination (SDK extension).
  */
 
 require __DIR__ . '/../../vendor/autoload.php';
@@ -20,13 +22,11 @@ use Arcp\Ids\JobId;
 use Arcp\Ids\MessageId;
 use Arcp\Messages\Control\Interrupt;
 
-const CANCEL_DEADLINE_MS = 5_000;
-
 function startLongJob(ARCPClient $client): JobId
 {
-    // tool.invoke that the runtime promotes into a long-running job.
-    // Real impl reads the job id from the JobAccepted (sent
-    // synchronously alongside the ToolResult future).
+    // job.submit that the runtime promotes into a long-running job.
+    // Real impl reads payload.job_id from the job.accepted envelope
+    // (sent before the terminal job.result resolves).
     $client->invokeTool('demo.long_running', ['work_seconds' => 600]);
     throw new \RuntimeException('not implemented');
 }
@@ -36,10 +36,10 @@ function startLongJob(ARCPClient $client): JobId
  * `job.cancelled` and the job terminates with `job.error`
  * (code CANCELLED, final_status "cancelled").
  */
-function cancelJob(ARCPClient $client, JobId $jobId, string $reason, int $deadlineMs): void
+function cancelJob(ARCPClient $client, JobId $jobId, string $reason): void
 {
     try {
-        $client->cancelJob($jobId, $reason, $deadlineMs);
+        $client->cancelJob($jobId, $reason);
     } catch (InvalidRequestException $e) {
         // Cancelling an already-terminal job nacks with INVALID_REQUEST.
         throw $e;
@@ -47,8 +47,8 @@ function cancelJob(ARCPClient $client, JobId $jobId, string $reason, int $deadli
 }
 
 /**
- * Distinct from cancel: pauses the job (`blocked`), runtime emits
- * `human.input.request`. Job is NOT terminated (RFC §10.5).
+ * Distinct from cancel: the runtime emits `human.input.request` and the
+ * job keeps running (§7.3 has no blocked state); NOT terminated.
  */
 function interruptJob(ARCPClient $client, JobId $jobId, string $prompt): void
 {
@@ -63,9 +63,8 @@ function interruptJob(ARCPClient $client, JobId $jobId, string $prompt): void
 
 function awaitTerminal(ARCPClient $client, JobId $jobId): Envelope
 {
-    // Real impl subscribes to the session, filters by jobId, returns
-    // the first envelope whose type ∈ {job.completed, job.failed,
-    // job.cancelled}.
+    // Real impl uses $client->subscribe($jobId, ...) (§7.6) and returns
+    // the first envelope whose type ∈ {job.result, job.error}.
     throw new \RuntimeException('not implemented');
 }
 
@@ -76,7 +75,7 @@ function scenarioCancel(): void
     try {
         $jobId = startLongJob($client);
         delay(2.0); // let the job actually start
-        cancelJob($client, $jobId, 'user_aborted', CANCEL_DEADLINE_MS);
+        cancelJob($client, $jobId, 'user_aborted');
         echo "cancel ack\n";
         $terminal = awaitTerminal($client, $jobId);
         printf("terminal: %s\n", $terminal->type());
@@ -93,12 +92,13 @@ function scenarioInterrupt(): void
         $jobId = startLongJob($client);
         delay(2.0);
         interruptJob($client, $jobId, 'Pause and ask before touching production tables.');
-        // Runtime now emits a blocking request; a caller decides whether to resume.
+        // Runtime now emits a blocking request; a caller decides how to
+        // respond. Observe the job's stream for it (§7.6).
         $client->subscribe(
-            ['types' => ['human.input.request']],
-            static function (Envelope $env) use ($jobId): void {
-                if ($env->jobId !== null && (string) $env->jobId === (string) $jobId) {
-                    printf("awaiting human: %s\n", $env->payload::typeName());
+            $jobId,
+            static function (Envelope $env): void {
+                if ($env->type() === 'human.input.request') {
+                    printf("awaiting human: %s\n", $env->type());
                 }
             },
         );

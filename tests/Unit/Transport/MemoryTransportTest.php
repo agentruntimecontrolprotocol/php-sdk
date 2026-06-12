@@ -23,8 +23,9 @@ final class MemoryTransportTest extends TestCase
         );
     }
 
-    private function seqOf(Envelope $env): int
+    private function seqOf(?Envelope $env): int
     {
+        self::assertInstanceOf(Envelope::class, $env);
         $payload = $env->payload;
         self::assertInstanceOf(EventEmit::class, $payload);
         $seq = $payload->attributes['seq'];

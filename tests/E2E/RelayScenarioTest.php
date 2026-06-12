@@ -165,9 +165,9 @@ final class RelayScenarioTest extends TestCase
         $client->open(Auth::none(), new PeerInfo('e2e', '0.1'), new Capabilities(humanInput: true, anonymous: true));
 
         $result = $client->invokeTool('handle_failed_tests');
-        self::assertIsArray($result->value);
-        self::assertSame('fix', $result->value['choice'] ?? null);
-        self::assertSame('relay:slack', $result->value['responded_by'] ?? null);
+        self::assertIsArray($result->result);
+        self::assertSame('fix', $result->result['choice'] ?? null);
+        self::assertSame('relay:slack', $result->result['responded_by'] ?? null);
 
         $client->close();
         $cleanup();

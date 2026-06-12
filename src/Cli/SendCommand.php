@@ -68,7 +68,7 @@ final class SendCommand extends Command
         );
 
         $result = $client->invokeTool($tool, $args);
-        $output->writeln(json_encode($result->value, \JSON_PRETTY_PRINT | \JSON_THROW_ON_ERROR));
+        $output->writeln(json_encode($result->result, \JSON_PRETTY_PRINT | \JSON_THROW_ON_ERROR));
 
         $client->close();
         return Command::SUCCESS;

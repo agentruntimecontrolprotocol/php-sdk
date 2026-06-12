@@ -138,7 +138,7 @@ function heartbeatLoop(ARCPClient $worker, JobId $jobId): \Closure
 function execute(ARCPClient $worker, Envelope $delegate): void
 {
     $jobId = JobId::random();
-    // Send job.accepted (correlation_id=$delegate->id), job.started.
+    // Send job.accepted (correlation_id=$delegate->id) and a status job.event.
     $hb = async(heartbeatLoop($worker, $jobId));
     try {
         $msg = $delegate->payload;
@@ -152,9 +152,9 @@ function execute(ARCPClient $worker, Envelope $delegate): void
             }
         }
         $result = doWork($taskPayload);
-        // Send job.completed.
+        // Send job.result (final_status "success").
     } catch (\Throwable $e) {
-        // Send job.failed with INTERNAL + retryable=true.
+        // Send job.error with INTERNAL_ERROR + retryable=true.
     } finally {
         $hb->ignore();
     }

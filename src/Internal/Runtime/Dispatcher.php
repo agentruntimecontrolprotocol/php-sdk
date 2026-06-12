@@ -21,11 +21,11 @@ use Arcp\Messages\Control\Interrupt;
 use Arcp\Messages\Control\Nack;
 use Arcp\Messages\Execution\AgentDelegate;
 use Arcp\Messages\Execution\AgentHandoff;
+use Arcp\Messages\Execution\JobCancel;
 use Arcp\Messages\Execution\JobSchedule;
-use Arcp\Messages\Execution\ToolInvoke;
+use Arcp\Messages\Execution\JobSubmit;
 use Arcp\Messages\Execution\WorkflowStart;
 use Arcp\Messages\Permissions\LeaseRefresh;
-use Arcp\Messages\Execution\JobCancel;
 use Arcp\Messages\Session\ListJobs;
 use Arcp\Messages\Session\SessionAck;
 use Arcp\Messages\Session\SessionClose;
@@ -48,7 +48,7 @@ final readonly class Dispatcher
     public function __construct(
         private ARCPRuntime $runtime,
         private LifecycleHandler $lifecycle,
-        private ToolInvocationHandler $toolInvocation,
+        private JobSubmitHandler $jobSubmit,
         private SubscriptionRouter $subscriptions,
         private ArtifactDispatcher $artifacts,
         private JobListHandler $jobList,
@@ -181,10 +181,10 @@ final readonly class Dispatcher
         }
         $handled = true;
         match (true) {
-            $msg instanceof ToolInvoke => $this->toolInvocation->handle($session, $env, $msg),
+            $msg instanceof JobSubmit => $this->jobSubmit->handle($session, $env, $msg),
             $msg instanceof ListJobs => $this->jobList->handle($session, $env, $msg),
             $msg instanceof JobSubscribe => $this->subscriptions->subscribe($session, $env, $msg),
-            $msg instanceof JobUnsubscribe => $this->subscriptions->unsubscribe($session, $env),
+            $msg instanceof JobUnsubscribe => $this->subscriptions->unsubscribe($session, $env, $msg),
             $msg instanceof ArtifactPut => $this->artifacts->put($session, $env, $msg),
             $msg instanceof ArtifactFetch => $this->artifacts->fetch($session, $env, $msg),
             $msg instanceof ArtifactRelease => $this->artifacts->release($session, $env, $msg),

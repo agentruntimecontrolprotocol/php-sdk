@@ -54,7 +54,7 @@ trait JobCredentialControls
                 return;
             } catch (\Throwable $e) {
                 if ($attempt < 2) {
-                    \Amp\delay(0.02 * $attempt);
+                    \Amp\delay(0.02 * (float) $attempt);
 
                     continue;
                 }

@@ -14,12 +14,13 @@ require __DIR__ . '/synth.php';
 
 use Arcp\Client\ARCPClient;
 use Arcp\Envelope\Envelope;
+use Arcp\Ids\JobId;
 use Arcp\Ids\TraceId;
 
 use function Arcp\Samples\Delegation\synthesize;
 
 const PEERS = ['research.web', 'research.code', 'research.docs'];
-const TERMINAL_TYPES = ['job.completed', 'job.failed', 'job.cancelled'];
+const TERMINAL_TYPES = ['job.result', 'job.error'];
 
 final class Job
 {
@@ -56,27 +57,22 @@ final class JobMux
     {
     }
 
-    public function start(): void
+    public function register(string $jobId): void
     {
-        // Real impl subscribes to the session and routes envelopes
-        // by $env->jobId into per-job buffers.
+        $this->buffers[$jobId] = [];
+        // §7.6: subscriptions are job-scoped — attach one per delegated job
+        // and route into the per-job buffer.
         $this->client->subscribe(
-            ['types' => array_merge(['job.heartbeat', 'job.progress'], TERMINAL_TYPES)],
-            function (Envelope $env): void {
-                $jid = $env->jobId !== null ? (string) $env->jobId : null;
-                if ($jid === null || !isset($this->buffers[$jid])) {
+            new JobId($jobId),
+            function (Envelope $env) use ($jobId): void {
+                if (!in_array($env->type(), array_merge(['job.event', 'job.heartbeat', 'job.progress'], TERMINAL_TYPES), true)) {
                     return;
                 }
-                $this->buffers[$jid][] = $env;
+                $this->buffers[$jobId][] = $env;
                 // Terminal envelopes wake any awaiter; in production a
                 // dedicated Future per job is resolved here.
             },
         );
-    }
-
-    public function register(string $jobId): void
-    {
-        $this->buffers[$jobId] = [];
     }
 
     public function collect(Job $job): Job
@@ -85,8 +81,10 @@ final class JobMux
             return $job;
         }
         $jid = $job->jobId;
-        // Drain until terminal envelope arrives. Real impl awaits a future
-        // resolved by the subscription callback above.
+        $buffered = $this->buffers[$jid] ?? [];
+        // Drain $buffered until a terminal envelope arrives. Real impl
+        // awaits a future resolved by the subscription callback above.
+        unset($buffered);
         throw new \RuntimeException('not implemented');
     }
 }
@@ -97,7 +95,6 @@ function main(): void
     $client = elided(); // transport, identity, auth elided
 
     $mux = new JobMux($client);
-    $mux->start();
 
     $request = 'what changed in our auth stack in the last 30 days?';
     $traceId = TraceId::random();

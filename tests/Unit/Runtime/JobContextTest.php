@@ -47,7 +47,7 @@ final class JobContextTest extends TestCase
         });
 
         $result = $client->invokeTool('metric_tool');
-        self::assertSame(['ok' => true], $result->value);
+        self::assertSame(['ok' => true], $result->result);
 
         $client->close();
         $serverFuture->await();
@@ -76,7 +76,7 @@ final class JobContextTest extends TestCase
         });
 
         $result = $client->invokeTool('stream_tool');
-        self::assertSame(['streamed' => true], $result->value);
+        self::assertSame(['streamed' => true], $result->result);
         self::assertNotNull($sawSid);
         self::assertNotEmpty($sawSid);
 
@@ -99,7 +99,7 @@ final class JobContextTest extends TestCase
         });
 
         $result = $client->invokeTool('stream_tool2');
-        self::assertSame(['ok' => true], $result->value);
+        self::assertSame(['ok' => true], $result->result);
 
         $client->close();
         $serverFuture->await();
@@ -123,8 +123,8 @@ final class JobContextTest extends TestCase
         });
 
         $result = $client->invokeTool('artifact_tool');
-        self::assertIsArray($result->value);
-        self::assertArrayHasKey('id', $result->value);
+        self::assertIsArray($result->result);
+        self::assertArrayHasKey('id', $result->result);
         self::assertInstanceOf(ArtifactRef::class, $observedRef);
 
         $client->close();
@@ -145,7 +145,7 @@ final class JobContextTest extends TestCase
         });
 
         $result = $client->invokeTool('heart_tool');
-        self::assertNull($result->value);
+        self::assertNull($result->result);
 
         $client->close();
         $serverFuture->await();

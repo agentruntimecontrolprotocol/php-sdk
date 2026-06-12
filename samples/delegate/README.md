@@ -27,7 +27,7 @@ $completed = array_map(fn ($j) => $mux->collect($j), $jobs);
 ```
 
 One transport, one envelope shape, one trace. Per-peer failure is a
-typed `job.failed` envelope, not a 502 with a stack trace.
+typed `job.error` envelope, not a 502 with a stack trace.
 
 ## ARCP primitives
 
@@ -44,8 +44,8 @@ typed `job.failed` envelope, not a 502 with a stack trace.
 
 - Bound the fan-out by capability (e.g. only peers advertising
   `arcpx.research.web.v1`).
-- Return artifact refs from peers (`job.completed.result_ref`)
+- Return artifact refs from peers (`job.result.result_id`)
   instead of inline results when payloads cross the inline budget
   (§16).
-- Cancel slowest peer once N succeed via `cancel`
+- Cancel slowest peer once N succeed via `job.cancel`
   (see [cancellation](../cancel)).

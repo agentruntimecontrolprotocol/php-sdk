@@ -62,6 +62,7 @@ final readonly class EventLog
             return;
         }
         foreach ($cols->fetchAll(\PDO::FETCH_ASSOC) as $col) {
+            /** @var array<string, mixed>|false $col */
             if (\is_array($col) && ($col['name'] ?? null) === 'outbound') {
                 return;
             }

@@ -7,7 +7,7 @@ namespace Arcp\Tests\Unit\Runtime;
 use Arcp\Clock\FakeClock;
 use Arcp\Envelope\Envelope;
 use Arcp\Ids\MessageId;
-use Arcp\Messages\Execution\ToolInvoke;
+use Arcp\Messages\Execution\JobSubmit;
 use Arcp\Runtime\JobManager;
 use Arcp\Runtime\JobState;
 use Arcp\Runtime\Session;
@@ -27,7 +27,7 @@ final class JobManagerTest extends TestCase
     {
         return new Envelope(
             id: MessageId::random(),
-            payload: new ToolInvoke('demo', []),
+            payload: new JobSubmit('demo'),
             timestamp: $clock->now(),
         );
     }
@@ -37,7 +37,7 @@ final class JobManagerTest extends TestCase
         $clock = new FakeClock();
         $jobs = new JobManager($clock, terminalRetentionSeconds: 10);
         $job = $jobs->start($this->session(), $this->invocation($clock), 'demo');
-        $jobs->transition($job, JobState::Completed);
+        $jobs->transition($job, JobState::Success);
 
         // Push past the retention window, then read via the pure accessors.
         $clock->advance(30);
@@ -49,7 +49,7 @@ final class JobManagerTest extends TestCase
         self::assertNotNull($jobs->tryGet($job->id));
     }
 
-    public function testCancelTransitionsToCancelling(): void
+    public function testCancelMarksRequestWithoutIntermediateState(): void
     {
         $clock = new FakeClock();
         $jobs = new JobManager($clock);
@@ -57,7 +57,10 @@ final class JobManagerTest extends TestCase
         $jobs->transition($job, JobState::Running);
 
         self::assertTrue($jobs->cancel($job->id));
-        self::assertSame(JobState::Cancelling, $job->state);
+        // §7.3 has no intermediate cancelling state: the job stays running
+        // until the cooperating fiber unwinds to the cancelled terminal.
+        self::assertSame(JobState::Running, $job->state);
+        self::assertTrue($job->cancelRequested);
         // A second cancel is a no-op now that the request is in flight.
         self::assertFalse($jobs->cancel($job->id));
     }

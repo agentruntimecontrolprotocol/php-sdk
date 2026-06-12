@@ -10,7 +10,7 @@ cross-SDK examples. Most samples elide transport/auth setup behind an
 | --- | --- | --- |
 | [`ack-backpressure/`](./ack-backpressure) | Ack-driven flow control and back-pressure status events. | §6.5, §8.2 |
 | [`agent-versions/`](./agent-versions) | `name@version` resolution and missing-version errors. | §7.5, §12 |
-| [`cancel/`](./cancel) | Cooperative `cancel` and blocked-job interrupt handling. | §10.4-§10.5 |
+| [`cancel/`](./cancel) | Cooperative `job.cancel` and interrupt handling. | §7.4 |
 | [`cost-budget/`](./cost-budget) | `cost.budget` counters decremented by `cost.*` metrics. | §9.6, §12 |
 | [`custom-auth/`](./custom-auth) | Custom bearer verifier shape for handshake auth. | §6.1 |
 | [`delegate/`](./delegate) | `agent.delegate` fan-out and event demux by `job_id`. | §14, §6.4 |

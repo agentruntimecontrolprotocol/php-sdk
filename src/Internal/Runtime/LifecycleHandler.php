@@ -31,7 +31,6 @@ use Arcp\Messages\Session\SessionResume;
 use Arcp\Messages\Telemetry\EventEmit;
 use Arcp\Runtime\ARCPRuntime;
 use Arcp\Runtime\Job;
-use Arcp\Runtime\JobState;
 use Arcp\Runtime\Session;
 use Arcp\Runtime\SessionState;
 
@@ -123,7 +122,6 @@ final readonly class LifecycleHandler
             $this->nack($session, $env, 'PERMISSION_DENIED', 'job not owned by this session');
             return;
         }
-        $job->state = JobState::Blocked;
         $requestId = $this->runtime->emit($session, new HumanInputRequest(
             prompt: $msg->prompt !== '' ? $msg->prompt : 'Job interrupted; provide guidance.',
             responseSchema: ['type' => 'object'],
@@ -154,11 +152,8 @@ final readonly class LifecycleHandler
                     $job->deliverInterruptResponse($response);
                 }
             } catch (\Throwable) {
-                // Deadline / cancellation: fall through to restore state.
-            } finally {
-                if ($job->state === JobState::Blocked) {
-                    $job->state = JobState::Running;
-                }
+                // Deadline / cancellation: nothing further to deliver. The
+                // job keeps running throughout (§7.3 has no blocked state).
             }
         });
     }

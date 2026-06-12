@@ -58,7 +58,7 @@ function main(): void
         'capture_handle' => $handle,
         'decimate' => 1,
     ]);
-    $iqArtifact = artifactIdOf($cap->value);
+    $iqArtifact = artifactIdOf($cap->result);
     printf("captured IQ -> %s\n", $iqArtifact);
 
     $audio = $client->invokeTool(EXT_DEMODULATE, [
@@ -66,7 +66,7 @@ function main(): void
         'mode' => 'NBFM',
         'audio_rate_hz' => 48_000,
     ]);
-    printf("demod  PCM -> %s\n", artifactIdOf($audio->value));
+    printf("demod  PCM -> %s\n", artifactIdOf($audio->result));
 
     // §21.3 demonstration: unadvertised extension marked optional.
     // Runtime SHOULD ack (silent drop) rather than nack.

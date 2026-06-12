@@ -28,12 +28,15 @@ use Arcp\Internal\Runtime\CredentialLifecycle;
 use Arcp\Internal\Runtime\Dispatcher;
 use Arcp\Internal\Runtime\HandshakeNegotiator;
 use Arcp\Internal\Runtime\JobListHandler;
+use Arcp\Internal\Runtime\JobSubmitHandler;
 use Arcp\Internal\Runtime\LifecycleHandler;
 use Arcp\Internal\Runtime\SubscriptionRouter;
-use Arcp\Internal\Runtime\ToolInvocationHandler;
 use Arcp\Json\EnvelopeSerializer;
 use Arcp\Messages\Execution\JobAccepted;
+use Arcp\Messages\Execution\JobError;
+use Arcp\Messages\Execution\JobEvent;
 use Arcp\Messages\Execution\JobProgress;
+use Arcp\Messages\Execution\JobResult;
 use Arcp\Messages\Execution\ResultChunk;
 use Arcp\Messages\Session\Capabilities;
 use Arcp\Messages\Session\PeerInfo;
@@ -121,7 +124,7 @@ final class ARCPRuntime
             $authRouter,
             $this->runtimeIdentity,
         );
-        $tools = new ToolInvocationHandler(
+        $jobSubmit = new JobSubmitHandler(
             $this,
             fn (AgentRef $ref): ?ResolvedTool => $this->resolveTool($ref),
             new CredentialLifecycle($this),
@@ -129,7 +132,7 @@ final class ARCPRuntime
         $this->dispatcher = new Dispatcher(
             $this,
             $lifecycle,
-            $tools,
+            $jobSubmit,
             new SubscriptionRouter($this, $lifecycle),
             new ArtifactDispatcher($this, $lifecycle),
             new JobListHandler($this),
@@ -353,7 +356,10 @@ final class ARCPRuntime
      */
     private function isSequenced(MessageType $payload): bool
     {
-        return $payload instanceof JobProgress
+        return $payload instanceof JobEvent
+            || $payload instanceof JobResult
+            || $payload instanceof JobError
+            || $payload instanceof JobProgress
             || $payload instanceof ResultChunk;
     }
 

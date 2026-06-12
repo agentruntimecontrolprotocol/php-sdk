@@ -20,16 +20,14 @@ use Arcp\Messages\Execution\JobAccepted;
 use Arcp\Messages\Execution\JobCancel;
 use Arcp\Messages\Execution\JobCancelled;
 use Arcp\Messages\Execution\JobCheckpoint;
-use Arcp\Messages\Execution\JobCompleted;
-use Arcp\Messages\Execution\JobFailed;
+use Arcp\Messages\Execution\JobError;
+use Arcp\Messages\Execution\JobEvent;
 use Arcp\Messages\Execution\JobHeartbeat;
 use Arcp\Messages\Execution\JobProgress;
+use Arcp\Messages\Execution\JobResult;
 use Arcp\Messages\Execution\JobSchedule;
-use Arcp\Messages\Execution\JobStarted;
+use Arcp\Messages\Execution\JobSubmit;
 use Arcp\Messages\Execution\ResultChunk;
-use Arcp\Messages\Execution\ToolError;
-use Arcp\Messages\Execution\ToolInvoke;
-use Arcp\Messages\Execution\ToolResult;
 use Arcp\Messages\Execution\WorkflowComplete;
 use Arcp\Messages\Execution\WorkflowStart;
 use Arcp\Messages\Human\HumanChoiceRequest;
@@ -65,9 +63,9 @@ use Arcp\Messages\Streaming\StreamError;
 use Arcp\Messages\Streaming\StreamOpen;
 use Arcp\Messages\Subscriptions\JobSubscribe;
 use Arcp\Messages\Subscriptions\JobSubscribed;
+use Arcp\Messages\Subscriptions\JobUnsubscribe;
 use Arcp\Messages\Subscriptions\SubscribeClosed;
 use Arcp\Messages\Subscriptions\SubscribeEvent;
-use Arcp\Messages\Subscriptions\JobUnsubscribe;
 use Arcp\Messages\Telemetry\EventEmit;
 use Arcp\Messages\Telemetry\LogEvent;
 use Arcp\Messages\Telemetry\MetricEvent;
@@ -108,19 +106,17 @@ final class MessageCatalog
         Backpressure::class,
         CheckpointCreate::class,
         CheckpointRestore::class,
-        // Execution
-        ToolInvoke::class,
-        ToolResult::class,
-        ToolError::class,
+        // Jobs (§7, §8)
+        JobSubmit::class,
         JobAccepted::class,
-        JobStarted::class,
+        JobEvent::class,
+        JobResult::class,
+        JobError::class,
+        JobCancelled::class,
         JobProgress::class,
         JobHeartbeat::class,
         JobCheckpoint::class,
         ResultChunk::class,
-        JobCompleted::class,
-        JobFailed::class,
-        JobCancelled::class,
         JobSchedule::class,
         WorkflowStart::class,
         WorkflowComplete::class,

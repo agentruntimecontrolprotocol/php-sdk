@@ -7,16 +7,16 @@ namespace Arcp\Internal\Client;
 use Amp\Cancellation;
 use Arcp\Clock\ClockInterface;
 use Arcp\Envelope\Envelope;
-use Arcp\Errors\UnauthenticatedException;
 use Arcp\Errors\InvalidRequestException;
+use Arcp\Errors\UnauthenticatedException;
 use Arcp\Ids\MessageId;
 use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\Capabilities;
 use Arcp\Messages\Session\PeerInfo;
-use Arcp\Messages\Session\SessionWelcome;
 use Arcp\Messages\Session\SessionHello;
 use Arcp\Messages\Session\SessionRejected;
 use Arcp\Messages\Session\SessionUnauthenticated;
+use Arcp\Messages\Session\SessionWelcome;
 use Arcp\Runtime\Session;
 
 /**

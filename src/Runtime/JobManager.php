@@ -14,9 +14,9 @@ use Arcp\Ids\JobId;
 use Arcp\Messages\Permissions\LeaseGranted;
 
 /**
- * Tracks in-flight jobs and drives the state machine (RFC §10.2). Each
- * job runs in its own fiber spawned by
- * {@see \Arcp\Internal\Runtime\ToolInvocationHandler} via `Amp\async()`;
+ * Tracks in-flight jobs and drives the §7.3 state machine. Each job
+ * runs in its own fiber spawned by
+ * {@see \Arcp\Internal\Runtime\JobSubmitHandler} via `Amp\async()`;
  * cancellation is cooperative through the per-job {@see DeferredCancellation}.
  */
 final class JobManager
@@ -85,15 +85,14 @@ final class JobManager
     public function cancel(JobId $id, string $reason = 'user_aborted'): bool
     {
         $job = $this->tryGet($id);
-        if (!$job instanceof Job || $job->state->isTerminal() || $job->state === JobState::Cancelling) {
+        if (!$job instanceof Job || $job->state->isTerminal() || $job->cancelRequested) {
             return false;
         }
+        // §7.3 defines no intermediate cancelling state: the job stays
+        // `running` until the cooperating fiber unwinds to the terminal
+        // `cancelled` state; the flag de-duplicates repeated requests.
+        $job->cancelRequested = true;
         $job->cancellation->cancel(new CancelledException(new \RuntimeException($reason)));
-        // Surface the cancellation request immediately so observers
-        // (session.list_jobs, metrics) no longer report the job as running
-        // while the cooperating fiber unwinds; it transitions to the
-        // terminal Cancelled state once it observes the cancellation.
-        $this->transition($job, JobState::Cancelling);
         return true;
     }
 

@@ -42,7 +42,7 @@ final class CredentialLifecycleTest extends TestCase
             fn (array $arguments, JobContext $ctx, ?Cancellation $cancellation): array => ['ok' => true],
         ));
 
-        self::assertSame(['ok' => true], $client->invokeTool('planner', $this->leaseArguments())->value);
+        self::assertSame(['ok' => true], $client->invokeTool('planner', $this->leaseArguments())->result);
 
         $accepted = $recording->firstPayload(JobAccepted::class);
         self::assertInstanceOf(JobAccepted::class, $accepted);
@@ -123,7 +123,7 @@ final class CredentialLifecycleTest extends TestCase
             return ['ok' => true];
         }));
 
-        self::assertSame(['ok' => true], $client->invokeTool('rotate', $this->leaseArguments())->value);
+        self::assertSame(['ok' => true], $client->invokeTool('rotate', $this->leaseArguments())->result);
 
         $status = $recording->firstPayload(EventEmit::class, fn (EventEmit $event): bool => $event->eventType === 'status');
         self::assertInstanceOf(EventEmit::class, $status);
@@ -167,12 +167,17 @@ final class CredentialLifecycleTest extends TestCase
         $runtime->registerTool('planner', $this->handler(
             fn (array $arguments, JobContext $ctx, ?Cancellation $cancellation): array => ['ok' => true],
         ));
-        $seen = [];
-        $client->subscribe(['types' => ['job.accepted']], function (Envelope $env) use (&$seen): void {
-            $seen[] = $env;
-        });
-
         $client->invokeTool('planner', $this->leaseArguments());
+        $jobs = $runtime->jobs->all();
+        self::assertNotSame([], $jobs);
+
+        // Attach with history replay (§7.6): the redacted job.accepted is
+        // replayed from the event log to the subscriber.
+        $seen = [];
+        $client->subscribe($jobs[0]->id, function (Envelope $env) use (&$seen): void {
+            $seen[] = $env;
+        }, history: true);
+        \Amp\delay(0.05);
 
         self::assertNotEmpty($seen);
         $payload = null;

@@ -6,17 +6,37 @@ namespace Arcp\Messages\Execution;
 
 use Arcp\Envelope\MessageType;
 use Arcp\Errors\InvalidRequestException;
+use Arcp\Ids\JobId;
+use Arcp\Ids\TraceId;
 
-/** RFC §10.2 — runtime accepted the job; envelope `job_id` carries the new id. */
+/**
+ * ARCP v1.1 §7.1 — runtime accepted the job: `{job_id, agent, lease,
+ * lease_constraints, budget, credentials, accepted_at, trace_id}`.
+ * `agent` carries the resolved `name@version` reference (§7.5).
+ */
 final readonly class JobAccepted extends MessageType
 {
     /**
-     * @param list<array<string, mixed>>|null $credentials
+     * @param array<string, mixed>|null $lease Effective lease (§9.2).
+     * @param array<string, mixed>|null $leaseConstraints e.g. `{expires_at}`.
+     * @param array<string, float>|null $budget Initial §9.6 budget counters.
+     * @param list<array<string, mixed>>|null $credentials §9.8 provisioned credentials.
+     *
+     * @size-check-suppress Wire-shape DTO mapping to §7.1.
      */
     public function __construct(
-        public ?string $note = null,
+        public JobId $jobId,
+        public string $agent,
+        public ?array $lease = null,
+        public ?array $leaseConstraints = null,
+        public ?array $budget = null,
         public ?array $credentials = null,
+        public ?\DateTimeImmutable $acceptedAt = null,
+        public ?TraceId $traceId = null,
     ) {
+        if ($agent === '') {
+            throw new InvalidRequestException('job.accepted agent missing');
+        }
     }
 
     #[\Override]
@@ -28,12 +48,27 @@ final readonly class JobAccepted extends MessageType
     #[\Override]
     public function toArray(): array
     {
-        $out = [];
-        if ($this->note !== null) {
-            $out['note'] = $this->note;
+        $out = [
+            'job_id' => (string) $this->jobId,
+            'agent' => $this->agent,
+        ];
+        if ($this->lease !== null) {
+            $out['lease'] = $this->lease;
+        }
+        if ($this->leaseConstraints !== null) {
+            $out['lease_constraints'] = $this->leaseConstraints;
+        }
+        if ($this->budget !== null) {
+            $out['budget'] = $this->budget;
         }
         if ($this->credentials !== null) {
             $out['credentials'] = $this->credentials;
+        }
+        if ($this->acceptedAt instanceof \DateTimeImmutable) {
+            $out['accepted_at'] = $this->acceptedAt->format(\DateTimeInterface::RFC3339_EXTENDED);
+        }
+        if ($this->traceId instanceof TraceId) {
+            $out['trace_id'] = (string) $this->traceId;
         }
         return $out;
     }
@@ -41,13 +76,24 @@ final readonly class JobAccepted extends MessageType
     #[\Override]
     public static function fromArray(array $data): static
     {
-        $note = null;
-        if (isset($data['note']) && \is_string($data['note'])) {
-            $note = $data['note'];
+        $jobId = $data['job_id'] ?? throw new InvalidRequestException('job.accepted job_id missing');
+        $agent = $data['agent'] ?? throw new InvalidRequestException('job.accepted agent missing');
+        if (!\is_string($agent)) {
+            throw new InvalidRequestException('job.accepted agent must be string');
         }
-        return new self($note, self::credentialsFromArray($data));
+        return new self(
+            JobId::fromJson($jobId),
+            $agent,
+            self::optionalMap($data, 'lease'),
+            self::optionalMap($data, 'lease_constraints'),
+            self::budgetFromArray($data),
+            self::credentialsFromArray($data),
+            self::acceptedAtFromArray($data),
+            isset($data['trace_id']) ? TraceId::fromJson($data['trace_id']) : null,
+        );
     }
 
+    /** Copy with plaintext credential values masked, for logging surfaces. */
     public function redacted(): self
     {
         if ($this->credentials === null) {
@@ -57,7 +103,78 @@ final readonly class JobAccepted extends MessageType
         foreach ($this->credentials as $credential) {
             $credentials[] = [...$credential, 'value' => '***'];
         }
-        return new self($this->note, $credentials);
+        return new self(
+            $this->jobId,
+            $this->agent,
+            $this->lease,
+            $this->leaseConstraints,
+            $this->budget,
+            $credentials,
+            $this->acceptedAt,
+            $this->traceId,
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     *
+     * @return array<string, mixed>|null
+     */
+    private static function optionalMap(array $data, string $key): ?array
+    {
+        if (!isset($data[$key])) {
+            return null;
+        }
+        if (!\is_array($data[$key])) {
+            throw new InvalidRequestException(\sprintf('job.accepted %s must be object', $key));
+        }
+        /** @var array<string, mixed> $map */
+        $map = $data[$key];
+        return $map;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     *
+     * @return array<string, float>|null
+     */
+    private static function budgetFromArray(array $data): ?array
+    {
+        if (!isset($data['budget'])) {
+            return null;
+        }
+        if (!\is_array($data['budget'])) {
+            throw new InvalidRequestException('job.accepted budget must be object');
+        }
+        $budget = [];
+        foreach ($data['budget'] as $currency => $amount) {
+            if (!\is_string($currency) || (!\is_int($amount) && !\is_float($amount))) {
+                throw new InvalidRequestException('job.accepted budget entries must be currency => number');
+            }
+            $budget[$currency] = (float) $amount;
+        }
+        return $budget;
+    }
+
+    /** @param array<string, mixed> $data */
+    private static function acceptedAtFromArray(array $data): ?\DateTimeImmutable
+    {
+        if (!isset($data['accepted_at'])) {
+            return null;
+        }
+        if (!\is_string($data['accepted_at'])) {
+            throw new InvalidRequestException('job.accepted accepted_at must be string');
+        }
+        try {
+            return new \DateTimeImmutable($data['accepted_at']);
+        } catch (\DateMalformedStringException $e) {
+            throw new InvalidRequestException(
+                'job.accepted accepted_at must be RFC 3339',
+                ['accepted_at' => $data['accepted_at']],
+                null,
+                $e,
+            );
+        }
     }
 
     /**

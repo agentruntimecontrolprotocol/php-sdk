@@ -35,9 +35,9 @@ interface Transport
      * @throws \Arcp\Errors\TransportClosedException on unexpected
      *                                               transport failure (distinct from a clean close, which returns null).
      * @throws \Arcp\Errors\InvalidRequestException when an incoming frame
-     *                                               is malformed and cannot be decoded.
+     *                                              is malformed and cannot be decoded.
      * @throws \Arcp\Errors\InvalidRequestException when an incoming frame
-     *                                             carries an unknown message type.
+     *                                              carries an unknown message type.
      * @throws \Amp\CancelledException when `$cancellation` fires.
      */
     public function receive(?Cancellation $cancellation = null): ?Envelope;
