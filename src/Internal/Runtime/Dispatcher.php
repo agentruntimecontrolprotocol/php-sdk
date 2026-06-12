@@ -10,6 +10,9 @@ use Arcp\Envelope\MessageType;
 use Arcp\Errors\ARCPException;
 use Arcp\Errors\ErrorPayload;
 use Arcp\Errors\InternalException;
+use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\TransportClosedException;
+use Arcp\Errors\UnimplementedException;
 use Arcp\Ids\MessageId;
 use Arcp\Messages\Artifacts\ArtifactFetch;
 use Arcp\Messages\Artifacts\ArtifactPut;
@@ -55,7 +58,20 @@ final readonly class Dispatcher
     public function readLoop(Session $session, ?Cancellation $cancellation): void
     {
         while (!$session->transport->isClosed()) {
-            $env = $session->transport->receive($cancellation);
+            try {
+                $env = $session->transport->receive($cancellation);
+            } catch (TransportClosedException) {
+                return;
+            } catch (InvalidArgumentException | UnimplementedException $e) {
+                // A single undecodable or unknown-type frame must not tear
+                // down the session (RFC §5 forward-compatibility); log and
+                // keep reading so subsequent valid commands still work.
+                $this->runtime->logger->warning(
+                    'dropped undecodable frame',
+                    ['error' => $e->getMessage()],
+                );
+                continue;
+            }
             if (!$env instanceof Envelope) {
                 return;
             }
