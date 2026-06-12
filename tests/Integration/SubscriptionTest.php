@@ -105,10 +105,14 @@ final class SubscriptionTest extends TestCase
         [$jobId, $jobFuture] = $this->startJob($runtime, $client);
 
         $observed = [];
+        $seqs = [];
         $client->subscribe(
             $jobId,
-            function (Envelope $env) use (&$observed): void {
+            function (Envelope $env) use (&$observed, &$seqs): void {
                 $observed[] = $env->type();
+                if (\in_array($env->type(), ['job.event', 'job.progress', 'job.result'], true)) {
+                    $seqs[] = $env->eventSeq;
+                }
             },
         );
 
@@ -118,6 +122,16 @@ final class SubscriptionTest extends TestCase
         self::assertContains('log', $observed, 'expected the job log envelope');
         self::assertContains('job.progress', $observed, 'expected the job progress envelope');
         self::assertContains('job.result', $observed, 'expected the terminal job.result');
+
+        // §8.3: sequenced job messages carry the session-scoped,
+        // monotonically increasing event_seq (#56, #132).
+        self::assertNotEmpty($seqs);
+        $previous = 0;
+        foreach ($seqs as $seq) {
+            self::assertNotNull($seq, 'job event missing event_seq');
+            self::assertGreaterThan($previous, $seq);
+            $previous = $seq;
+        }
 
         $client->close();
         $serverFuture->await();
