@@ -50,10 +50,8 @@ require __DIR__ . '/vendor/autoload.php';
 use Amp\Websocket\Client\WebsocketHandshake;
 use function Amp\Websocket\Client\connect;
 use Arcp\Client\ARCPClient;
-use Arcp\Envelope\Envelope;
 use Arcp\Envelope\MessageCatalog;
 use Arcp\Json\EnvelopeSerializer;
-use Arcp\Messages\Execution\JobProgress;
 use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\Capabilities;
 use Arcp\Messages\Session\PeerInfo;
@@ -69,20 +67,11 @@ $client = new ARCPClient($transport);
 $client->open(
     Auth::bearer((string) getenv('ARCP_TOKEN')),
     new PeerInfo('quickstart', '1.0.0'),
-    new Capabilities(streaming: true, subscriptions: true),
-);
-
-$client->subscribe(
-    ['types' => ['job.progress', 'log', 'metric']],
-    static function (Envelope $env): void {
-        if ($env->payload instanceof JobProgress) {
-            printf("[progress %d%%] %s\n", $env->payload->percent, $env->payload->message ?? '');
-        }
-    },
+    new Capabilities(features: ['subscribe', 'progress', 'result_chunk']),
 );
 
 $result = $client->invokeTool('data-analyzer', ['dataset' => 's3://example/sales.csv']);
-printf("final: %s\n", json_encode($result->value));
+printf("final: %s\n", json_encode($result->result));
 
 $client->close();
 ```
@@ -111,11 +100,8 @@ Open a session, negotiate features, and reconnect transparently after a transpor
 use Amp\Websocket\Client\WebsocketHandshake;
 use function Amp\Websocket\Client\connect;
 use Arcp\Client\ARCPClient;
-use Arcp\Envelope\Envelope;
 use Arcp\Envelope\MessageCatalog;
-use Arcp\Ids\MessageId;
 use Arcp\Json\EnvelopeSerializer;
-use Arcp\Messages\Control\Resume;
 use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\Capabilities;
 use Arcp\Messages\Session\PeerInfo;
@@ -128,25 +114,25 @@ $openTransport = static fn (): WebSocketTransport => new WebSocketTransport(
 );
 
 $client = new ARCPClient($openTransport());
-$accepted = $client->open(
+$welcome = $client->open(
     Auth::bearer((string) getenv('ARCP_TOKEN')),
     new PeerInfo('resumable', '1.0.0'),
-    new Capabilities(streaming: true, durableJobs: true),
+    new Capabilities(features: ['heartbeat', 'ack']),
 );
-$sessionId = $accepted->sessionId;
-$lastMessageId = null;
+$resumeToken = $welcome->resumeToken;   // rotates on every welcome (§6.3)
 
-// ... transport drops ...
+// ... transport drops; the session parks for $welcome->resumeWindowSec ...
 
 $resumed = new ARCPClient($openTransport());
-$resumed->open(Auth::bearer((string) getenv('ARCP_TOKEN')), new PeerInfo('resumable', '1.0.0'), new Capabilities(streaming: true, durableJobs: true));
-$resumed->session->transport->send(new Envelope(
-    id: MessageId::random(),
-    payload: new Resume(afterMessageId: (string) $lastMessageId, includeOpenStreams: true),
-    timestamp: $resumed->clock->now(),
-    sessionId: $sessionId,
-));
-// The runtime replays every envelope with id > $lastMessageId, then resumes live streaming.
+$resumed->open(
+    Auth::bearer((string) getenv('ARCP_TOKEN')),
+    new PeerInfo('resumable', '1.0.0'),
+    new Capabilities(features: ['heartbeat', 'ack']),
+    resumeToken: $resumeToken,
+    lastEventSeq: $client->session->lastReceivedEventSeq ?? 0,
+);
+// The runtime replays buffered envelopes with event_seq > last_event_seq,
+// then resumes live streaming on the same session id.
 ```
 
 ### Submitting jobs
@@ -167,32 +153,35 @@ $result = $client->invokeTool(
     idempotencyKey: new IdempotencyKey('weekly-report-2026-W19'),
 );
 
-printf("resolved value = %s\n", json_encode($result->value));
+printf("resolved value = %s\n", json_encode($result->result));
 ```
 
 ### Consuming events
 
-Iterate the ordered event stream — `log`, `metric`, `event.emit`, `tool.invoke`, `tool.result`, `job.progress`, `job.result_chunk`, `artifact.ref` — and optionally acknowledge progress so the runtime can release buffered events early.
+Job events ride as `job.event` envelopes with a §8.2 `kind` (`log`, `metric`, `status`, `progress`, `result_chunk`, ...). Subscribe to a job (§7.6) and switch on the kind; acknowledge progress (`session.ack`) so the runtime can release buffered events early.
 
 ```php
 use Arcp\Envelope\Envelope;
-use Arcp\Messages\Execution\JobProgress;
-use Arcp\Messages\Execution\ResultChunk;
-use Arcp\Messages\Telemetry\EventEmit;
-use Arcp\Messages\Telemetry\LogEvent;
-use Arcp\Messages\Telemetry\MetricEvent;
+use Arcp\Messages\Execution\JobEvent;
 
 $client->subscribe(
-    ['session_id' => [(string) $client->session->sessionId]],
+    $jobId,
     static function (Envelope $env) use ($client): void {
-        match (true) {
-            $env->payload instanceof LogEvent      => printf("[log] %s\n", $env->payload->message),
-            $env->payload instanceof MetricEvent   => printf("[metric] %s=%s %s\n", $env->payload->name, $env->payload->value, $env->payload->unit),
-            $env->payload instanceof JobProgress   => printf("[progress %d%%] %s\n", $env->payload->percent, $env->payload->message ?? ''),
-            $env->payload instanceof ResultChunk   => $client->resultChunks->push($env->payload),
-            $env->payload instanceof EventEmit     => printf("[event] %s\n", $env->payload->eventType),
-            default                                => null,
+        $payload = $env->payload;
+        if (!$payload instanceof JobEvent) {
+            return;
+        }
+        $body = $payload->body;
+        match ($payload->eventKind) {
+            'log'          => printf("[log] %s\n", (string) ($body['message'] ?? '')),
+            'metric'       => printf("[metric] %s\n", json_encode($body)),
+            'progress'     => printf("[progress %s/%s] %s\n", (string) ($body['current'] ?? '?'), (string) ($body['total'] ?? '?'), (string) ($body['message'] ?? '')),
+            'result_chunk' => $client->resultChunks->push($payload),
+            default        => null,
         };
+        if ($env->eventSeq !== null) {
+            $client->ack($env->eventSeq); // §6.5: release the replay buffer
+        }
     },
 );
 ```
@@ -204,13 +193,14 @@ Request capabilities, a budget, and an expiry; read budget-remaining metrics as 
 ```php
 use Arcp\Envelope\Envelope;
 use Arcp\Errors\BudgetExhaustedException;
-use Arcp\Messages\Telemetry\MetricEvent;
+use Arcp\Messages\Execution\JobEvent;
 
 $client->subscribe(
-    ['types' => ['metric']],
+    $jobId,
     static function (Envelope $env): void {
-        if ($env->payload instanceof MetricEvent && $env->payload->name === 'cost.budget.remaining') {
-            printf("budget remaining: %.2f %s\n", $env->payload->value, $env->payload->unit);
+        $payload = $env->payload;
+        if ($payload instanceof JobEvent && $payload->eventKind === 'metric') {
+            printf("metric: %s\n", json_encode($payload->body));
         }
     },
 );
@@ -239,24 +229,26 @@ Attach read-only to a job submitted elsewhere and observe its live stream (with 
 ```php
 use Arcp\Envelope\Envelope;
 
+use Arcp\Ids\JobId;
+
 $listing = $observer->listJobs(['status' => ['running']], limit: 10);
 $first = $listing->jobs[0] ?? null;
 if ($first === null) {
     return;
 }
 
-$subscriptionId = $observer->subscribe(
-    [
-        'job_id' => [$first['job_id']],
-        'since_message_id' => null,           // omit to start live; set for backfill
-    ],
+$jobId = new JobId((string) $first['job_id']);
+$observer->subscribe(
+    $jobId,
     static function (Envelope $env): void {
-        printf("[seq=%s] %s\n", (string) $env->id, $env->type());
+        printf("[seq=%s] %s\n", (string) ($env->eventSeq ?? '-'), $env->type());
     },
+    fromEventSeq: 0,
+    history: true, // replay buffered history before going live (§7.6)
 );
 
 // ... later ...
-$observer->unsubscribe($subscriptionId);
+$observer->unsubscribe($jobId);
 ```
 
 ### Error handling
@@ -290,7 +282,7 @@ ARCP features this SDK negotiates during the `hello`/`welcome` handshake:
 | Feature flag | Status |
 |---|---|
 | `heartbeat` | Supported |
-| `ack` | Partial |
+| `ack` | Supported |
 | `list_jobs` | Supported |
 | `subscribe` | Supported |
 | `lease_expires_at` | Supported |

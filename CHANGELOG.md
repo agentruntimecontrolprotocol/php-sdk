@@ -40,6 +40,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `success`, `error`, `cancelled`, `timed_out`) and `max_runtime_sec`
   expiry terminates as `timed_out`/`TIMEOUT`. (#137, #134, #135)
 
+- **Capabilities / peer info / auth (§6.1–§6.2)** — `Capabilities`
+  reshaped to `{encodings, features, agents?}` with intersection
+  semantics on negotiate; `PeerInfo` uses `name`/`version`; only the
+  `bearer` scheme (plus the SDK's `anonymous` extension) is accepted,
+  anything else is `UNAUTHENTICATED`. (#141, #148, #142)
+- **Token resume (§6.3)** — `session.welcome` carries `resume_token`
+  (rotated per welcome), `resume_window_sec`, and
+  `heartbeat_interval_sec` when negotiated; reconnect via
+  `session.hello {resume_token, last_event_seq}` reattaches the parked
+  session and replays buffered events; unknown/expired tokens and
+  uncovered sequences answer `RESUME_WINDOW_EXPIRED`; the legacy
+  `session.resume`/`after_message_id` machinery is removed. (#123,
+  #124, #125, #126, #55)
+- **Heartbeats & acks (§6.4–§6.5)** — ping/pong/ack are neither
+  sequenced nor buffered; `session.ack` releases buffered events at or
+  below `last_processed_seq`. (#145, #146)
+- **Graceful close (§6.7)** — `session.close` is acknowledged with the
+  new `session.closed` before teardown and in-flight jobs keep running
+  (resumable for the resume window). (#57, #129, #130)
+- **Job listing (§6.6)** — `session.jobs` entries carry `lease`,
+  `parent_job_id`, and `last_event_seq`. (#143)
+- **Job events (§8.2)** — `job.progress`, `log`, `metric`, and
+  `event.emit` folded into `job.event` kinds `progress` (§8.2.1 body
+  `{current, total?, units?, message?}`), `log`, `metric`, and
+  `status`. (#63, #147)
+- **Result streaming (§8.4)** — chunks ride as `job.event` kind
+  `result_chunk`; the runtime mints `result_id`, the terminal
+  `job.result` carries `final_status` + `result_id` + `result_size`,
+  inline/chunk mixing and unterminated streams are rejected, and
+  divergent chunk retransmissions raise while byte-identical ones are
+  tolerated. (#153, #154, #64)
+- **Idempotency (§7.2)** — acceptance-time claims with a canonical
+  request fingerprint; identical retries replay the original
+  `job.accepted` (budget captured at acceptance) plus the terminal
+  outcome; conflicting reuse returns `DUPLICATE_KEY`. (#59, #136)
+- **`nack` removed (§12)** — command rejections are correlated
+  top-level `job.error` envelopes echoing the request envelope id.
+
 See `UPGRADE.md` → “Unreleased — spec conformance” for the full
 old→new wire-type table and migration notes.
 
