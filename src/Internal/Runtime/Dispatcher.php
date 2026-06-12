@@ -74,7 +74,9 @@ final readonly class Dispatcher
     private function shouldDispatch(Envelope $env): bool
     {
         try {
-            return $this->runtime->eventLog->append($env);
+            // Inbound (client→runtime) envelope: recorded for dedup/audit but
+            // excluded from resume/backfill replay (RFC §6.3).
+            return $this->runtime->eventLog->append($env, outbound: false);
         } catch (\Throwable $e) {
             $this->runtime->logger->warning(
                 'event log append failed',

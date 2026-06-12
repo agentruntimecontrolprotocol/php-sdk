@@ -103,6 +103,28 @@ final class EventLogTest extends TestCase
         self::assertSame(['msg_1', 'msg_2'], $ids);
     }
 
+    public function testSessionReplayExcludesInboundEnvelopes(): void
+    {
+        // Outbound runtime event, then an inbound client command, then
+        // another outbound event — all for the same session.
+        $this->log->append($this->envelope('out_1'), outbound: true);
+        $this->log->append($this->envelope('in_1', 'tool.invoke'), outbound: false);
+        $this->log->append($this->envelope('out_2'), outbound: true);
+
+        $ids = [];
+        foreach ($this->log->replayAfterForSession('', $this->sess) as $env) {
+            $ids[] = (string) $env->id;
+        }
+        self::assertSame(['out_1', 'out_2'], $ids, 'resume must replay only outbound rows');
+    }
+
+    public function testInboundDedupStillWorks(): void
+    {
+        $env = $this->envelope('in_dup', 'tool.invoke');
+        self::assertTrue($this->log->append($env, outbound: false));
+        self::assertFalse($this->log->append($env, outbound: false), 'duplicate id must dedupe');
+    }
+
     public function testIdempotencyCacheReturnsExistingOnRetry(): void
     {
         $expires = $this->clock->now()->modify('+1 hour');
