@@ -94,8 +94,12 @@ final readonly class CredentialLifecycle
             return;
         }
         foreach ($this->runtime->credentials->forJob($job->id) as $credential) {
-            $this->revokeCredential($provisioner, $credential->id);
-            $this->runtime->credentials->remove($job->id, $credential->id);
+            // §14: revocation is a durability concern. Only drop the store
+            // record once upstream revocation succeeds; otherwise keep it so
+            // `CredentialStore::outstanding()` can surface / retry it later.
+            if ($this->revokeCredential($provisioner, $credential->id, $job)) {
+                $this->runtime->credentials->remove($job->id, $credential->id);
+            }
         }
     }
 
@@ -185,20 +189,29 @@ final readonly class CredentialLifecycle
         ]);
     }
 
-    private function revokeCredential(CredentialProvisioner $provisioner, string $credentialId): void
-    {
+    /** @return bool True when upstream revocation succeeded. */
+    private function revokeCredential(
+        CredentialProvisioner $provisioner,
+        string $credentialId,
+        Job $job,
+    ): bool {
         for ($attempt = 1; $attempt <= 2; $attempt++) {
             try {
                 $provisioner->revoke($credentialId);
-                return;
+                return true;
             } catch (\Throwable $e) {
                 if ($attempt === 2) {
-                    $this->runtime->logger->warning(
-                        'credential revocation failed',
-                        ['credential_id' => $credentialId, 'error' => $e->getMessage()],
+                    $this->runtime->logger->error(
+                        'credential revocation failed; record retained for retry',
+                        [
+                            'credential_id' => $credentialId,
+                            'job_id' => (string) $job->id,
+                            'error' => $e->getMessage(),
+                        ],
                     );
                 }
             }
         }
+        return false;
     }
 }
