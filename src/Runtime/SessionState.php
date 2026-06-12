@@ -16,4 +16,13 @@ enum SessionState: string
     case Closed = 'closed';
     case Rejected = 'rejected';
     case Evicted = 'evicted';
+
+    /** Whether this is a terminal state that must not be overwritten. */
+    public function isTerminal(): bool
+    {
+        return match ($this) {
+            self::Closed, self::Rejected, self::Evicted => true,
+            default => false,
+        };
+    }
 }

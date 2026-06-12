@@ -8,6 +8,8 @@ use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\PeerInfo;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 
 /**
  * `signed_jwt` verification (RFC §8.2). The runtime supplies the trust
@@ -16,10 +18,14 @@ use Firebase\JWT\Key;
  */
 final readonly class JwtAuth implements AuthScheme
 {
+    private LoggerInterface $logger;
+
     public function __construct(
         private Key $key,
         private string $audience,
+        ?LoggerInterface $logger = null,
     ) {
+        $this->logger = $logger ?? new NullLogger();
     }
 
     #[\Override]
@@ -40,7 +46,12 @@ final readonly class JwtAuth implements AuthScheme
         try {
             $decoded = JWT::decode($auth->token, $this->key);
         } catch (\Throwable $e) {
-            return AuthResult::reject('jwt verification failed: ' . $e->getMessage());
+            // Keep the wire reason opaque: the underlying decode error can
+            // leak key id, algorithm, or expiry details useful to an
+            // attacker probing trust material. Log it server-side instead.
+            $this->logger->info('jwt verification failed', ['error' => $e->getMessage()]);
+
+            return AuthResult::reject('jwt verification failed');
         }
         $claims = (array) $decoded;
         $aud = $claims['aud'] ?? null;

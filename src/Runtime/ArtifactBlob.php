@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Arcp\Runtime;
 
 /**
- * Parameter object for {@see ArtifactStore::put()} bundling the artifact
- * payload metadata so the call signature stays under the size budget.
+ * Bundles the bytes and metadata for an artifact written to
+ * {@see ArtifactStore::put()}.
  */
 final readonly class ArtifactBlob
 {

@@ -11,6 +11,8 @@ use Arcp\Envelope\MessageType;
 use Arcp\Envelope\Priority;
 use Arcp\Ids\MessageId;
 use Arcp\Ids\SubscriptionId;
+use Arcp\Messages\Control\Ping;
+use Arcp\Messages\Control\Pong;
 use Arcp\Messages\Human\HumanChoiceRequest;
 use Arcp\Messages\Human\HumanInputRequest;
 use Arcp\Messages\Permissions\PermissionRequest;
@@ -26,6 +28,13 @@ use Arcp\Messages\Subscriptions\SubscribeEvent;
  */
 final class ResponseRouter
 {
+    /**
+     * Upper bound on events buffered for a not-yet-registered subscription,
+     * so a never-registered (racy or bogus) subscription id cannot grow the
+     * buffer without limit.
+     */
+    private const int MAX_PENDING_SUBSCRIPTION_EVENTS = 1024;
+
     /** @var array<string, \Closure(Envelope): void> */
     private array $subscribers = [];
 
@@ -50,7 +59,8 @@ final class ResponseRouter
 
     public function unregisterSubscriber(SubscriptionId $id): void
     {
-        unset($this->subscribers[(string) $id]);
+        $key = (string) $id;
+        unset($this->subscribers[$key], $this->pendingSubscriptionEvents[$key]);
     }
 
     public function handle(Envelope $env): void
@@ -61,6 +71,13 @@ final class ResponseRouter
             $env->correlationId instanceof MessageId
             && $this->deps->pending->resolve($env->correlationId, $msg)
         ) {
+            return;
+        }
+        if ($msg instanceof Ping) {
+            // §6.4: the receiver MUST answer an inbound ping with a
+            // correlated pong carrying the same nonce, independent of any
+            // configured application handlers.
+            $this->sendReply($env, new Pong($msg->nonce), Priority::High);
             return;
         }
         if ($msg instanceof SubscribeEvent) {
@@ -92,6 +109,13 @@ final class ResponseRouter
         $subscriber = $this->subscribers[$key] ?? null;
         if ($subscriber !== null) {
             $this->invokeSubscriber($subscriber, $inner);
+            return;
+        }
+        if (\count($this->pendingSubscriptionEvents[$key] ?? []) >= self::MAX_PENDING_SUBSCRIPTION_EVENTS) {
+            $this->deps->logger->warning(
+                'dropping subscription event; pending buffer full for unregistered subscription',
+                ['subscription_id' => $key, 'cap' => self::MAX_PENDING_SUBSCRIPTION_EVENTS],
+            );
             return;
         }
         $this->pendingSubscriptionEvents[$key][] = $inner;

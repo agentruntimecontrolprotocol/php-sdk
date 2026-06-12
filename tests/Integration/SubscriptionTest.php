@@ -32,7 +32,7 @@ final class SubscriptionTest extends TestCase
         [$serverT, $clientT] = MemoryTransport::pair();
         $serverFuture = $runtime->serveAsync($serverT);
         $client = new ARCPClient($clientT);
-        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(subscriptions: true, anonymous: true));
+        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(subscriptions: true, anonymous: true, features: ['subscribe']));
 
         $sawBackfillMarker = new DeferredFuture();
         $client->subscribe(
@@ -55,7 +55,7 @@ final class SubscriptionTest extends TestCase
     public function testSubscriptionFiltersByType(): void
     {
         $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
-        $runtime->registerTool('emitProgress', new class () implements ToolHandler {
+        $runtime->registerTool('emit_progress', new class () implements ToolHandler {
             #[\Override]
             public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
             {
@@ -67,7 +67,7 @@ final class SubscriptionTest extends TestCase
         [$serverT, $clientT] = MemoryTransport::pair();
         $serverFuture = $runtime->serveAsync($serverT);
         $client = new ARCPClient($clientT);
-        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(subscriptions: true, anonymous: true));
+        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(subscriptions: true, anonymous: true, features: ['subscribe']));
 
         $observed = [];
         $client->subscribe(
@@ -79,7 +79,7 @@ final class SubscriptionTest extends TestCase
 
         // Give the subscription a beat to settle.
         delay(0.01);
-        $client->invokeTool('emitProgress');
+        $client->invokeTool('emit_progress');
         delay(0.05);
 
         // Should observe at least one log envelope, and no `job.progress`.
@@ -96,7 +96,7 @@ final class SubscriptionTest extends TestCase
         [$serverT, $clientT] = MemoryTransport::pair();
         $serverFuture = $runtime->serveAsync($serverT);
         $client = new ARCPClient($clientT);
-        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(subscriptions: true, anonymous: true));
+        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(subscriptions: true, anonymous: true, features: ['subscribe']));
 
         $caught = null;
         try {
@@ -113,7 +113,7 @@ final class SubscriptionTest extends TestCase
     public function testEmptyFilterDoesNotObserveOtherSessions(): void
     {
         $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
-        $runtime->registerTool('emitProgress', new class () implements ToolHandler {
+        $runtime->registerTool('emit_progress', new class () implements ToolHandler {
             #[\Override]
             public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
             {
@@ -128,8 +128,8 @@ final class SubscriptionTest extends TestCase
         $serverFutureB = $runtime->serveAsync($serverTB);
         $clientA = new ARCPClient($clientTA);
         $clientB = new ARCPClient($clientTB);
-        $clientA->open(Auth::none(), new PeerInfo('cli-a', '0.1'), new Capabilities(subscriptions: true, anonymous: true));
-        $clientB->open(Auth::none(), new PeerInfo('cli-b', '0.1'), new Capabilities(subscriptions: true, anonymous: true));
+        $clientA->open(Auth::none(), new PeerInfo('cli-a', '0.1'), new Capabilities(subscriptions: true, anonymous: true, features: ['subscribe']));
+        $clientB->open(Auth::none(), new PeerInfo('cli-b', '0.1'), new Capabilities(subscriptions: true, anonymous: true, features: ['subscribe']));
 
         $aObservedSessions = [];
         $clientA->subscribe(
@@ -143,7 +143,7 @@ final class SubscriptionTest extends TestCase
         delay(0.01);
 
         // Drive activity on B; A's empty-filter subscription must NOT see it.
-        $clientB->invokeTool('emitProgress');
+        $clientB->invokeTool('emit_progress');
         delay(0.05);
 
         $aSessionId = (string) $clientA->session->sessionId;

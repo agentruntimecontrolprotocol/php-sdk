@@ -23,6 +23,11 @@ final class ExtensionsTest extends TestCase
         yield 'ack' => ['ack'];
         yield 'metric' => ['metric'];
         yield 'log' => ['log'];
+        yield 'subscribe' => ['subscribe'];
+        yield 'subscribe.accepted' => ['subscribe.accepted'];
+        yield 'subscribe.event' => ['subscribe.event'];
+        yield 'subscribe.closed' => ['subscribe.closed'];
+        yield 'unsubscribe' => ['unsubscribe'];
     }
 
     #[DataProvider('coreNames')]
@@ -43,6 +48,8 @@ final class ExtensionsTest extends TestCase
         yield 'uppercase first segment rejected' => ['ArcpX.example.v1', false];
         yield 'core prefix rejected' => ['session.foo', false];
         yield 'bare x- rejected (not a type name)' => ['x-foo', false];
+        yield 'dotted x- rejected (not a type name)' => ['x-foo.v1', false];
+        yield 'dotted x-experimental rejected' => ['x-experimental.foo.v1', false];
     }
 
     #[DataProvider('extensionNames')]

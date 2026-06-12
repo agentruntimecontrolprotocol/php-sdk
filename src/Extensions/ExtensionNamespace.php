@@ -29,7 +29,7 @@ final class ExtensionNamespace
     private const array CORE_PREFIXES = [
         'session.', 'tool.', 'job.', 'stream.',
         'human.', 'permission.', 'lease.',
-        'subscribe', 'unsubscribe', 'artifact.',
+        'subscribe', 'subscribe.', 'unsubscribe', 'unsubscribe.', 'artifact.',
         'event.emit', 'log', 'metric', 'trace.span',
         'ping', 'pong', 'ack', 'nack',
         'cancel', 'interrupt', 'resume', 'backpressure',
@@ -59,6 +59,11 @@ final class ExtensionNamespace
     public static function isValidExtension(string $type): bool
     {
         if (self::isCore($type)) {
+            return false;
+        }
+        // The bare `x-` prefix is reserved for transport-internal
+        // experimental fields and MUST NOT be a long-lived envelope type.
+        if (str_starts_with($type, 'x-')) {
             return false;
         }
         // arcpx.<vendor>.<name>.v<n>  e.g. arcpx.example.v1

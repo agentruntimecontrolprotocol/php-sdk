@@ -16,8 +16,11 @@ use Arcp\Errors\DeadlineExceededException;
 use Arcp\Errors\ErrorCode;
 use Arcp\Errors\ErrorPayload;
 use Arcp\Errors\FailedPreconditionException;
+use Arcp\Errors\HeartbeatLostException;
 use Arcp\Errors\InternalException;
 use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\LeaseExpiredException;
+use Arcp\Errors\LeaseRevokedException;
 use Arcp\Errors\LeaseSubsetViolationException;
 use Arcp\Errors\NotFoundException;
 use Arcp\Errors\OutOfRangeException;
@@ -27,6 +30,8 @@ use Arcp\Errors\UnauthenticatedException;
 use Arcp\Errors\UnavailableException;
 use Arcp\Errors\UnimplementedException;
 use Arcp\Errors\UnknownException;
+use Arcp\Ids\JobId;
+use Arcp\Ids\LeaseId;
 
 /**
  * Maps a wire-level {@see ErrorPayload} onto the SDK's typed exception
@@ -58,6 +63,9 @@ final class ErrorMapper
             ErrorCode::OutOfRange => new OutOfRangeException($err->message),
             ErrorCode::BackpressureOverflow => new BackpressureOverflowException($err->message),
             ErrorCode::LeaseSubsetViolation => $this->leaseSubsetViolation($err),
+            ErrorCode::LeaseExpired => $this->leaseExpired($err),
+            ErrorCode::LeaseRevoked => $this->leaseRevoked($err),
+            ErrorCode::HeartbeatLost => $this->heartbeatLost($err),
             ErrorCode::BudgetExhausted => $this->budgetExhausted($err),
             ErrorCode::AgentVersionNotAvailable => $this->agentVersionNotAvailable($err),
             default => new UnknownException($err->code, $err->message),
@@ -99,6 +107,48 @@ final class ErrorMapper
             \is_string($field) ? $field : '?',
             $err->message,
         );
+    }
+
+    private function leaseExpired(ErrorPayload $err): LeaseExpiredException
+    {
+        $leaseId = $err->details['lease_id'] ?? null;
+        $expiredAt = $err->details['expired_at'] ?? null;
+        return new LeaseExpiredException(
+            new LeaseId(\is_string($leaseId) && $leaseId !== '' ? $leaseId : 'unknown'),
+            self::parseTimestamp(\is_string($expiredAt) ? $expiredAt : null),
+        );
+    }
+
+    private function leaseRevoked(ErrorPayload $err): LeaseRevokedException
+    {
+        $leaseId = $err->details['lease_id'] ?? null;
+        $reason = $err->details['reason'] ?? '';
+        return new LeaseRevokedException(
+            new LeaseId(\is_string($leaseId) && $leaseId !== '' ? $leaseId : 'unknown'),
+            \is_string($reason) ? $reason : '',
+        );
+    }
+
+    private function heartbeatLost(ErrorPayload $err): HeartbeatLostException
+    {
+        $jobId = $err->details['job_id'] ?? null;
+        $missed = $err->details['missed_count'] ?? 0;
+        return new HeartbeatLostException(
+            new JobId(\is_string($jobId) && $jobId !== '' ? $jobId : 'unknown'),
+            \is_int($missed) ? $missed : 0,
+        );
+    }
+
+    private static function parseTimestamp(?string $value): \DateTimeImmutable
+    {
+        if ($value === null || $value === '') {
+            return new \DateTimeImmutable('@0');
+        }
+        try {
+            return new \DateTimeImmutable($value);
+        } catch (\Throwable) {
+            return new \DateTimeImmutable('@0');
+        }
     }
 
     private function agentVersionNotAvailable(ErrorPayload $err): AgentVersionNotAvailableException

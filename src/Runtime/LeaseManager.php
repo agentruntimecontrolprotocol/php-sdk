@@ -79,9 +79,20 @@ final class LeaseManager
         return $lease;
     }
 
-    public function ensureUsable(LeaseId $id, LeaseScope $scope): LeaseGranted
+    /**
+     * Resolve a lease and assert it matches the requested scope. When
+     * `$sessionId` is supplied the lookup is session-scoped (leases are
+     * session-scoped per RFC §15.5), so a caller holding a lease id from a
+     * different session cannot pass scope checks.
+     *
+     * @throws PermissionDeniedException when the lease belongs to another
+     *                                   session or the scope does not match.
+     */
+    public function ensureUsable(LeaseId $id, LeaseScope $scope, ?SessionId $sessionId = null): LeaseGranted
     {
-        $lease = $this->get($id);
+        $lease = $sessionId instanceof SessionId
+            ? $this->getForSession($id, $sessionId)
+            : $this->get($id);
         if (
             $lease->permission !== $scope->permission
             || $lease->resource !== $scope->resource
@@ -96,6 +107,12 @@ final class LeaseManager
         return $lease;
     }
 
+    /**
+     * Replace a lease's `expires_at` with `$newExpiresAt`, preserving the
+     * existing `modelUse` and `costBudget` (including any already-consumed
+     * budget) verbatim. Consumers that need fresh counters must register a
+     * new lease rather than extend an existing one.
+     */
     public function extend(LeaseId $id, \DateTimeImmutable $newExpiresAt): LeaseGranted
     {
         $lease = $this->get($id);
@@ -148,6 +165,14 @@ final class LeaseManager
                 (string) $parent->leaseId,
                 (string) $child->leaseId,
                 'cost.budget',
+            );
+        }
+        // §9.4: a delegated lease's expires_at MUST NOT exceed the parent's.
+        if ($child->expiresAt > $parent->expiresAt) {
+            throw new LeaseSubsetViolationException(
+                (string) $parent->leaseId,
+                (string) $child->leaseId,
+                'lease_constraints.expires_at',
             );
         }
     }

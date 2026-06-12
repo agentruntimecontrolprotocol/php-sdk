@@ -58,20 +58,40 @@ final class CostBudget
         if (!str_starts_with($metricName, 'cost.') || $metricName === 'cost.budget.remaining') {
             return null;
         }
-        if (!isset($this->remaining[$unit]) || $value < 0) {
-            return null;
-        }
         if (\is_float($value) && (!is_finite($value) || is_nan($value))) {
             throw new InvalidArgumentException('cost metric value must be finite', [
                 'metric' => $metricName,
                 'value' => $value,
             ]);
         }
+        // §9.6: "Negative values are rejected and produce no decrement."
+        if ($value < 0) {
+            throw new InvalidArgumentException('cost metric value must not be negative', [
+                'metric' => $metricName,
+                'value' => $value,
+            ]);
+        }
+        if (!isset($this->remaining[$unit])) {
+            return null;
+        }
         $this->remaining[$unit] -= self::numericToScaled($value);
-        if ($this->remaining[$unit] <= 0) {
+        // A metric that consumes exactly the remaining balance lands on zero
+        // and is still within budget; only an overspend (negative remaining)
+        // exhausts the counter.
+        if ($this->remaining[$unit] < 0) {
             throw new BudgetExhaustedException($unit, $this->format($this->remaining[$unit]));
         }
         return $this->format($this->remaining[$unit]);
+    }
+
+    /**
+     * Return an independent copy of this budget seeded from the current
+     * remaining amounts. Used so each job gets its own counter rather than
+     * aliasing a registered lease's mutable instance (§9.6).
+     */
+    public function snapshot(): self
+    {
+        return new self($this->remaining);
     }
 
     /** @return array<string, string> */

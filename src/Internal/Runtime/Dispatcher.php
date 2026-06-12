@@ -10,6 +10,9 @@ use Arcp\Envelope\MessageType;
 use Arcp\Errors\ARCPException;
 use Arcp\Errors\ErrorPayload;
 use Arcp\Errors\InternalException;
+use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\TransportClosedException;
+use Arcp\Errors\UnimplementedException;
 use Arcp\Ids\MessageId;
 use Arcp\Messages\Artifacts\ArtifactFetch;
 use Arcp\Messages\Artifacts\ArtifactPut;
@@ -55,7 +58,20 @@ final readonly class Dispatcher
     public function readLoop(Session $session, ?Cancellation $cancellation): void
     {
         while (!$session->transport->isClosed()) {
-            $env = $session->transport->receive($cancellation);
+            try {
+                $env = $session->transport->receive($cancellation);
+            } catch (TransportClosedException) {
+                return;
+            } catch (InvalidArgumentException | UnimplementedException $e) {
+                // A single undecodable or unknown-type frame must not tear
+                // down the session (RFC §5 forward-compatibility); log and
+                // keep reading so subsequent valid commands still work.
+                $this->runtime->logger->warning(
+                    'dropped undecodable frame',
+                    ['error' => $e->getMessage()],
+                );
+                continue;
+            }
             if (!$env instanceof Envelope) {
                 return;
             }
@@ -74,7 +90,9 @@ final readonly class Dispatcher
     private function shouldDispatch(Envelope $env): bool
     {
         try {
-            return $this->runtime->eventLog->append($env);
+            // Inbound (client→runtime) envelope: recorded for dedup/audit but
+            // excluded from resume/backfill replay (RFC §6.3).
+            return $this->runtime->eventLog->append($env, outbound: false);
         } catch (\Throwable $e) {
             $this->runtime->logger->warning(
                 'event log append failed',
@@ -125,6 +143,7 @@ final readonly class Dispatcher
 
     private function routeLifecycle(Session $session, Envelope $env, MessageType $msg): bool
     {
+        $handled = true;
         match (true) {
             $msg instanceof Ping => $this->lifecycle->handlePing($session, $env, $msg),
             $msg instanceof Pong, $msg instanceof Ack => null,
@@ -134,20 +153,24 @@ final readonly class Dispatcher
             $msg instanceof Resume => $this->lifecycle->handleResume($session, $env, $msg),
             $msg instanceof LeaseRefresh
                 => $this->lifecycle->handleLeaseRefresh($session, $env, $msg),
-            default => null,
+            default => $handled = false,
         };
-        return $msg instanceof Ping
-            || $msg instanceof Pong
-            || $msg instanceof Ack
-            || $msg instanceof SessionClose
-            || $msg instanceof Cancel
-            || $msg instanceof Interrupt
-            || $msg instanceof Resume
-            || $msg instanceof LeaseRefresh;
+        return $handled;
     }
 
     private function routeWork(Session $session, Envelope $env, MessageType $msg): bool
     {
+        // §6.2: a feature-flagged surface may only be used when it is in the
+        // negotiated intersection. Reject un-negotiated list_jobs/subscribe.
+        if ($msg instanceof ListJobs && !$this->featureEnabled($session, 'list_jobs')) {
+            $this->lifecycle->nack($session, $env, 'UNIMPLEMENTED', 'list_jobs not negotiated');
+            return true;
+        }
+        if ($msg instanceof Subscribe && !$this->featureEnabled($session, 'subscribe')) {
+            $this->lifecycle->nack($session, $env, 'UNIMPLEMENTED', 'subscribe not negotiated');
+            return true;
+        }
+        $handled = true;
         match (true) {
             $msg instanceof ToolInvoke => $this->toolInvocation->handle($session, $env, $msg),
             $msg instanceof ListJobs => $this->jobList->handle($session, $env, $msg),
@@ -156,15 +179,15 @@ final readonly class Dispatcher
             $msg instanceof ArtifactPut => $this->artifacts->put($session, $env, $msg),
             $msg instanceof ArtifactFetch => $this->artifacts->fetch($session, $env, $msg),
             $msg instanceof ArtifactRelease => $this->artifacts->release($session, $env, $msg),
-            default => null,
+            default => $handled = false,
         };
-        return $msg instanceof ToolInvoke
-            || $msg instanceof ListJobs
-            || $msg instanceof Subscribe
-            || $msg instanceof Unsubscribe
-            || $msg instanceof ArtifactPut
-            || $msg instanceof ArtifactFetch
-            || $msg instanceof ArtifactRelease;
+        return $handled;
+    }
+
+    private function featureEnabled(Session $session, string $feature): bool
+    {
+        return $session->capabilities !== null
+            && \in_array($feature, $session->capabilities->features, true);
     }
 
     private function routeFallback(Session $session, Envelope $env, MessageType $msg): void

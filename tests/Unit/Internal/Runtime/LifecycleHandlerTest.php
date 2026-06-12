@@ -23,7 +23,6 @@ use Arcp\Messages\Control\CancelAccepted;
 use Arcp\Messages\Control\Interrupt;
 use Arcp\Messages\Control\Nack;
 use Arcp\Messages\Control\Resume;
-use Arcp\Messages\Execution\ToolError;
 use Arcp\Messages\Execution\ToolInvoke;
 use Arcp\Messages\Human\HumanChoiceRequest;
 use Arcp\Messages\Human\HumanChoiceResponse;
@@ -73,7 +72,7 @@ final class LifecycleHandlerTest extends TestCase
         $serverFuture->await();
     }
 
-    public function testCancelUnknownJobReturnsFailedPrecondition(): void
+    public function testCancelUnknownJobReturnsNotFound(): void
     {
         [, $client, $serverFuture] = $this->pair();
         $msgId = MessageId::random();
@@ -86,7 +85,7 @@ final class LifecycleHandlerTest extends TestCase
         $client->session->transport->send($env);
         $response = $client->pending->awaitResponse($msgId, 5.0);
         self::assertInstanceOf(Nack::class, $response);
-        self::assertSame('FAILED_PRECONDITION', $response->error->code);
+        self::assertSame('NOT_FOUND', $response->error->code);
 
         $client->close();
         $serverFuture->await();
@@ -157,7 +156,7 @@ final class LifecycleHandlerTest extends TestCase
         $client->session->transport->send($env);
         $response = $client->pending->awaitResponse($msgId, 5.0);
         self::assertInstanceOf(Nack::class, $response);
-        self::assertSame('FAILED_PRECONDITION', $response->error->code);
+        self::assertSame('NOT_FOUND', $response->error->code);
 
         $client->close();
         $serverFuture->await();
@@ -260,7 +259,7 @@ final class LifecycleHandlerTest extends TestCase
         $serverFuture->await();
     }
 
-    public function testResumeWithUnknownAfterMessageIdYieldsDataLossToolError(): void
+    public function testResumeWithUnknownAfterMessageIdYieldsDataLossNack(): void
     {
         [, $client, $serverFuture] = $this->pair();
 
@@ -273,7 +272,7 @@ final class LifecycleHandlerTest extends TestCase
         );
         $client->session->transport->send($env);
         $response = $client->pending->awaitResponse($msgId, 5.0);
-        self::assertInstanceOf(ToolError::class, $response);
+        self::assertInstanceOf(Nack::class, $response);
         self::assertSame('DATA_LOSS', $response->error->code);
 
         $client->close();

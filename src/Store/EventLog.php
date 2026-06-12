@@ -45,7 +45,48 @@ final readonly class EventLog
         $this->pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
         $schema = (string) file_get_contents(__DIR__ . '/schema.sql');
         $this->pdo->exec($schema);
+        $this->migrateDirectionColumn();
     }
+
+    /**
+     * Add the `outbound` direction column to pre-existing databases that
+     * were created before the resume/backfill direction fix. New databases
+     * already have it via schema.sql. Existing rows are backfilled with a
+     * type-prefix heuristic: known client→runtime command types are marked
+     * inbound (0), everything else defaults to outbound (1).
+     */
+    private function migrateDirectionColumn(): void
+    {
+        $cols = $this->pdo->query('PRAGMA table_info(events)');
+        if ($cols === false) {
+            return;
+        }
+        foreach ($cols->fetchAll(\PDO::FETCH_ASSOC) as $col) {
+            if (\is_array($col) && ($col['name'] ?? null) === 'outbound') {
+                return;
+            }
+        }
+        $this->pdo->exec('ALTER TABLE events ADD COLUMN outbound INTEGER NOT NULL DEFAULT 1');
+        $placeholders = implode(',', array_fill(0, \count(self::INBOUND_TYPES), '?'));
+        $stmt = $this->pdo->prepare(
+            'UPDATE events SET outbound = 0 WHERE type IN (' . $placeholders . ')',
+        );
+        $stmt->execute(self::INBOUND_TYPES);
+    }
+
+    /**
+     * Wire types that only travel client→runtime, used by the migration
+     * backfill heuristic.
+     *
+     * @var list<string>
+     */
+    private const array INBOUND_TYPES = [
+        'tool.invoke', 'ping', 'session.close', 'cancel', 'interrupt',
+        'resume', 'lease.refresh', 'subscribe', 'unsubscribe',
+        'session.list_jobs', 'artifact.put', 'artifact.fetch',
+        'artifact.release', 'job.schedule', 'workflow.start',
+        'agent.delegate', 'agent.handoff',
+    ];
 
     public static function inMemory(
         EnvelopeSerializer $serializer,
@@ -66,27 +107,28 @@ final readonly class EventLog
      * Append `$env` to the log. Returns `true` if the envelope was inserted,
      * `false` if a row with the same `id` already exists (dedup hit).
      */
-    public function append(Envelope $env): bool
+    public function append(Envelope $env, bool $outbound = true): bool
     {
         $stmt = $this->pdo->prepare(<<<'SQL'
             INSERT OR IGNORE INTO events (
                 message_id, session_id, job_id, stream_id, trace_id,
                 type, priority, correlation_id, idempotency_key,
-                timestamp, payload_json
+                timestamp, payload_json, outbound
             ) VALUES (
                 :message_id, :session_id, :job_id, :stream_id, :trace_id,
                 :type, :priority, :correlation_id, :idempotency_key,
-                :timestamp, :payload_json
+                :timestamp, :payload_json, :outbound
             )
             SQL);
-        $stmt->execute($this->bindRow($env));
+        $stmt->execute($this->bindRow($env, $outbound));
         return $stmt->rowCount() === 1;
     }
 
     /** @return array<string, string|int|null> */
-    private function bindRow(Envelope $env): array
+    private function bindRow(Envelope $env, bool $outbound): array
     {
         return [
+            ':outbound' => $outbound ? 1 : 0,
             ':message_id' => (string) $env->id,
             ':session_id' => $env->sessionId instanceof SessionId ? (string) $env->sessionId : null,
             ':job_id' => $env->jobId instanceof JobId ? (string) $env->jobId : null,
@@ -203,8 +245,11 @@ final readonly class EventLog
         string $sessionId,
         ?int $limit,
     ): \PDOStatement {
+        // Replay only runtime-originated (outbound) envelopes: a resuming
+        // client / subscriber must never receive its own past commands back
+        // (RFC §6.3). Inbound rows remain for dedup/audit only.
         $sql = 'SELECT payload_json FROM events
-            WHERE rowid > :rowid AND session_id = :session_id
+            WHERE rowid > :rowid AND session_id = :session_id AND outbound = 1
             ORDER BY rowid ASC';
         if ($limit !== null) {
             $sql .= ' LIMIT :limit';
@@ -260,10 +305,16 @@ final readonly class EventLog
         if ($existing !== null) {
             return $existing;
         }
+        // Upsert: lookupIdempotent() returns null for an expired row without
+        // deleting it (#110), so refresh any stale entry in place rather than
+        // colliding with the (principal, idempotency_key) primary key.
         $stmt = $this->pdo->prepare(<<<'SQL'
             INSERT INTO idempotency_cache
                 (principal, idempotency_key, outcome_message_id, expires_at)
             VALUES (:principal, :key, :outcome, :expires)
+            ON CONFLICT(principal, idempotency_key) DO UPDATE SET
+                outcome_message_id = excluded.outcome_message_id,
+                expires_at = excluded.expires_at
             SQL);
         $stmt->execute([
             ':principal' => $record->principal,
@@ -272,6 +323,23 @@ final readonly class EventLog
             ':expires' => $record->expiresAt->format(\DateTimeInterface::RFC3339_EXTENDED),
         ]);
         return null;
+    }
+
+    /**
+     * Delete idempotency-cache rows whose retention horizon has passed.
+     * Intended to be driven by a periodic sweep rather than read paths.
+     *
+     * @return int number of rows purged
+     */
+    public function purgeExpiredIdempotent(): int
+    {
+        $stmt = $this->pdo->prepare(
+            'DELETE FROM idempotency_cache WHERE expires_at <= :now',
+        );
+        $stmt->execute([
+            ':now' => $this->clock->now()->format(\DateTimeInterface::RFC3339_EXTENDED),
+        ]);
+        return $stmt->rowCount();
     }
 
     public function lookupIdempotent(string $principal, string $idempotencyKey): ?string
@@ -297,12 +365,8 @@ final readonly class EventLog
         }
         $expires = new \DateTimeImmutable($expiresStr);
         if ($expires <= $this->clock->now()) {
-            // Lazy GC of an expired entry.
-            $del = $this->pdo->prepare(<<<'SQL'
-                DELETE FROM idempotency_cache
-                WHERE principal = :principal AND idempotency_key = :key
-                SQL);
-            $del->execute([':principal' => $principal, ':key' => $idempotencyKey]);
+            // Treat an expired entry as absent. Deletion is deferred to
+            // purgeExpiredIdempotent() so this lookup stays side-effect free.
             return null;
         }
         return $outcome;

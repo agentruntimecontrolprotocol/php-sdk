@@ -15,7 +15,11 @@ CREATE TABLE IF NOT EXISTS events (
     correlation_id    TEXT,
     idempotency_key   TEXT,
     timestamp         TEXT NOT NULL,
-    payload_json      TEXT NOT NULL
+    payload_json      TEXT NOT NULL,
+    -- 1 = runtime→client (outbound), 0 = client→runtime (inbound).
+    -- Resume/backfill replay only outbound rows (RFC §6.3); inbound rows are
+    -- retained for transport dedup and audit.
+    outbound          INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE INDEX IF NOT EXISTS events_session_idx  ON events(session_id, rowid);

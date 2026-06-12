@@ -6,10 +6,17 @@ namespace Arcp\Runtime;
 
 use Arcp\Errors\InvalidArgumentException;
 
-/** Parsed ARCP v1.1 agent reference: `name` or `name@version`. */
+/**
+ * Parsed ARCP v1.1 agent reference: `name` or `name@version`.
+ *
+ * Per §7.5 the grammar is `name ::= [a-z0-9][a-z0-9._-]*` — lowercase
+ * only — so {@see \Arcp\Runtime\ARCPRuntime::registerTool()} rejects
+ * uppercase names at registration rather than minting non-interoperable
+ * agent identities.
+ */
 final readonly class AgentRef
 {
-    private const string NAME_PATTERN = '/^[A-Za-z0-9][A-Za-z0-9._-]*$/';
+    private const string NAME_PATTERN = '/^[a-z0-9][a-z0-9._-]*$/';
     private const string VERSION_PATTERN = '/^[A-Za-z0-9.+_-]+$/';
 
     public function __construct(public string $name, public ?string $version = null)

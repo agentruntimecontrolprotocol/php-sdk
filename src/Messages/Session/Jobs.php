@@ -32,11 +32,14 @@ final readonly class Jobs extends MessageType
     #[\Override]
     public function toArray(): array
     {
-        return [
+        $out = [
             'request_id' => $this->requestId,
             'jobs' => $this->jobs,
-            'next_cursor' => $this->nextCursor,
         ];
+        if ($this->nextCursor !== null) {
+            $out['next_cursor'] = $this->nextCursor;
+        }
+        return $out;
     }
 
     #[\Override]

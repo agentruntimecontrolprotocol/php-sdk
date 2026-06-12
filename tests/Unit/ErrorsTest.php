@@ -172,6 +172,25 @@ final class ErrorsTest extends TestCase
         self::assertSame($payload->details, $back->details);
     }
 
+    public function testRetryableAlwaysEmittedAndDerived(): void
+    {
+        // §12: every encoded error payload carries a retryable boolean even
+        // when not set explicitly.
+        $leaseExpired = new ErrorPayload('LEASE_EXPIRED', 'lease ended');
+        self::assertArrayHasKey('retryable', $leaseExpired->toArray());
+        self::assertFalse($leaseExpired->toArray()['retryable']);
+
+        $budget = new ErrorPayload('BUDGET_EXHAUSTED', 'no funds');
+        self::assertFalse($budget->toArray()['retryable']);
+
+        $internal = new ErrorPayload('INTERNAL', 'boom');
+        self::assertTrue($internal->toArray()['retryable']);
+
+        // An explicit flag still wins over the derived default.
+        $forced = new ErrorPayload('INTERNAL', 'boom', retryable: false);
+        self::assertFalse($forced->toArray()['retryable']);
+    }
+
     public function testErrorPayloadFromException(): void
     {
         $e = new PermissionDeniedException('p', 'r');

@@ -112,7 +112,11 @@ final readonly class HandshakeNegotiator
             $ctx->session->state = SessionState::Rejected;
             return null;
         }
-        return $open->client->principal ?? 'anonymous';
+        // Do not trust the principal supplied in the untrusted PeerInfo
+        // block: without an auth router the server assigns an opaque,
+        // per-session anonymous principal so a client cannot claim another
+        // identity to read its jobs or replay its idempotent outcomes.
+        return 'anonymous-' . bin2hex(random_bytes(16));
     }
 
     private function authenticateWithRouter(
@@ -198,7 +202,10 @@ final readonly class HandshakeNegotiator
         if (\is_array($required)) {
             $advertisedFeatures = $this->runtime->advertisedCapabilitiesForSession()->features;
             foreach ($required as $feature) {
-                if (\is_string($feature) && !\in_array($feature, $advertisedFeatures, true)) {
+                if (!\is_string($feature)) {
+                    return 'required_features entry must be string';
+                }
+                if (!\in_array($feature, $advertisedFeatures, true)) {
                     return 'feature unsupported: ' . $feature;
                 }
             }

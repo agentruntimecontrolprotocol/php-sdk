@@ -19,9 +19,8 @@ use Arcp\Ids\TraceId;
 
 /**
  * Pure functions for shuffling envelope metadata between {@see Envelope}
- * instances and their RFC §6.1 array shape. Extracted from
- * {@see \Arcp\Json\EnvelopeSerializer} to keep that class under the
- * 300-line hard limit; carries no state of its own.
+ * instances and their RFC §6.1 array shape. Extracted so the envelope
+ * serializer stays focused on payload dispatch; carries no state of its own.
  *
  * @internal
  */
@@ -36,7 +35,7 @@ final readonly class EnvelopeMetadataCodec
             'arcp' => $env->arcp,
             'id' => (string) $env->id,
             'type' => $env->type(),
-            'timestamp' => $env->timestamp->format('Y-m-d\\TH:i:s.up'),
+            'timestamp' => $env->timestamp->format(\DateTimeInterface::RFC3339_EXTENDED),
         ];
         if ($env->priority !== Priority::Normal) {
             $out['priority'] = $env->priority->value;
@@ -53,7 +52,7 @@ final readonly class EnvelopeMetadataCodec
     /**
      * @return array<string, string>
      */
-    public function scopeIdsToArray(Envelope $env): array
+    private function scopeIdsToArray(Envelope $env): array
     {
         $out = [];
         if ($env->sessionId instanceof SessionId) {
@@ -74,7 +73,7 @@ final readonly class EnvelopeMetadataCodec
     /**
      * @return array<string, string>
      */
-    public function traceIdsToArray(Envelope $env): array
+    private function traceIdsToArray(Envelope $env): array
     {
         $out = [];
         if ($env->traceId instanceof TraceId) {
@@ -92,7 +91,7 @@ final readonly class EnvelopeMetadataCodec
     /**
      * @return array<string, string>
      */
-    public function correlationIdsToArray(Envelope $env): array
+    private function correlationIdsToArray(Envelope $env): array
     {
         $out = [];
         if ($env->correlationId instanceof MessageId) {
@@ -110,7 +109,7 @@ final readonly class EnvelopeMetadataCodec
     /**
      * @return array<string, mixed>
      */
-    public function endpointsToArray(Envelope $env): array
+    private function endpointsToArray(Envelope $env): array
     {
         $out = [];
         if ($env->source !== null) {

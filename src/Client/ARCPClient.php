@@ -16,6 +16,8 @@ use Arcp\Envelope\Envelope;
 use Arcp\Envelope\MessageCatalog;
 use Arcp\Envelope\MessageTypeRegistry;
 use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\TransportClosedException;
+use Arcp\Errors\UnimplementedException;
 use Arcp\Ids\ArtifactId;
 use Arcp\Ids\IdempotencyKey;
 use Arcp\Ids\JobId;
@@ -468,19 +470,41 @@ final class ARCPClient
     {
         try {
             while (!$this->session->transport->isClosed()) {
-                $env = $this->session->transport->receive($cancellation);
-                if (!$env instanceof Envelope) {
+                if (!$this->readOnce($cancellation)) {
                     break;
                 }
-                if ($env->payload instanceof ResultChunk) {
-                    $this->resultChunks->push($env->payload);
-                }
-                $this->router->handle($env);
             }
         } catch (\Throwable $e) {
             $this->logger->warning('client read-loop ended', ['error' => $e->getMessage()]);
         } finally {
             $this->pending->failAll(new \RuntimeException('read loop ended'));
         }
+    }
+
+    /**
+     * Process a single inbound frame. Returns false when the loop should
+     * stop (clean EOF or transport closure). A single undecodable or
+     * unknown-type frame is logged and skipped so one bad frame from the
+     * peer cannot kill the session (RFC §5 forward-compatibility).
+     */
+    private function readOnce(?Cancellation $cancellation): bool
+    {
+        try {
+            $env = $this->session->transport->receive($cancellation);
+        } catch (TransportClosedException $e) {
+            $this->logger->warning('client read-loop ended', ['error' => $e->getMessage()]);
+            return false;
+        } catch (InvalidArgumentException | UnimplementedException $e) {
+            $this->logger->warning('client dropped undecodable frame', ['error' => $e->getMessage()]);
+            return true;
+        }
+        if (!$env instanceof Envelope) {
+            return false;
+        }
+        if ($env->payload instanceof ResultChunk) {
+            $this->resultChunks->push($env->payload);
+        }
+        $this->router->handle($env);
+        return true;
     }
 }

@@ -27,7 +27,7 @@ final readonly class SubscriptionFilter
         public array $jobIds = [],
         public array $streamIds = [],
         public array $types = [],
-        public Priority $minPriority = Priority::Low,
+        public ?Priority $minPriority = null,
     ) {
     }
 }

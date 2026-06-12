@@ -30,7 +30,7 @@ final class SubscriptionRouterTest extends TestCase
         [$serverT, $clientT] = MemoryTransport::pair();
         $serverFuture = $runtime->serveAsync($serverT);
         $client = new ARCPClient($clientT);
-        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(subscriptions: true, anonymous: true));
+        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(subscriptions: true, anonymous: true, features: ['subscribe']));
         return [$runtime, $client, $serverFuture];
     }
 

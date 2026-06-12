@@ -24,6 +24,13 @@ final class V11FeaturesTest extends TestCase
         AgentRef::parse('Planner@bad/version');
     }
 
+    public function testAgentRefRejectsUppercaseName(): void
+    {
+        // §7.5: name ::= [a-z0-9][a-z0-9._-]* (lowercase only).
+        $this->expectException(InvalidArgumentException::class);
+        new AgentRef('MyTool');
+    }
+
     public function testCostBudgetConsumesCostMetrics(): void
     {
         $budget = CostBudget::fromPatterns(['USD:1.00']);
@@ -35,7 +42,8 @@ final class V11FeaturesTest extends TestCase
     {
         $budget = CostBudget::fromPatterns(['USD:0.10']);
         $this->expectException(BudgetExhaustedException::class);
-        $budget->consume('cost.search', 0.10, 'USD');
+        // Overspending the counter (not merely landing on zero) exhausts it.
+        $budget->consume('cost.search', 0.11, 'USD');
     }
 
     public function testCostBudgetSubsetUsesRemainingBudget(): void

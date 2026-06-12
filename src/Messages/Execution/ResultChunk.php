@@ -14,7 +14,7 @@ final readonly class ResultChunk extends MessageType
         public string $resultId,
         public int $chunkSeq,
         public string $data,
-        public string $encoding = 'utf8',
+        public ResultChunkEncoding $encoding = ResultChunkEncoding::Utf8,
         public bool $more = true,
     ) {
         if ($resultId === '') {
@@ -22,9 +22,6 @@ final readonly class ResultChunk extends MessageType
         }
         if ($chunkSeq < 0) {
             throw new InvalidArgumentException('chunk_seq must be non-negative');
-        }
-        if ($encoding !== 'utf8' && $encoding !== 'base64') {
-            throw new InvalidArgumentException('encoding must be utf8 or base64');
         }
     }
 
@@ -41,7 +38,7 @@ final readonly class ResultChunk extends MessageType
             'result_id' => $this->resultId,
             'chunk_seq' => $this->chunkSeq,
             'data' => $this->data,
-            'encoding' => $this->encoding,
+            'encoding' => $this->encoding->value,
             'more' => $this->more,
         ];
     }
@@ -60,6 +57,8 @@ final readonly class ResultChunk extends MessageType
         if (!\is_string($encoding) || !\is_bool($more)) {
             throw new InvalidArgumentException('encoding/more have invalid types');
         }
-        return new self($resultId, $chunkSeq, $chunkData, $encoding, $more);
+        $encodingEnum = ResultChunkEncoding::tryFrom($encoding)
+            ?? throw new InvalidArgumentException('encoding must be utf8 or base64');
+        return new self($resultId, $chunkSeq, $chunkData, $encodingEnum, $more);
     }
 }

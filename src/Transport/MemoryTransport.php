@@ -120,17 +120,27 @@ final class MemoryTransport implements Transport
         }
         $this->waiters = [];
         if ($this->peer instanceof \Arcp\Transport\MemoryTransport && !$this->peer->closed) {
-            // Closing one end naturally signals the other on next receive().
+            // Propagate close to the peer: clear the peer link and resolve
+            // any pending receive() waiters with EOF.
             $peer = $this->peer;
             $this->peer = null;
-            $peer->peer = null;
-            // Wake any waiters on the peer with null so reads return a clean EOF.
-            foreach ($peer->waiters as $w) {
-                $w->complete();
-            }
-            $peer->waiters = [];
-            $peer->closed = true;
+            $peer->signalClosed();
         }
+    }
+
+    /**
+     * Mark this endpoint closed: drop the peer link and resolve any pending
+     * receive() waiters with a clean EOF. Invoked on the peer instance when
+     * the other end closes so the side effect is named and localized.
+     */
+    private function signalClosed(): void
+    {
+        $this->peer = null;
+        foreach ($this->waiters as $w) {
+            $w->complete();
+        }
+        $this->waiters = [];
+        $this->closed = true;
     }
 
     #[\Override]

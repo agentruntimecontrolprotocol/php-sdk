@@ -103,6 +103,28 @@ final class EventLogTest extends TestCase
         self::assertSame(['msg_1', 'msg_2'], $ids);
     }
 
+    public function testSessionReplayExcludesInboundEnvelopes(): void
+    {
+        // Outbound runtime event, then an inbound client command, then
+        // another outbound event — all for the same session.
+        $this->log->append($this->envelope('out_1'), outbound: true);
+        $this->log->append($this->envelope('in_1', 'tool.invoke'), outbound: false);
+        $this->log->append($this->envelope('out_2'), outbound: true);
+
+        $ids = [];
+        foreach ($this->log->replayAfterForSession('', $this->sess) as $env) {
+            $ids[] = (string) $env->id;
+        }
+        self::assertSame(['out_1', 'out_2'], $ids, 'resume must replay only outbound rows');
+    }
+
+    public function testInboundDedupStillWorks(): void
+    {
+        $env = $this->envelope('in_dup', 'tool.invoke');
+        self::assertTrue($this->log->append($env, outbound: false));
+        self::assertFalse($this->log->append($env, outbound: false), 'duplicate id must dedupe');
+    }
+
     public function testIdempotencyCacheReturnsExistingOnRetry(): void
     {
         $expires = $this->clock->now()->modify('+1 hour');
@@ -134,7 +156,8 @@ final class EventLogTest extends TestCase
             $this->log->lookupIdempotent('alice', 'refund-1'),
             'expired entry should not be returned',
         );
-        // After lazy GC, a fresh remember succeeds with the new outcome.
+        // An expired entry is overwritten in place, so a fresh remember
+        // succeeds with the new outcome.
         $newExpires = $this->clock->now()->modify('+1 hour');
         self::assertNull($this->log->rememberIdempotent(
             new IdempotencyRecord('alice', 'refund-1', 'msg_y', $newExpires),
@@ -154,5 +177,32 @@ final class EventLogTest extends TestCase
 
         self::assertSame('msg_a', $this->log->lookupIdempotent('alice', 'refund-1'));
         self::assertSame('msg_b', $this->log->lookupIdempotent('bob', 'refund-1'));
+    }
+
+    public function testLookupIdempotentDoesNotDeleteExpiredRows(): void
+    {
+        $this->log->rememberIdempotent(
+            new IdempotencyRecord('alice', 'refund-1', 'msg_x', $this->clock->now()->modify('+5 seconds')),
+        );
+        $this->clock->advance(10);
+
+        // A read must not mutate the store: the expired row survives lookup
+        // and is only removed by an explicit purge.
+        self::assertNull($this->log->lookupIdempotent('alice', 'refund-1'));
+        self::assertSame(1, $this->log->purgeExpiredIdempotent());
+    }
+
+    public function testPurgeExpiredIdempotentRemovesOnlyExpiredRows(): void
+    {
+        $this->log->rememberIdempotent(
+            new IdempotencyRecord('alice', 'expired', 'msg_old', $this->clock->now()->modify('+5 seconds')),
+        );
+        $this->log->rememberIdempotent(
+            new IdempotencyRecord('alice', 'live', 'msg_new', $this->clock->now()->modify('+1 hour')),
+        );
+        $this->clock->advance(10);
+
+        self::assertSame(1, $this->log->purgeExpiredIdempotent());
+        self::assertSame('msg_new', $this->log->lookupIdempotent('alice', 'live'));
     }
 }

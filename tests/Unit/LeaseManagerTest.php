@@ -81,6 +81,23 @@ final class LeaseManagerTest extends TestCase
         );
     }
 
+    public function testEnsureUsableRejectsForeignSession(): void
+    {
+        $clock = new FakeClock();
+        $mgr = new LeaseManager($clock);
+        $lease = $this->makeLease($clock);
+        $owner = \Arcp\Ids\SessionId::random();
+        $other = \Arcp\Ids\SessionId::random();
+        $mgr->register($lease, $owner);
+
+        $this->expectException(PermissionDeniedException::class);
+        $mgr->ensureUsable(
+            $lease->leaseId,
+            new LeaseScope($lease->permission, $lease->resource, $lease->operation),
+            $other,
+        );
+    }
+
     public function testExtendUpdatesExpiry(): void
     {
         $clock = new FakeClock();

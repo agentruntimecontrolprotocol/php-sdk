@@ -217,9 +217,12 @@ final class CredentialLifecycleTest extends TestCase
         $client = new ARCPClient($recording);
         $accepted = $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(
             anonymous: true,
-            features: ['provisioned_credentials', 'model.use'],
+            features: ['provisioned_credentials', 'model.use', 'subscribe'],
         ));
-        self::assertSame(['provisioned_credentials', 'model.use'], $accepted->capabilities->features);
+        self::assertSame(
+            ['provisioned_credentials', 'model.use', 'subscribe'],
+            $accepted->capabilities->features,
+        );
         return [$runtime, $client, $recording, $serverFuture];
     }
 

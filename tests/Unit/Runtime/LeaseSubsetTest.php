@@ -34,6 +34,17 @@ final class LeaseSubsetTest extends TestCase
         $manager->ensureSubset($parent, $child);
     }
 
+    public function testExpiresAtSubsetEnforced(): void
+    {
+        $manager = new LeaseManager();
+        $now = new \DateTimeImmutable('2026-01-01T00:00:00Z');
+        $parent = new LeaseGranted(new LeaseId('lease_parent'), 'tool.invoke', 'planner', 'run', $now->modify('+1 hour'));
+        $child = new LeaseGranted(new LeaseId('lease_child'), 'tool.invoke', 'planner', 'run', $now->modify('+2 hours'));
+
+        $this->expectException(LeaseSubsetViolationException::class);
+        $manager->ensureSubset($parent, $child);
+    }
+
     private function lease(
         string $id,
         ?ModelUse $modelUse = null,

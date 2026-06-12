@@ -7,6 +7,7 @@ namespace Arcp\Tests\Unit\Client;
 use Arcp\Client\ResultChunkAssembler;
 use Arcp\Errors\InvalidArgumentException;
 use Arcp\Messages\Execution\ResultChunk;
+use Arcp\Messages\Execution\ResultChunkEncoding;
 use PHPUnit\Framework\TestCase;
 
 final class ResultChunkAssemblerTest extends TestCase
@@ -67,7 +68,7 @@ final class ResultChunkAssemblerTest extends TestCase
     public function testBase64ChunkDecoded(): void
     {
         $a = new ResultChunkAssembler();
-        $a->push(new ResultChunk('res_x', 0, base64_encode('hello'), encoding: 'base64', more: false));
+        $a->push(new ResultChunk('res_x', 0, base64_encode('hello'), encoding: ResultChunkEncoding::Base64, more: false));
         self::assertSame('hello', $a->assemble('res_x'));
     }
 
@@ -76,5 +77,26 @@ final class ResultChunkAssemblerTest extends TestCase
         $a = new ResultChunkAssembler();
         $this->expectException(InvalidArgumentException::class);
         $a->assemble('res_missing');
+    }
+
+    public function testAssembleReleasesBufferedChunks(): void
+    {
+        $a = new ResultChunkAssembler();
+        $a->push(new ResultChunk('res_x', 0, 'hello, '));
+        $a->push(new ResultChunk('res_x', 1, 'world', more: false));
+        self::assertSame('hello, world', $a->assemble('res_x'));
+        // After assembly the result is forgotten; a fresh push starts over.
+        self::assertFalse($a->isComplete('res_x'));
+        $a->push(new ResultChunk('res_x', 0, 'fresh', more: false));
+        self::assertSame('fresh', $a->assemble('res_x'));
+    }
+
+    public function testForgetClearsPendingStream(): void
+    {
+        $a = new ResultChunkAssembler();
+        $a->push(new ResultChunk('res_x', 0, 'partial'));
+        $a->forget('res_x');
+        $this->expectException(InvalidArgumentException::class);
+        $a->assemble('res_x');
     }
 }

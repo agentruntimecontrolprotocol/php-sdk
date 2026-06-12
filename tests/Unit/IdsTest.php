@@ -79,7 +79,6 @@ final class IdsTest extends TestCase
         yield 'job' => [JobId::random(...), 'job_'];
         yield 'stream' => [StreamId::random(...), 'str_'];
         yield 'subscription' => [SubscriptionId::random(...), 'sub_'];
-        yield 'trace' => [TraceId::random(...), 'trace_'];
         yield 'span' => [SpanId::random(...), 'span_'];
         yield 'lease' => [LeaseId::random(...), 'lease_'];
         yield 'artifact' => [ArtifactId::random(...), 'art_'];
@@ -98,6 +97,37 @@ final class IdsTest extends TestCase
         self::assertStringStartsWith($prefix, (string) $first);
         self::assertStringStartsWith($prefix, (string) $second);
         self::assertNotSame((string) $first, (string) $second);
+    }
+
+    public function testTraceIdRandomIsValidW3CTraceparent(): void
+    {
+        $first = (string) TraceId::random();
+        $second = (string) TraceId::random();
+
+        $pattern = '/^00-[0-9a-f]{32}-[0-9a-f]{16}-01$/';
+        self::assertMatchesRegularExpression($pattern, $first);
+        self::assertMatchesRegularExpression($pattern, $second);
+        self::assertNotSame($first, $second);
+    }
+
+    public function testFromTraceparentRoundTrips(): void
+    {
+        $tp = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01';
+        $id = TraceId::fromTraceparent($tp);
+        self::assertSame($tp, (string) $id);
+        self::assertSame('4bf92f3577b34da6a3ce929d0e0e4736', $id->traceComponent());
+    }
+
+    public function testFromTraceparentRejectsMalformed(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        TraceId::fromTraceparent('trace_01J');
+    }
+
+    public function testFromTraceparentRejectsAllZeroId(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        TraceId::fromTraceparent('00-00000000000000000000000000000000-00f067aa0ba902b7-01');
     }
 
     public function testIdempotencyKeyHasNoRandomFactory(): void

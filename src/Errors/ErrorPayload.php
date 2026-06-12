@@ -11,8 +11,9 @@ use Arcp\Ids\TraceId;
  *
  * Codes are wire strings — canonical RFC names, namespaced extension
  * codes (e.g. `arcpx.acme.QUOTA_EXCEEDED`), or aliases like `RATE_LIMITED`.
- * Use {@see canonical()} to map to the {@see ErrorCode} enum where one
- * exists; non-canonical codes return `null`.
+ * {@see canonical()} maps aliases to their canonical code
+ * (e.g. `RATE_LIMITED` → `RESOURCE_EXHAUSTED`); namespaced/extension codes
+ * with no enum equivalent return `null`.
  *
  * @phpstan-type ErrorDetails array<string, mixed>
  */
@@ -49,6 +50,16 @@ final readonly class ErrorPayload
         );
     }
 
+    /**
+     * The effective retryability emitted on the wire: an explicit flag wins,
+     * otherwise the canonical code's default (§12), defaulting to false for
+     * namespaced/extension codes with no enum mapping.
+     */
+    public function effectiveRetryable(): bool
+    {
+        return $this->retryable ?? ($this->canonical()?->defaultRetryable() ?? false);
+    }
+
     /** Map the wire code to a canonical {@see ErrorCode}, when possible. */
     public function canonical(): ?ErrorCode
     {
@@ -70,7 +81,7 @@ final readonly class ErrorPayload
      * @return array{
      *     code: string,
      *     message: string,
-     *     retryable?: bool,
+     *     retryable: bool,
      *     details?: ErrorDetails,
      *     cause?: array<string, mixed>,
      *     trace_id?: string,
@@ -78,13 +89,15 @@ final readonly class ErrorPayload
      */
     public function toArray(): array
     {
+        // §12: error payloads MUST carry a retryable boolean. Emit the
+        // effective value even when not set explicitly so LEASE_EXPIRED /
+        // BUDGET_EXHAUSTED always travel as retryable:false and
+        // INTERNAL_ERROR as retryable:true.
         $out = [
             'code' => $this->code,
             'message' => $this->message,
+            'retryable' => $this->effectiveRetryable(),
         ];
-        if ($this->retryable !== null) {
-            $out['retryable'] = $this->retryable;
-        }
         if ($this->details !== []) {
             $out['details'] = $this->details;
         }

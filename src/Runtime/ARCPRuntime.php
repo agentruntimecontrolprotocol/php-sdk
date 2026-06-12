@@ -101,7 +101,7 @@ final class ARCPRuntime
         $this->pending = new PendingRegistry();
         $this->leases = new LeaseManager($this->clock);
         $this->artifacts = new ArtifactStore($this->clock);
-        $this->subscriptions = new SubscriptionManager($this->serializer);
+        $this->subscriptions = new SubscriptionManager($this->serializer, $this->clock, $this->logger);
         $this->jobs = new JobManager($this->clock);
         $this->credentials = $credentialStore ?? new InMemoryCredentialStore();
         if (
@@ -210,8 +210,14 @@ final class ARCPRuntime
         if (isset($bucket[''])) {
             return new ResolvedTool($ref->name, null, $bucket['']);
         }
-        $firstVersion = array_key_first($bucket);
-        return new ResolvedTool($ref->name, $firstVersion, $bucket[$firstVersion]);
+        // No default and no unversioned handler: only resolve when exactly
+        // one version is registered. Picking an arbitrary version from a
+        // multi-version bucket would be non-deterministic across deployments.
+        if (\count($bucket) === 1) {
+            $only = array_key_first($bucket);
+            return new ResolvedTool($ref->name, $only, $bucket[$only]);
+        }
+        throw new AgentVersionNotAvailableException($ref->name, '(default)');
     }
 
     public function advertisedCapabilitiesForSession(): Capabilities
@@ -270,7 +276,11 @@ final class ARCPRuntime
             if (!$transport->isClosed()) {
                 $transport->close();
             }
-            $session->state = SessionState::Closed;
+            // Preserve a terminal label set during handshake/dispatch
+            // (Rejected/Evicted) instead of clobbering it with Closed.
+            if (!$session->state->isTerminal()) {
+                $session->state = SessionState::Closed;
+            }
         }
     }
 
@@ -313,33 +323,23 @@ final class ARCPRuntime
             traceId: $hints['trace_id'] ?? null,
             correlationId: $hints['correlation_id'] ?? null,
         );
-        $logEnv = $redactedPayload === $payload ? $env : new Envelope(
-            id: $id,
-            payload: $redactedPayload,
-            timestamp: $env->timestamp,
-            priority: $env->priority,
-            sessionId: $env->sessionId,
-            jobId: $env->jobId,
-            streamId: $env->streamId,
-            subscriptionId: $env->subscriptionId,
-            traceId: $env->traceId,
-            spanId: $env->spanId,
-            parentSpanId: $env->parentSpanId,
-            correlationId: $env->correlationId,
-            causationId: $env->causationId,
-            idempotencyKey: $env->idempotencyKey,
-            source: $env->source,
-            target: $env->target,
-            arcp: $env->arcp,
-            extensions: $env->extensions,
-        );
-        $this->eventLog->append($logEnv);
-        $this->subscriptions->dispatch($logEnv);
+        $logEnv = $redactedPayload === $payload ? $env : $env->withPayload($redactedPayload);
+        // Send first: only record the envelope in the event log and fan it
+        // out to subscribers once the originating transport accepted it, so a
+        // failed send never leaks a "sent" envelope into replay or to
+        // observers.
         try {
             $session->transport->send($env);
         } catch (\Throwable $e) {
-            $this->logger->debug('emit skipped; transport closed', ['error' => $e->getMessage()]);
+            $this->logger->warning('emit failed; transport send threw', [
+                'message_id' => (string) $id,
+                'type' => $payload::typeName(),
+                'error' => $e->getMessage(),
+            ]);
+            return $id;
         }
+        $this->eventLog->append($logEnv);
+        $this->subscriptions->dispatch($logEnv);
         return $id;
     }
 

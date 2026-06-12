@@ -15,6 +15,14 @@ use Arcp\Messages\Session\PeerInfo;
  */
 final class AuthRouter
 {
+    /**
+     * Schemes reserved by RFC §8.2 but not yet implemented; presenting one
+     * surfaces UNIMPLEMENTED rather than a generic unknown-scheme rejection.
+     *
+     * @var list<string>
+     */
+    private const array RESERVED_SCHEMES = ['mtls', 'oauth2'];
+
     /** @var array<string, AuthScheme> */
     private array $schemes = [];
 
@@ -35,7 +43,7 @@ final class AuthRouter
     {
         if (!isset($this->schemes[$auth->scheme])) {
             // mTLS and OAuth2 are reserved (RFC §8.2) but unimplemented in v0.1.
-            if (\in_array($auth->scheme, ['mtls', 'oauth2'], true)) {
+            if (\in_array($auth->scheme, self::RESERVED_SCHEMES, true)) {
                 throw new UnimplementedException(
                     '§8.2',
                     \sprintf('auth scheme %s deferred to v0.2', $auth->scheme),

@@ -27,9 +27,8 @@ final class InMemoryCredentialProvisioner implements CredentialProvisioner
     #[\Override]
     public function issue(LeaseGranted $lease, JobContext $ctx): array
     {
-        $credentials = $this->credentials;
-        if ($credentials === []) {
-            $n = $this->next++;
+        $n = $this->next++;
+        if ($this->credentials === []) {
             $credentials = [
                 Credential::withLeaseConstraints(
                     'cred_' . $n,
@@ -38,6 +37,22 @@ final class InMemoryCredentialProvisioner implements CredentialProvisioner
                     $lease,
                 ),
             ];
+        } else {
+            // §9.8.2: credentials are scoped to a single job and a value
+            // MUST NOT be reused across jobs. Mint a per-job copy of each
+            // seed template with a unique id/value and constraints rebuilt
+            // from the issuing job's lease.
+            $credentials = [];
+            foreach ($this->credentials as $template) {
+                $credentials[] = Credential::withLeaseConstraints(
+                    $template->id . '_' . $n,
+                    $template->value . '_' . $n,
+                    $template->endpoint,
+                    $lease,
+                    $template->scheme,
+                    $template->profile,
+                );
+            }
         }
         foreach ($credentials as $credential) {
             $this->issued[] = $credential->id;

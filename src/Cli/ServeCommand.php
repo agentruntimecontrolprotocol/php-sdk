@@ -44,10 +44,31 @@ final class ServeCommand extends Command
         $this->startWebSocketServer($runtime, $host, $port);
         $output->writeln(\sprintf('<info>arcp listening on ws://%s:%d/</info>', $host, $port));
 
-        // Block; pressing Ctrl-C kills the process. Production deployments
-        // should wire SIGINT/SIGTERM via the EventLoop driver.
+        // Stop the loop on SIGINT/SIGTERM for a graceful shutdown where the
+        // driver supports signal handling; otherwise the default disposition
+        // (Ctrl-C terminates the process) applies.
+        $this->installSignalHandlers($output);
         EventLoop::run();
         return Command::SUCCESS;
+    }
+
+    private function installSignalHandlers(OutputInterface $output): void
+    {
+        if (!\defined('SIGINT') || !\defined('SIGTERM')) {
+            return;
+        }
+        $stop = static function () use ($output): void {
+            $output->writeln('<info>arcp shutting down</info>');
+            EventLoop::getDriver()->stop();
+        };
+        foreach ([\SIGINT, \SIGTERM] as $signal) {
+            try {
+                EventLoop::onSignal($signal, $stop);
+            } catch (\Revolt\EventLoop\UnsupportedFeatureException) {
+                // Loop driver lacks signal support; rely on default handling.
+                return;
+            }
+        }
     }
 
     /** @return array{0: string, 1: int} */

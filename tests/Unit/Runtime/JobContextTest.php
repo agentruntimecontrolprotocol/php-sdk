@@ -36,7 +36,7 @@ final class JobContextTest extends TestCase
     public function testEmitMetricFromTool(): void
     {
         [$runtime, $client, $serverFuture] = $this->pair();
-        $runtime->registerTool('metricTool', new class () implements ToolHandler {
+        $runtime->registerTool('metric_tool', new class () implements ToolHandler {
             #[\Override]
             public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
             {
@@ -46,7 +46,7 @@ final class JobContextTest extends TestCase
             }
         });
 
-        $result = $client->invokeTool('metricTool');
+        $result = $client->invokeTool('metric_tool');
         self::assertSame(['ok' => true], $result->value);
 
         $client->close();
@@ -57,7 +57,7 @@ final class JobContextTest extends TestCase
     {
         [$runtime, $client, $serverFuture] = $this->pair();
         $sawSid = null;
-        $runtime->registerTool('streamTool', new class ($sawSid) implements ToolHandler {
+        $runtime->registerTool('stream_tool', new class ($sawSid) implements ToolHandler {
             public function __construct(public ?string &$sawSid)
             {
             }
@@ -75,7 +75,7 @@ final class JobContextTest extends TestCase
             }
         });
 
-        $result = $client->invokeTool('streamTool');
+        $result = $client->invokeTool('stream_tool');
         self::assertSame(['streamed' => true], $result->value);
         self::assertNotNull($sawSid);
         self::assertNotEmpty($sawSid);
@@ -87,7 +87,7 @@ final class JobContextTest extends TestCase
     public function testOpenStreamWithExplicitTotalChunks(): void
     {
         [$runtime, $client, $serverFuture] = $this->pair();
-        $runtime->registerTool('streamTool2', new class () implements ToolHandler {
+        $runtime->registerTool('stream_tool2', new class () implements ToolHandler {
             #[\Override]
             public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
             {
@@ -98,7 +98,7 @@ final class JobContextTest extends TestCase
             }
         });
 
-        $result = $client->invokeTool('streamTool2');
+        $result = $client->invokeTool('stream_tool2');
         self::assertSame(['ok' => true], $result->value);
 
         $client->close();
@@ -109,7 +109,7 @@ final class JobContextTest extends TestCase
     {
         [$runtime, $client, $serverFuture] = $this->pair();
         $observedRef = null;
-        $runtime->registerTool('artifactTool', new class ($observedRef) implements ToolHandler {
+        $runtime->registerTool('artifact_tool', new class ($observedRef) implements ToolHandler {
             public function __construct(public ?ArtifactRef &$ref)
             {
             }
@@ -122,7 +122,7 @@ final class JobContextTest extends TestCase
             }
         });
 
-        $result = $client->invokeTool('artifactTool');
+        $result = $client->invokeTool('artifact_tool');
         self::assertIsArray($result->value);
         self::assertArrayHasKey('id', $result->value);
         self::assertInstanceOf(ArtifactRef::class, $observedRef);
@@ -134,7 +134,7 @@ final class JobContextTest extends TestCase
     public function testHeartbeatEmitsFromInsideToolContext(): void
     {
         [$runtime, $client, $serverFuture] = $this->pair();
-        $runtime->registerTool('heartTool', new class () implements ToolHandler {
+        $runtime->registerTool('heart_tool', new class () implements ToolHandler {
             #[\Override]
             public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
             {
@@ -144,7 +144,7 @@ final class JobContextTest extends TestCase
             }
         });
 
-        $result = $client->invokeTool('heartTool');
+        $result = $client->invokeTool('heart_tool');
         self::assertNull($result->value);
 
         $client->close();

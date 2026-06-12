@@ -22,8 +22,10 @@ interface Transport
      *
      * @throws \Arcp\Errors\TransportClosedException when the transport is
      *                                               no longer writable.
-     * @throws \Amp\CancelledException when `$cancellation` fires before
-     *                                 the write completes.
+     *
+     * Implementations MAY honor `$cancellation` and throw
+     * `\Amp\CancelledException` if it fires before the write completes; the
+     * bundled transports complete writes synchronously and do not.
      */
     public function send(Envelope $env, ?Cancellation $cancellation = null): void;
 
@@ -32,6 +34,10 @@ interface Transport
      *
      * @throws \Arcp\Errors\TransportClosedException on unexpected
      *                                               transport failure (distinct from a clean close, which returns null).
+     * @throws \Arcp\Errors\InvalidArgumentException when an incoming frame
+     *                                               is malformed and cannot be decoded.
+     * @throws \Arcp\Errors\UnimplementedException when an incoming frame
+     *                                             carries an unknown message type.
      * @throws \Amp\CancelledException when `$cancellation` fires.
      */
     public function receive(?Cancellation $cancellation = null): ?Envelope;
