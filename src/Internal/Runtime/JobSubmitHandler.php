@@ -241,11 +241,10 @@ final readonly class JobSubmitHandler
             ));
             return;
         }
-        $jobHints = ['trace_id' => $env->traceId];
-        if ($accepted->jobId !== null) {
-            $jobHints['job_id'] = $accepted->jobId;
-        }
-        $this->runtime->emit($session, $accepted->payload, $jobHints);
+        $this->runtime->emit($session, $accepted->payload, [
+            'trace_id' => $env->traceId,
+            'job_id' => $accepted->jobId,
+        ]);
 
         if ($record->outcomeMessageId === null) {
             // Job still in flight: resolve the duplicate submitter when the
@@ -274,7 +273,8 @@ final readonly class JobSubmitHandler
             return;
         }
         $this->runtime->emit($session, $outcome->payload, [
-            ...$jobHints,
+            'trace_id' => $env->traceId,
+            'job_id' => $accepted->jobId,
             'correlation_id' => $env->id,
         ]);
     }
