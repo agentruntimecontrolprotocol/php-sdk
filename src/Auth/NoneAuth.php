@@ -29,6 +29,10 @@ final readonly class NoneAuth implements AuthScheme
         if ($auth->scheme !== 'none') {
             return AuthResult::reject('scheme mismatch');
         }
-        return AuthResult::accept($client->principal ?? $this->defaultPrincipal);
+        // Always use the configured default principal; do not trust the
+        // principal supplied in the untrusted PeerInfo block (mirrors the
+        // BearerAuth contract). Trusting it would let any anonymous peer
+        // claim an arbitrary principal and bypass per-principal isolation.
+        return AuthResult::accept($this->defaultPrincipal);
     }
 }

@@ -67,11 +67,12 @@ final class AuthTest extends TestCase
         self::assertSame('public', $result->principal);
     }
 
-    public function testNoneUsesProvidedPrincipal(): void
+    public function testNoneIgnoresPeerSuppliedPrincipal(): void
     {
         $scheme = new NoneAuth('public');
         $result = $scheme->verify(Auth::none(), new PeerInfo('c', '0', principal: 'someone@x'));
-        self::assertSame('someone@x', $result->principal);
+        // The peer-supplied principal must not be trusted (#67).
+        self::assertSame('public', $result->principal);
     }
 
     public function testNoneRejectsWrongScheme(): void
