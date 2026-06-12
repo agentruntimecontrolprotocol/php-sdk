@@ -130,6 +130,74 @@ final class JobLifecycleTest extends TestCase
         $serverFuture->await();
     }
 
+    public function testIdempotentRetryReplaysOriginalAcceptance(): void
+    {
+        // §7.2: an identical retry receives the SAME job.accepted payload
+        // (same job_id, budget captured at acceptance) as the original.
+        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new AnonymousAuth()]));
+        $runtime->registerTool('echo', new class () implements ToolHandler {
+            #[\Override]
+            public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
+            {
+                return ['ok' => true];
+            }
+        });
+        [$serverT, $clientT] = MemoryTransport::pair();
+        $serverFuture = $runtime->serveAsync($serverT);
+        $client = new ARCPClient($clientT);
+        $client->open(Auth::anonymous(), new PeerInfo('cli', '0.1'), new Capabilities());
+
+        $accepted = [];
+        $key = new IdempotencyKey('accept-replay');
+        $client->invokeTool('echo', ['n' => 1], idempotencyKey: $key);
+        $client->invokeTool('echo', ['n' => 1], idempotencyKey: $key);
+        $sid = $client->session->sessionId;
+        self::assertNotNull($sid);
+        foreach ($runtime->eventLog->replayAfter('') as $env) {
+            if ($env->payload instanceof \Arcp\Messages\Execution\JobAccepted) {
+                $accepted[] = (string) $env->payload->jobId;
+            }
+        }
+        self::assertCount(1, array_unique($accepted), 'replays must reference the original job_id');
+
+        $client->close();
+        $serverFuture->await();
+    }
+
+    public function testIdempotencyKeyReuseWithConflictingParamsIsDuplicateKey(): void
+    {
+        // §7.2: a reused key with conflicting parameters returns
+        // DUPLICATE_KEY (canonical fingerprint over the full submit).
+        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new AnonymousAuth()]));
+        $runtime->registerTool('echo', new class () implements ToolHandler {
+            #[\Override]
+            public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
+            {
+                return $arguments;
+            }
+        });
+        [$serverT, $clientT] = MemoryTransport::pair();
+        $serverFuture = $runtime->serveAsync($serverT);
+        $client = new ARCPClient($clientT);
+        $client->open(Auth::anonymous(), new PeerInfo('cli', '0.1'), new Capabilities());
+
+        $key = new IdempotencyKey('conflict-1');
+        $client->invokeTool('echo', ['b' => 2, 'a' => 1], idempotencyKey: $key);
+        // Key-order-only difference is the SAME fingerprint: replayed.
+        $sameParams = $client->invokeTool('echo', ['a' => 1, 'b' => 2], idempotencyKey: $key);
+        self::assertSame(['b' => 2, 'a' => 1], $sameParams->result);
+
+        try {
+            $client->invokeTool('echo', ['a' => 999], idempotencyKey: $key);
+            self::fail('expected DuplicateKeyException');
+        } catch (\Arcp\Errors\DuplicateKeyException $e) {
+            self::assertStringContainsString('conflict-1', $e->getMessage());
+        }
+
+        $client->close();
+        $serverFuture->await();
+    }
+
     public function testMultipleConcurrentJobsCompleteIndependently(): void
     {
         $runtime = new ARCPRuntime(authRouter: new AuthRouter([new AnonymousAuth()]));

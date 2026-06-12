@@ -34,13 +34,18 @@ CREATE INDEX IF NOT EXISTS events_trace_idx    ON events(trace_id, rowid);
 CREATE INDEX IF NOT EXISTS events_type_idx     ON events(type, rowid);
 CREATE INDEX IF NOT EXISTS events_seq_idx      ON events(session_id, event_seq);
 
--- (session_principal, idempotency_key) → previous outcome (RFC §6.4).
--- A logical retry returns the cached outcome rather than re-executing.
+-- §7.2 idempotency: (principal, idempotency_key) → canonical request
+-- fingerprint + the original job.accepted message id (claimed at
+-- acceptance) + the terminal outcome message id ('' until terminal).
+-- An identical retry replays the original acceptance; a fingerprint
+-- mismatch returns DUPLICATE_KEY.
 CREATE TABLE IF NOT EXISTS idempotency_cache (
-    principal           TEXT NOT NULL,
-    idempotency_key     TEXT NOT NULL,
-    outcome_message_id  TEXT NOT NULL,
-    expires_at          TEXT NOT NULL,
+    principal            TEXT NOT NULL,
+    idempotency_key      TEXT NOT NULL,
+    fingerprint          TEXT NOT NULL DEFAULT '',
+    accepted_message_id  TEXT NOT NULL DEFAULT '',
+    outcome_message_id   TEXT NOT NULL DEFAULT '',
+    expires_at           TEXT NOT NULL,
     PRIMARY KEY (principal, idempotency_key)
 );
 

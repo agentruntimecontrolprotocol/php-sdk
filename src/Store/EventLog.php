@@ -47,6 +47,7 @@ final readonly class EventLog
         $this->pdo->exec($schema);
         $this->migrateDirectionColumn();
         $this->migrateEventSeqColumn();
+        $this->migrateIdempotencyColumns();
     }
 
     /**
@@ -85,7 +86,31 @@ final readonly class EventLog
 
     private function hasEventsColumn(string $name): bool
     {
-        $cols = $this->pdo->query('PRAGMA table_info(events)');
+        return $this->hasColumn('events', $name);
+    }
+
+    /**
+     * Add the §7.2 fingerprint/accepted columns to pre-existing
+     * databases. Legacy rows keep '' fingerprints and are treated as
+     * absent by lookup (they predate conflict detection).
+     */
+    private function migrateIdempotencyColumns(): void
+    {
+        if (!$this->hasColumn('idempotency_cache', 'fingerprint')) {
+            $this->pdo->exec(
+                "ALTER TABLE idempotency_cache ADD COLUMN fingerprint TEXT NOT NULL DEFAULT ''",
+            );
+        }
+        if (!$this->hasColumn('idempotency_cache', 'accepted_message_id')) {
+            $this->pdo->exec(
+                "ALTER TABLE idempotency_cache ADD COLUMN accepted_message_id TEXT NOT NULL DEFAULT ''",
+            );
+        }
+    }
+
+    private function hasColumn(string $table, string $name): bool
+    {
+        $cols = $this->pdo->query('PRAGMA table_info(' . $table . ')');
         if ($cols === false) {
             return false;
         }
@@ -308,11 +333,12 @@ final readonly class EventLog
     }
 
     /**
-     * Cache a `(principal, idempotency_key) → message_id` mapping with a
-     * retention horizon (RFC §6.4). Returns the previously cached outcome
-     * message id if one exists, else `null`.
+     * Claim a `(principal, idempotency_key)` slot at acceptance (§7.2),
+     * storing the canonical request fingerprint and the original
+     * `job.accepted` message id. Returns the previously cached record if
+     * a live claim already exists, else `null` after inserting.
      */
-    public function rememberIdempotent(IdempotencyRecord $record): ?string
+    public function rememberIdempotent(IdempotencyRecord $record): ?IdempotencyRecord
     {
         $existing = $this->lookupIdempotent($record->principal, $record->idempotencyKey);
         if ($existing !== null) {
@@ -323,19 +349,56 @@ final readonly class EventLog
         // colliding with the (principal, idempotency_key) primary key.
         $stmt = $this->pdo->prepare(<<<'SQL'
             INSERT INTO idempotency_cache
-                (principal, idempotency_key, outcome_message_id, expires_at)
-            VALUES (:principal, :key, :outcome, :expires)
+                (principal, idempotency_key, fingerprint, accepted_message_id,
+                 outcome_message_id, expires_at)
+            VALUES (:principal, :key, :fingerprint, :accepted, :outcome, :expires)
             ON CONFLICT(principal, idempotency_key) DO UPDATE SET
+                fingerprint = excluded.fingerprint,
+                accepted_message_id = excluded.accepted_message_id,
                 outcome_message_id = excluded.outcome_message_id,
                 expires_at = excluded.expires_at
             SQL);
         $stmt->execute([
             ':principal' => $record->principal,
             ':key' => $record->idempotencyKey,
-            ':outcome' => $record->outcomeMessageId,
+            ':fingerprint' => $record->fingerprint,
+            ':accepted' => $record->acceptedMessageId,
+            ':outcome' => $record->outcomeMessageId ?? '',
             ':expires' => $record->expiresAt->format(\DateTimeInterface::RFC3339_EXTENDED),
         ]);
         return null;
+    }
+
+    /**
+     * Record the terminal outcome message id for an accepted claim so an
+     * identical retry can also replay the terminal response.
+     */
+    public function recordIdempotentOutcome(
+        string $principal,
+        string $idempotencyKey,
+        string $outcomeMessageId,
+    ): void {
+        $stmt = $this->pdo->prepare(<<<'SQL'
+            UPDATE idempotency_cache SET outcome_message_id = :outcome
+            WHERE principal = :principal AND idempotency_key = :key
+            SQL);
+        $stmt->execute([
+            ':outcome' => $outcomeMessageId,
+            ':principal' => $principal,
+            ':key' => $idempotencyKey,
+        ]);
+    }
+
+    /**
+     * Release a claim whose acceptance failed (e.g. unknown agent or
+     * credential issuance failure) so an identical retry can execute.
+     */
+    public function releaseIdempotent(string $principal, string $idempotencyKey): void
+    {
+        $stmt = $this->pdo->prepare(
+            'DELETE FROM idempotency_cache WHERE principal = :principal AND idempotency_key = :key',
+        );
+        $stmt->execute([':principal' => $principal, ':key' => $idempotencyKey]);
     }
 
     /**
@@ -355,10 +418,11 @@ final readonly class EventLog
         return $stmt->rowCount();
     }
 
-    public function lookupIdempotent(string $principal, string $idempotencyKey): ?string
+    public function lookupIdempotent(string $principal, string $idempotencyKey): ?IdempotencyRecord
     {
         $stmt = $this->pdo->prepare(<<<'SQL'
-            SELECT outcome_message_id, expires_at FROM idempotency_cache
+            SELECT fingerprint, accepted_message_id, outcome_message_id, expires_at
+            FROM idempotency_cache
             WHERE principal = :principal AND idempotency_key = :key
             LIMIT 1
             SQL);
@@ -368,13 +432,15 @@ final readonly class EventLog
         if ($row === false) {
             return null;
         }
-        if (!isset($row['outcome_message_id'], $row['expires_at'])) {
+        $fingerprint = $row['fingerprint'] ?? null;
+        $accepted = $row['accepted_message_id'] ?? null;
+        $outcome = $row['outcome_message_id'] ?? null;
+        $expiresStr = $row['expires_at'] ?? null;
+        if (
+            !\is_string($fingerprint) || !\is_string($accepted)
+            || !\is_string($outcome) || !\is_string($expiresStr)
+        ) {
             throw new InternalErrorException('idempotency_cache row malformed');
-        }
-        $expiresStr = $row['expires_at'];
-        $outcome = $row['outcome_message_id'];
-        if (!\is_string($expiresStr) || !\is_string($outcome)) {
-            throw new InternalErrorException('idempotency_cache row column types unexpected');
         }
         $expires = new \DateTimeImmutable($expiresStr);
         if ($expires <= $this->clock->now()) {
@@ -382,7 +448,14 @@ final readonly class EventLog
             // purgeExpiredIdempotent() so this lookup stays side-effect free.
             return null;
         }
-        return $outcome;
+        return new IdempotencyRecord(
+            $principal,
+            $idempotencyKey,
+            $fingerprint,
+            $accepted,
+            $outcome === '' ? null : $outcome,
+            $expires,
+        );
     }
 
     /** Total number of envelopes in the log. */

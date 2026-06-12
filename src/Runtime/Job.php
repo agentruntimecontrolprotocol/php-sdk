@@ -73,6 +73,15 @@ final class Job
     private int $resultChunkSeq = 0;
 
     /**
+     * Envelope ids of §7.2 identical retries that arrived while this job
+     * was in flight; each gets its own correlated copy of the terminal
+     * response.
+     *
+     * @var list<\Arcp\Ids\MessageId>
+     */
+    public array $duplicateSubmitIds = [];
+
+    /**
      * Mailbox for guidance delivered in response to an `interrupt`. The
      * tool handler drains it via {@see JobContext::takeInterruptResponse()}.
      *

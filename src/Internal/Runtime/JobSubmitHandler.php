@@ -13,7 +13,7 @@ use Arcp\Errors\ARCPException;
 use Arcp\Errors\ErrorPayload;
 use Arcp\Errors\InvalidRequestException;
 use Arcp\Ids\IdempotencyKey;
-use Arcp\Messages\Control\Nack;
+use Arcp\Ids\MessageId;
 use Arcp\Messages\Execution\JobAccepted;
 use Arcp\Messages\Execution\JobError;
 use Arcp\Messages\Execution\JobEvent;
@@ -52,6 +52,18 @@ final readonly class JobSubmitHandler
 
     public function handle(Session $session, Envelope $env, JobSubmit $msg): void
     {
+        // §7.2: an existing claim under the same key replays the original
+        // job.accepted on an identical fingerprint, or DUPLICATE_KEY on a
+        // conflicting one — before any execution side effects.
+        $key = $this->idempotencyKey($env, $msg);
+        $principal = $session->principal;
+        if ($key instanceof IdempotencyKey && $principal !== null) {
+            $existing = $this->runtime->eventLog->lookupIdempotent($principal, (string) $key);
+            if ($existing instanceof IdempotencyRecord && $existing->fingerprint !== '') {
+                $this->answerDuplicate($session, $env, $msg, $existing);
+                return;
+            }
+        }
         try {
             $resolved = ($this->resolveTool)(AgentRef::parse($msg->agent));
         } catch (AgentVersionNotAvailableException $e) {
@@ -68,8 +80,13 @@ final readonly class JobSubmitHandler
             ));
             return;
         }
-        if ($this->handledByIdempotencyReplay($session, $env, $msg)) {
-            return;
+        // Pre-mint the job.accepted message id and claim the idempotency
+        // slot with the request fingerprint (§7.2): the claim is released
+        // on any acceptance failure below.
+        $acceptedId = MessageId::random();
+        $claimed = $this->claimIdempotency($session, $env, $msg, $acceptedId);
+        if ($claimed === false) {
+            return; // a concurrent claim answered the duplicate
         }
         $leaseArguments = $this->leaseArguments($msg);
         try {
@@ -78,6 +95,7 @@ final readonly class JobSubmitHandler
             // Lease resolution can fail with PERMISSION_DENIED (scope/owner),
             // LEASE_SUBSET_VIOLATION (widening overlay, §9.4), or another
             // lease error; surface any of them as a correlated job.error.
+            $this->releaseIdempotency($session, $env, $msg);
             $this->emitSubmitError($session, $env, ErrorPayload::fromException($e));
             return;
         }
@@ -93,9 +111,10 @@ final readonly class JobSubmitHandler
         );
         $credentials = $this->credentials->issue($session, $env, $job, $lease);
         if ($credentials === null) {
+            $this->releaseIdempotency($session, $env, $msg);
             return;
         }
-        $this->emitJobAccepted($session, $env, $job, $msg, $lease, $credentials);
+        $this->emitJobAccepted($session, $env, $job, $msg, $lease, $credentials, $acceptedId);
         $this->runtime->jobs->transition($job, JobState::Running);
         $this->runtime->emit($session, new JobEvent(
             'status',
@@ -109,6 +128,37 @@ final readonly class JobSubmitHandler
         $job->future = async(function () use ($session, $env, $msg, $job, $resolved): void {
             $this->runHandler(new SubmitJobContextSpec($session, $env, $msg, $job), $resolved->handler);
         });
+    }
+
+    /**
+     * Claim the §7.2 idempotency slot before acceptance. Returns true
+     * when claimed (or no key present), false when a concurrent claim
+     * already existed and the duplicate has been answered.
+     */
+    private function claimIdempotency(
+        Session $session,
+        Envelope $env,
+        JobSubmit $msg,
+        MessageId $acceptedId,
+    ): bool {
+        $key = $this->idempotencyKey($env, $msg);
+        $principal = $session->principal;
+        if (!$key instanceof IdempotencyKey || $principal === null) {
+            return true;
+        }
+        $race = $this->runtime->eventLog->rememberIdempotent(new IdempotencyRecord(
+            $principal,
+            (string) $key,
+            IdempotencyFingerprint::of($msg),
+            (string) $acceptedId,
+            null,
+            $this->runtime->clock->now()->modify('+24 hours'),
+        ));
+        if ($race instanceof IdempotencyRecord) {
+            $this->answerDuplicate($session, $env, $msg, $race);
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -161,42 +211,72 @@ final readonly class JobSubmitHandler
     }
 
     /**
-     * Logical idempotency replay (§7.2). Returns true when the request has
-     * already been processed and the runtime has re-emitted the original
-     * terminal correlated response for the duplicate.
+     * Answer a duplicate submission under an existing claim (§7.2):
+     * identical fingerprint replays the ORIGINAL job.accepted (with the
+     * budget captured at acceptance) plus the terminal outcome when the
+     * job already finished; a conflicting fingerprint is DUPLICATE_KEY.
      */
-    private function handledByIdempotencyReplay(Session $session, Envelope $env, JobSubmit $msg): bool
-    {
-        $key = $this->idempotencyKey($env, $msg);
-        $principal = $session->principal;
-        if (!$key instanceof IdempotencyKey || $principal === null) {
-            return false;
+    private function answerDuplicate(
+        Session $session,
+        Envelope $env,
+        JobSubmit $msg,
+        IdempotencyRecord $record,
+    ): void {
+        if ($record->fingerprint !== IdempotencyFingerprint::of($msg)) {
+            $this->emitSubmitError($session, $env, new ErrorPayload(
+                'DUPLICATE_KEY',
+                'idempotency_key reuse with conflicting parameters: ' . $record->idempotencyKey,
+                false,
+            ));
+            return;
         }
-        $prior = $this->runtime->eventLog->lookupIdempotent($principal, (string) $key);
-        if ($prior === null) {
-            return false;
+        $accepted = $this->runtime->eventLog->findByMessageId($record->acceptedMessageId);
+        if (!$accepted instanceof Envelope) {
+            // Retention purged the original acceptance; the same payload
+            // can no longer be reproduced (§7.2).
+            $this->emitSubmitError($session, $env, new ErrorPayload(
+                'INTERNAL_ERROR',
+                'idempotent acceptance no longer available for replay',
+                true,
+            ));
+            return;
         }
-        $original = $this->runtime->eventLog->findByMessageId($prior);
-        $hints = [
-            'correlation_id' => $env->id,
-            'trace_id' => $env->traceId,
-        ];
-        if ($original instanceof Envelope) {
-            if ($original->jobId !== null) {
-                $hints['job_id'] = $original->jobId;
+        $jobHints = ['trace_id' => $env->traceId];
+        if ($accepted->jobId !== null) {
+            $jobHints['job_id'] = $accepted->jobId;
+        }
+        $this->runtime->emit($session, $accepted->payload, $jobHints);
+
+        if ($record->outcomeMessageId === null) {
+            // Job still in flight: resolve the duplicate submitter when the
+            // terminal arrives by correlating an extra copy to this envelope.
+            if ($accepted->jobId !== null) {
+                $job = $this->runtime->jobs->tryGet($accepted->jobId);
+                if ($job instanceof Job) {
+                    $job->duplicateSubmitIds[] = $env->id;
+                    return;
+                }
             }
-            $this->runtime->emit($session, $original->payload, $hints);
-        } else {
-            // Fallback: if the original outcome envelope is no longer in
-            // the log (e.g. retention purged it), fail the duplicate so
-            // synchronous callers stop waiting (§7.2: the original
-            // job.accepted payload can no longer be reproduced).
-            $this->runtime->emit($session, new Nack(new ErrorPayload(
+            $this->emitSubmitError($session, $env, new ErrorPayload(
+                'INTERNAL_ERROR',
+                'idempotent job no longer tracked',
+                true,
+            ));
+            return;
+        }
+        $outcome = $this->runtime->eventLog->findByMessageId($record->outcomeMessageId);
+        if (!$outcome instanceof Envelope) {
+            $this->emitSubmitError($session, $env, new ErrorPayload(
                 'INTERNAL_ERROR',
                 'idempotent outcome no longer available for replay',
-            )), $hints);
+                true,
+            ));
+            return;
         }
-        return true;
+        $this->runtime->emit($session, $outcome->payload, [
+            ...$jobHints,
+            'correlation_id' => $env->id,
+        ]);
     }
 
     /**
@@ -209,10 +289,14 @@ final readonly class JobSubmitHandler
         JobSubmit $msg,
         ?LeaseGranted $lease,
         array $credentials,
+        MessageId $acceptedId,
     ): void {
         // job.accepted is keyed on job_id; only the terminal
         // job.result/job.error envelopes carry correlation_id, so
         // synchronous invokeTool() callers see exactly one resolution.
+        // The message id was pre-minted for the §7.2 claim so an
+        // identical retry replays this exact envelope (budget captured
+        // at acceptance).
         $payloadCredentials = $credentials === []
             ? null
             : array_map(fn (Credential $cred): array => $cred->toArray(), $credentials);
@@ -228,6 +312,7 @@ final readonly class JobSubmitHandler
         ), [
             'job_id' => $job->id,
             'trace_id' => $env->traceId,
+            'message_id' => $acceptedId,
         ]);
     }
 
@@ -343,11 +428,35 @@ final readonly class JobSubmitHandler
             'job_id' => $job->id,
             'trace_id' => $env->traceId,
         ]);
+        $this->resolveDuplicateSubmitters($spec, $result);
         $this->credentials->revoke($job);
-        $this->rememberIdempotent($session, $env, $spec->msg, (string) $outcomeId);
+        $this->recordIdempotentOutcome($session, $env, $spec->msg, (string) $outcomeId);
     }
 
-    private function rememberIdempotent(
+    /**
+     * §7.2: duplicate submitters whose identical retry arrived while the
+     * job was still in flight get their own correlated copy of the
+     * terminal response.
+     */
+    private function resolveDuplicateSubmitters(
+        SubmitJobContextSpec $spec,
+        JobResult|JobError $terminal,
+    ): void {
+        foreach ($spec->job->duplicateSubmitIds as $duplicateId) {
+            $this->runtime->emit($spec->session, $terminal, [
+                'correlation_id' => $duplicateId,
+                'job_id' => $spec->job->id,
+                'trace_id' => $spec->env->traceId,
+            ]);
+        }
+        $spec->job->duplicateSubmitIds = [];
+    }
+
+    /**
+     * Record the terminal outcome on the §7.2 claim so a later identical
+     * retry can also replay the terminal response.
+     */
+    private function recordIdempotentOutcome(
         Session $session,
         Envelope $env,
         JobSubmit $msg,
@@ -358,12 +467,22 @@ final readonly class JobSubmitHandler
         if (!$key instanceof IdempotencyKey || $principal === null) {
             return;
         }
-        $this->runtime->eventLog->rememberIdempotent(new IdempotencyRecord(
+        $this->runtime->eventLog->recordIdempotentOutcome(
             $principal,
             (string) $key,
             $outcomeMessageId,
-            $this->runtime->clock->now()->modify('+24 hours'),
-        ));
+        );
+    }
+
+    /** Release a claim whose acceptance failed so a retry can execute. */
+    private function releaseIdempotency(Session $session, Envelope $env, JobSubmit $msg): void
+    {
+        $key = $this->idempotencyKey($env, $msg);
+        $principal = $session->principal;
+        if (!$key instanceof IdempotencyKey || $principal === null) {
+            return;
+        }
+        $this->runtime->eventLog->releaseIdempotent($principal, (string) $key);
     }
 
     private function cancelJob(SubmitJobContextSpec $spec): void
@@ -392,32 +511,24 @@ final readonly class JobSubmitHandler
         SubmitJobContextSpec $spec,
         JobState $state,
         JobError $error,
-    ): \Arcp\Ids\MessageId {
+    ): MessageId {
         $this->runtime->jobs->transition($spec->job, $state);
         $outcomeId = $this->runtime->emit($spec->session, $error, [
             'correlation_id' => $spec->env->id,
             'job_id' => $spec->job->id,
             'trace_id' => $spec->env->traceId,
         ]);
+        $this->resolveDuplicateSubmitters($spec, $error);
         $this->credentials->revoke($spec->job);
+        // §7.2: the key was consumed at acceptance; every terminal —
+        // including errors — becomes the replayable outcome for identical
+        // retries of the same accepted job.
+        $this->recordIdempotentOutcome($spec->session, $spec->env, $spec->msg, (string) $outcomeId);
         return $outcomeId;
     }
 
     private function failJob(SubmitJobContextSpec $spec, ErrorPayload $payload): void
     {
-        $outcomeId = $this->terminate($spec, JobState::Error, new JobError(JobError::ERROR, $payload));
-        // Retryable failures intentionally do not consume the idempotency
-        // key — the client is expected to retry. When `retryable` is unset
-        // we fall back to the canonical default for the code (§12), so a
-        // crash mapped to a retryable code (e.g. INTERNAL_ERROR) is not
-        // recorded as the permanent idempotent outcome.
-        if (!$payload->effectiveRetryable()) {
-            $this->rememberIdempotent(
-                $spec->session,
-                $spec->env,
-                $spec->msg,
-                (string) $outcomeId,
-            );
-        }
+        $this->terminate($spec, JobState::Error, new JobError(JobError::ERROR, $payload));
     }
 }

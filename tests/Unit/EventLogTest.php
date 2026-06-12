@@ -154,24 +154,39 @@ final class EventLogTest extends TestCase
         $expires = $this->clock->now()->modify('+1 hour');
         self::assertNull(
             $this->log->rememberIdempotent(
-                new IdempotencyRecord('alice', 'refund-1', 'msg_outcome_a', $expires),
+                new IdempotencyRecord('alice', 'refund-1', 'fp_a', 'msg_accept_a', null, $expires),
             ),
         );
-        self::assertSame(
-            'msg_outcome_a',
-            $this->log->rememberIdempotent(
-                new IdempotencyRecord('alice', 'refund-1', 'msg_outcome_b', $expires),
-            ),
-            'a second remember with the same key returns the prior outcome, not the new one',
+        $existing = $this->log->rememberIdempotent(
+            new IdempotencyRecord('alice', 'refund-1', 'fp_b', 'msg_accept_b', null, $expires),
         );
-        self::assertSame('msg_outcome_a', $this->log->lookupIdempotent('alice', 'refund-1'));
+        self::assertNotNull($existing, 'a second remember with the same key returns the prior claim');
+        self::assertSame('fp_a', $existing->fingerprint);
+        self::assertSame('msg_accept_a', $existing->acceptedMessageId);
+        self::assertNull($existing->outcomeMessageId);
+
+        // §7.2: the terminal outcome is recorded on the claim afterwards.
+        $this->log->recordIdempotentOutcome('alice', 'refund-1', 'msg_outcome_a');
+        $record = $this->log->lookupIdempotent('alice', 'refund-1');
+        self::assertNotNull($record);
+        self::assertSame('msg_outcome_a', $record->outcomeMessageId);
+    }
+
+    public function testReleaseIdempotentFreesTheClaim(): void
+    {
+        $expires = $this->clock->now()->modify('+1 hour');
+        $this->log->rememberIdempotent(
+            new IdempotencyRecord('alice', 'refund-1', 'fp_a', 'msg_accept_a', null, $expires),
+        );
+        $this->log->releaseIdempotent('alice', 'refund-1');
+        self::assertNull($this->log->lookupIdempotent('alice', 'refund-1'));
     }
 
     public function testIdempotencyCacheExpiresLazily(): void
     {
         $expires = $this->clock->now()->modify('+5 seconds');
         $this->log->rememberIdempotent(
-            new IdempotencyRecord('alice', 'refund-1', 'msg_x', $expires),
+            new IdempotencyRecord('alice', 'refund-1', 'fp_x', 'msg_x', null, $expires),
         );
 
         $this->clock->advance(10);
@@ -181,32 +196,32 @@ final class EventLogTest extends TestCase
             'expired entry should not be returned',
         );
         // An expired entry is overwritten in place, so a fresh remember
-        // succeeds with the new outcome.
+        // succeeds with the new claim.
         $newExpires = $this->clock->now()->modify('+1 hour');
         self::assertNull($this->log->rememberIdempotent(
-            new IdempotencyRecord('alice', 'refund-1', 'msg_y', $newExpires),
+            new IdempotencyRecord('alice', 'refund-1', 'fp_y', 'msg_y', null, $newExpires),
         ));
-        self::assertSame('msg_y', $this->log->lookupIdempotent('alice', 'refund-1'));
+        self::assertSame('msg_y', $this->log->lookupIdempotent('alice', 'refund-1')?->acceptedMessageId);
     }
 
     public function testIdempotencyCachePartitionsByPrincipal(): void
     {
         $expires = $this->clock->now()->modify('+1 hour');
         $this->log->rememberIdempotent(
-            new IdempotencyRecord('alice', 'refund-1', 'msg_a', $expires),
+            new IdempotencyRecord('alice', 'refund-1', 'fp', 'msg_a', null, $expires),
         );
         $this->log->rememberIdempotent(
-            new IdempotencyRecord('bob', 'refund-1', 'msg_b', $expires),
+            new IdempotencyRecord('bob', 'refund-1', 'fp', 'msg_b', null, $expires),
         );
 
-        self::assertSame('msg_a', $this->log->lookupIdempotent('alice', 'refund-1'));
-        self::assertSame('msg_b', $this->log->lookupIdempotent('bob', 'refund-1'));
+        self::assertSame('msg_a', $this->log->lookupIdempotent('alice', 'refund-1')?->acceptedMessageId);
+        self::assertSame('msg_b', $this->log->lookupIdempotent('bob', 'refund-1')?->acceptedMessageId);
     }
 
     public function testLookupIdempotentDoesNotDeleteExpiredRows(): void
     {
         $this->log->rememberIdempotent(
-            new IdempotencyRecord('alice', 'refund-1', 'msg_x', $this->clock->now()->modify('+5 seconds')),
+            new IdempotencyRecord('alice', 'refund-1', 'fp', 'msg_x', null, $this->clock->now()->modify('+5 seconds')),
         );
         $this->clock->advance(10);
 
@@ -219,14 +234,14 @@ final class EventLogTest extends TestCase
     public function testPurgeExpiredIdempotentRemovesOnlyExpiredRows(): void
     {
         $this->log->rememberIdempotent(
-            new IdempotencyRecord('alice', 'expired', 'msg_old', $this->clock->now()->modify('+5 seconds')),
+            new IdempotencyRecord('alice', 'expired', 'fp', 'msg_old', null, $this->clock->now()->modify('+5 seconds')),
         );
         $this->log->rememberIdempotent(
-            new IdempotencyRecord('alice', 'live', 'msg_new', $this->clock->now()->modify('+1 hour')),
+            new IdempotencyRecord('alice', 'live', 'fp', 'msg_new', null, $this->clock->now()->modify('+1 hour')),
         );
         $this->clock->advance(10);
 
         self::assertSame(1, $this->log->purgeExpiredIdempotent());
-        self::assertSame('msg_new', $this->log->lookupIdempotent('alice', 'live'));
+        self::assertSame('msg_new', $this->log->lookupIdempotent('alice', 'live')?->acceptedMessageId);
     }
 }

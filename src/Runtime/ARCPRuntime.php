@@ -397,6 +397,7 @@ final class ARCPRuntime
      *
      * @param array{
      *     correlation_id?: MessageId,
+     *     message_id?: MessageId,
      *     job_id?: JobId|null,
      *     stream_id?: StreamId|null,
      *     subscription_id?: SubscriptionId|null,
@@ -406,7 +407,7 @@ final class ARCPRuntime
      */
     public function emit(Session $session, MessageType $payload, array $hints = []): MessageId
     {
-        $id = MessageId::random();
+        $id = $hints['message_id'] ?? MessageId::random();
         $redactedPayload = $this->redactedPayload($payload);
         $jobId = $hints['job_id'] ?? null;
         $eventSeq = $this->isSequenced($payload) ? $session->nextEventSeq() : null;
