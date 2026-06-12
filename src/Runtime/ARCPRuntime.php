@@ -40,6 +40,9 @@ use Arcp\Messages\Execution\JobResult;
 use Arcp\Messages\Execution\ResultChunk;
 use Arcp\Messages\Session\Capabilities;
 use Arcp\Messages\Session\PeerInfo;
+use Arcp\Messages\Session\SessionAck;
+use Arcp\Messages\Session\SessionPing;
+use Arcp\Messages\Session\SessionPong;
 use Arcp\Messages\Telemetry\EventEmit;
 use Arcp\Runtime\Credentials\CredentialProvisioner;
 use Arcp\Runtime\Credentials\CredentialStore;
@@ -48,6 +51,7 @@ use Arcp\Store\EventLog;
 use Arcp\Transport\Transport;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
+use Revolt\EventLoop;
 
 /**
  * Server-side runtime. Owns sessions, jobs, streams, subscriptions,
@@ -80,6 +84,18 @@ final class ARCPRuntime
     /** @var array<string, string> */
     private array $defaultToolVersions = [];
 
+    /**
+     * §6.3 resume registry: parked sessions keyed by their current
+     * resume token, plus the event-loop timer that expires each park
+     * when the resume window elapses.
+     *
+     * @var array<string, Session>
+     */
+    private array $resumable = [];
+
+    /** @var array<string, string> token => EventLoop timer id */
+    private array $resumeExpiry = [];
+
     private readonly HandshakeNegotiator $handshake;
     private readonly Dispatcher $dispatcher;
 
@@ -97,6 +113,8 @@ final class ARCPRuntime
         public readonly ?PeerInfo $runtimeIdentity = null,
         public readonly ?CredentialProvisioner $credentialProvisioner = null,
         ?CredentialStore $credentialStore = null,
+        public readonly int $resumeWindowSec = 600,
+        public readonly int $heartbeatIntervalSec = 30,
     ) {
         $this->registry = $registry ?? MessageCatalog::create();
         $this->serializer = new EnvelopeSerializer($this->registry, $extensions);
@@ -157,6 +175,8 @@ final class ARCPRuntime
             $config->runtimeIdentity,
             $config->credentialProvisioner,
             $config->credentialStore,
+            $config->resumeWindowSec ?? 600,
+            $config->heartbeatIntervalSec ?? 30,
         );
     }
 
@@ -264,12 +284,16 @@ final class ARCPRuntime
     /**
      * Drive a single peer connection. Performs the handshake, then the
      * read-loop until the transport closes or the session ends.
+     *
+     * A `session.hello` carrying a valid resume token reattaches the
+     * parked session (§6.3): the loop continues serving that session's
+     * identity — and its in-flight jobs — over the new transport.
      */
     public function serve(Transport $transport, ?Cancellation $cancellation = null): void
     {
         $session = new Session($transport, isClient: false);
         try {
-            $this->handshake->negotiate($session, $cancellation);
+            $session = $this->handshake->negotiate($session, $cancellation);
             if ($session->state !== SessionState::Authenticated) {
                 return;
             }
@@ -281,12 +305,83 @@ final class ARCPRuntime
             if (!$transport->isClosed()) {
                 $transport->close();
             }
-            // Preserve a terminal label set during handshake/dispatch
-            // (Rejected/Evicted) instead of clobbering it with Closed.
-            if (!$session->state->isTerminal()) {
-                $session->state = SessionState::Closed;
+            $this->finishServe($session);
+        }
+    }
+
+    /**
+     * End-of-connection disposition: park resumable sessions for the
+     * §6.3 resume window (jobs keep running, sequenced events buffer);
+     * everything else closes. Terminal labels set during dispatch
+     * (Rejected/Evicted) are preserved.
+     */
+    private function finishServe(Session $session): void
+    {
+        if ($session->state->isTerminal()) {
+            return;
+        }
+        if ($session->resumeToken !== null && $session->sessionId !== null) {
+            $this->parkResumable($session);
+            return;
+        }
+        $session->state = SessionState::Closed;
+    }
+
+    /**
+     * §6.3: hold a session for the resume window. In-flight jobs keep
+     * running; sequenced outbound messages are buffered for replay. When
+     * the window elapses without a resume, the session is torn down and
+     * its jobs cancelled.
+     */
+    public function parkResumable(Session $session): void
+    {
+        $token = $session->resumeToken;
+        if ($token === null) {
+            $session->state = SessionState::Closed;
+            return;
+        }
+        $session->state = SessionState::Parked;
+        $this->resumable[$token] = $session;
+        $this->resumeExpiry[$token] = EventLoop::delay(
+            (float) $this->resumeWindowSec,
+            fn () => $this->expireResumable($token),
+        );
+    }
+
+    /**
+     * Claim a parked session by resume token, cancelling its expiry
+     * timer. Returns null when the token is unknown or already expired.
+     */
+    public function takeResumable(string $token): ?Session
+    {
+        $session = $this->resumable[$token] ?? null;
+        if ($session === null) {
+            return null;
+        }
+        unset($this->resumable[$token]);
+        $timer = $this->resumeExpiry[$token] ?? null;
+        if ($timer !== null) {
+            EventLoop::cancel($timer);
+            unset($this->resumeExpiry[$token]);
+        }
+        return $session;
+    }
+
+    private function expireResumable(string $token): void
+    {
+        $session = $this->resumable[$token] ?? null;
+        unset($this->resumable[$token], $this->resumeExpiry[$token]);
+        if ($session === null || $session->state !== SessionState::Parked) {
+            return;
+        }
+        // The resume window elapsed: the session is gone for good, so its
+        // in-flight jobs no longer have an owner to report to.
+        foreach ($this->jobs->all() as $job) {
+            if ($job->session === $session && !$job->state->isTerminal()) {
+                $this->jobs->cancel($job->id, 'resume_window_expired');
             }
         }
+        $session->state = SessionState::Closed;
     }
 
     /**
@@ -330,6 +425,16 @@ final class ARCPRuntime
             correlationId: $hints['correlation_id'] ?? null,
         );
         $logEnv = $redactedPayload === $payload ? $env : $env->withPayload($redactedPayload);
+        // §6.3: while parked (or once the transport dropped) there is no
+        // live connection; buffer sequenced messages for resume replay and
+        // keep fanning them out to subscribers on other sessions.
+        if ($session->state === SessionState::Parked || $session->transport->isClosed()) {
+            if ($this->isBuffered($payload)) {
+                $this->eventLog->append($logEnv);
+                $this->subscriptions->dispatch($logEnv);
+            }
+            return $id;
+        }
         // Send first: only record the envelope in the event log and fan it
         // out to subscribers once the originating transport accepted it, so a
         // failed send never leaks a "sent" envelope into replay or to
@@ -344,9 +449,23 @@ final class ARCPRuntime
             ]);
             return $id;
         }
-        $this->eventLog->append($logEnv);
-        $this->subscriptions->dispatch($logEnv);
+        if ($this->isBuffered($payload)) {
+            $this->eventLog->append($logEnv);
+            $this->subscriptions->dispatch($logEnv);
+        }
         return $id;
+    }
+
+    /**
+     * §6.4/§6.5: heartbeats and acks are session control traffic — they
+     * are neither sequenced nor appended to the event log / resume
+     * buffer. Everything else outbound is recorded.
+     */
+    private function isBuffered(MessageType $payload): bool
+    {
+        return !$payload instanceof SessionPing
+            && !$payload instanceof SessionPong
+            && !$payload instanceof SessionAck;
     }
 
     /**

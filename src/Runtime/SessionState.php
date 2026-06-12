@@ -12,6 +12,13 @@ enum SessionState: string
     case Authenticating = 'authenticating';
     case Authenticated = 'authenticated';
     case Refreshing = 'refreshing';
+
+    /**
+     * Transport gone but the session is held for the §6.3 resume window:
+     * in-flight jobs keep running and sequenced events are buffered for
+     * replay until the client reattaches or the window expires.
+     */
+    case Parked = 'parked';
     case Closing = 'closing';
     case Closed = 'closed';
     case Rejected = 'rejected';

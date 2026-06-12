@@ -19,7 +19,12 @@ CREATE TABLE IF NOT EXISTS events (
     -- 1 = runtime→client (outbound), 0 = client→runtime (inbound).
     -- Resume/backfill replay only outbound rows (RFC §6.3); inbound rows are
     -- retained for transport dedup and audit.
-    outbound          INTEGER NOT NULL DEFAULT 1
+    outbound          INTEGER NOT NULL DEFAULT 1,
+    -- Session-scoped §8.3 sequence stamped on sequenced job messages.
+    -- NULL for session-control messages; §6.3 resume replays rows with
+    -- event_seq > last_event_seq, and §6.5 acks release rows at or
+    -- below the acknowledged watermark.
+    event_seq         INTEGER
 );
 
 CREATE INDEX IF NOT EXISTS events_session_idx  ON events(session_id, rowid);
@@ -27,6 +32,7 @@ CREATE INDEX IF NOT EXISTS events_job_idx      ON events(job_id, rowid);
 CREATE INDEX IF NOT EXISTS events_stream_idx   ON events(stream_id, rowid);
 CREATE INDEX IF NOT EXISTS events_trace_idx    ON events(trace_id, rowid);
 CREATE INDEX IF NOT EXISTS events_type_idx     ON events(type, rowid);
+CREATE INDEX IF NOT EXISTS events_seq_idx      ON events(session_id, event_seq);
 
 -- (session_principal, idempotency_key) → previous outcome (RFC §6.4).
 -- A logical retry returns the cached outcome rather than re-executing.

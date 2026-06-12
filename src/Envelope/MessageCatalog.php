@@ -54,7 +54,6 @@ use Arcp\Messages\Session\SessionPing;
 use Arcp\Messages\Session\SessionPong;
 use Arcp\Messages\Session\SessionRefresh;
 use Arcp\Messages\Session\SessionRejected;
-use Arcp\Messages\Session\SessionResume;
 use Arcp\Messages\Session\SessionUnauthenticated;
 use Arcp\Messages\Session\SessionWelcome;
 use Arcp\Messages\Streaming\StreamChunk;
@@ -98,7 +97,6 @@ final class MessageCatalog
         SessionPing::class,
         SessionPong::class,
         SessionAck::class,
-        SessionResume::class,
         // Control
         Nack::class,
         JobCancel::class,

@@ -36,6 +36,8 @@ final readonly class RuntimeConfig
         public ?PeerInfo $runtimeIdentity = null,
         public ?CredentialProvisioner $credentialProvisioner = null,
         public ?CredentialStore $credentialStore = null,
+        public ?int $resumeWindowSec = null,
+        public ?int $heartbeatIntervalSec = null,
     ) {
     }
 }

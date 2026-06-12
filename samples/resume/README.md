@@ -1,61 +1,51 @@
 # resume
 
-Five-step research job (plan → gather → synthesize → critique →
-finalize) that checkpoints after every step. Crash mid-flight,
-resume on next invocation, no work lost.
+Token-based session resume (§6.3). A long-running job survives a
+transport drop: the session parks for `resume_window_sec`, sequenced
+events buffer, and the client reattaches with the `resume_token` from
+its last welcome plus `last_event_seq`.
 
 ## Before ARCP
 
-Long jobs survive crashes only if the team built their own
-checkpoint store, retry contract, and dedupe layer. Most don't.
-Crash means restart; restart means re-spending tokens; "did this
-already run?" turns into a SQL detective story.
+Reconnect logic is bespoke: clients re-poll, re-subscribe, and hope
+the server kept enough history. Missed events are silently lost or
+re-fetched with one-off cursors.
 
 ## With ARCP
 
 ```php
-// every step ends with two envelopes
-emitProgress($client, $jobId, 'synthesize');
-emitCheckpoint($client, $jobId, 'synthesize');
+// the welcome carries the resume parameters
+$welcome = $client->open($auth, $info, $caps);
+$token = $welcome->resumeToken;          // rotates on every welcome
+$window = $welcome->resumeWindowSec;     // how long the buffer lives
 
-// resume picks up at the step *after* the last checkpoint
-$last = issueResume($client, $jobId, $afterMessageId, $checkpointId);
-$nextIdx = (int) array_search($last, STEPS, true) + 1;
+// after a drop: reconnect on a fresh transport
+$client2->open($auth, $info, $caps,
+    resumeToken: $token,
+    lastEventSeq: $client->session->lastReceivedEventSeq ?? 0,
+);
+// buffered events with event_seq > last_event_seq replay, then live
 ```
 
-Per-step `idempotency_key` keeps execution single across retries:
-the runtime returns the prior outcome if the same step is re-issued.
+An unknown, expired, or rotated-away token — or a `last_event_seq`
+the buffer no longer covers — fails with `RESUME_WINDOW_EXPIRED`
+(§12). Acks (`session.ack`, §6.5) release buffered events early.
 
 ## Try it
 
 ```bash
-# crash after `synthesize`. Prints the resume token.
-CRASH_AFTER_STEP=synthesize php samples/resume/main.php
-
-# resume — runtime replays up to the last checkpoint, we run from
-# the next step.
-RESUME_JOB_ID=...  RESUME_AFTER_MSG_ID=...  RESUME_CHECKPOINT_ID=... \
-  php samples/resume/main.php
+php samples/resume/main.php
 ```
 
 ## ARCP primitives
 
-- Resumability — RFC §19, `after_message_id` + `checkpoint_id`.
-- Job lifecycle + checkpoints — §10.
-- `idempotency_key` semantics — §6.4.
-- `DATA_LOSS` on retention expiry — §19, §18.2.
-
-## File tour
-
-- `main.php` — `start fresh` vs `resume`. `exit(137)` on the crash
-  step to demonstrate process death.
-- `steps.php` — `runStep()` step-body stub.
+- Resume — §6.3: `session.hello {resume_token, last_event_seq}`.
+- Token rotation — §6.3: every welcome mints a fresh token.
+- Event acknowledgement — §6.5: acks free the replay buffer.
+- `RESUME_WINDOW_EXPIRED` — §12.
 
 ## Variations
 
-- Plug a workflow checkpointer that doubles to a SQLite store so
-  checkpoints survive ARCP retention expiry too.
-- Branch on critique severity: low → finalize; high → loop back to
-  synthesize with the critique appended.
-- Emit `kind: thought` between steps for
-  [reasoning-streams](../reasoning-streams) to consume.
+- Send `session.ack` periodically and watch the replay window shrink.
+- Let the resume window lapse and observe the parked session's jobs
+  being cancelled.

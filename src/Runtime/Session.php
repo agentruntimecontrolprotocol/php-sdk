@@ -27,11 +27,24 @@ final class Session
     public ?Capabilities $capabilities = null;
 
     /**
+     * Current §6.3 resume token. Rotated on every successful welcome; a
+     * reconnecting client presents it (with `last_event_seq`) in
+     * `session.hello` to reattach to this session.
+     */
+    public ?string $resumeToken = null;
+
+    /**
      * Highest `event_seq` the peer reported processing via `session.ack`
-     * (§6.5). Null until the first ack arrives. Advisory in this phase;
-     * buffered-event release keys off it in a later phase.
+     * (§6.5). Null until the first ack arrives. The runtime releases
+     * buffered events at or below this watermark.
      */
     public ?int $lastAckedEventSeq = null;
+
+    /**
+     * Client-side bookkeeping: the highest `event_seq` observed on
+     * inbound envelopes. Presented as `last_event_seq` on a §6.3 resume.
+     */
+    public ?int $lastReceivedEventSeq = null;
 
     /**
      * Session-scoped monotonically increasing sequence (§8.3). Stamped on
@@ -40,10 +53,18 @@ final class Session
      */
     private int $eventSeq = 0;
 
+    /**
+     * The connected transport. Swappable so a §6.3 resume can reattach
+     * the same session identity (and its in-flight jobs) to the new
+     * connection's transport.
+     */
+    public Transport $transport;
+
     public function __construct(
-        public readonly Transport $transport,
+        Transport $transport,
         public readonly bool $isClient = false,
     ) {
+        $this->transport = $transport;
     }
 
     /** Allocate the next session-scoped `event_seq` value (§8.3). */

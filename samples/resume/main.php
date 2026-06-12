@@ -3,189 +3,106 @@
 declare(strict_types=1);
 
 /*
- * resumability — durable research job with real crash and resume.
+ * resume — §6.3 token-based session resume.
  *
- *   # First call: crash after `synthesize`. Prints the resume token.
- *   CRASH_AFTER_STEP=synthesize php samples/resume/main.php
+ * The welcome carries a `resume_token` (rotated on every welcome) and
+ * `resume_window_sec`. After a transport drop the session parks: the
+ * job keeps running and sequenced events buffer. The client reconnects
+ * with `session.hello {resume_token, last_event_seq}` and receives the
+ * buffered events past that sequence, then continues live.
  *
- *   # Second call: pick up from the printed checkpoint.
- *   RESUME_JOB_ID=...  RESUME_AFTER_MSG_ID=...  RESUME_CHECKPOINT_ID=... \
- *     php samples/resume/main.php
- *
- * RFC §10 (job lifecycle), §19 (resumability), §6.4 (idempotency),
- * §18.2 (DATA_LOSS on retention expiry).
+ * ARCP v1.1 §6.3 (resume), §6.5 (ack), §8.3 (event_seq), §12
+ * (RESUME_WINDOW_EXPIRED).
  */
 
 require __DIR__ . '/../../vendor/autoload.php';
-require __DIR__ . '/steps.php';
+
+use Amp\Cancellation;
+
+use function Amp\delay;
 
 use Arcp\Client\ARCPClient;
-use Arcp\Clock\SystemClock;
-use Arcp\Envelope\Envelope;
-use Arcp\Ids\JobId;
-use Arcp\Ids\MessageId;
-use Arcp\Messages\Execution\JobCheckpoint;
-use Arcp\Messages\Execution\JobProgress;
-use Arcp\Messages\Execution\JobResult;
-use Arcp\Messages\Execution\WorkflowStart;
-use Arcp\Messages\Session\SessionResume;
+use Arcp\Errors\ResumeWindowExpiredException;
+use Arcp\Messages\Session\Auth;
+use Arcp\Messages\Session\Capabilities;
+use Arcp\Messages\Session\PeerInfo;
+use Arcp\Runtime\ARCPRuntime;
+use Arcp\Runtime\JobContext;
+use Arcp\Runtime\ToolHandler;
+use Arcp\Transport\MemoryTransport;
 
-use function Arcp\Samples\Resumability\runStep;
-
-const STEPS = ['plan', 'gather', 'synthesize', 'critique', 'finalize'];
-
-/** Deterministic per-step idempotency key (RFC §6.4). */
-function stepKey(string $jobId, string $step, string $salt): string
-{
-    $h = hash('sha256', $jobId . "\x00" . $step . "\x00" . $salt);
-    return "research:{$jobId}:{$step}:" . substr($h, 0, 16);
-}
-
-function emitProgress(ARCPClient $client, JobId $jobId, string $step): void
-{
-    $idx = array_search($step, STEPS, true);
-    $pct = (int) (100 * ((int) $idx + 1) / count(STEPS));
-    $client->session->transport->send(new Envelope(
-        id: MessageId::random(),
-        payload: new JobProgress(percent: $pct, message: $step),
-        timestamp: new SystemClock()->now(),
-        sessionId: $client->session->sessionId,
-        jobId: $jobId,
-    ));
-}
-
-function emitCheckpoint(ARCPClient $client, JobId $jobId, string $step): string
-{
-    $chk = "chk_{$step}_" . substr((string) $jobId, -6);
-    $client->session->transport->send(new Envelope(
-        id: MessageId::random(),
-        payload: new JobCheckpoint(checkpointId: $chk, state: ['label' => $step]),
-        timestamp: new SystemClock()->now(),
-        sessionId: $client->session->sessionId,
-        jobId: $jobId,
-    ));
-    return $chk;
-}
-
-function executeSteps(
-    ARCPClient $client,
-    JobId $jobId,
-    mixed $request,
-    string $startingAt,
-    ?string $crashAfter,
-): mixed {
-    $output = $request;
-    $startIdx = (int) array_search($startingAt, STEPS, true);
-    foreach (STEPS as $idx => $step) {
-        if ($idx < $startIdx) {
-            continue;
+$runtime = new ARCPRuntime();
+$runtime->registerTool('research', new class () implements ToolHandler {
+    #[\Override]
+    public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
+    {
+        // A slow job: it outlives the first connection on purpose.
+        foreach (['plan', 'gather', 'synthesize', 'critique', 'finalize'] as $i => $step) {
+            $ctx->emitLog('info', "step: {$step}");
+            delay(0.05);
         }
-        $key = stepKey((string) $jobId, $step, var_export($output, true));
-        emitProgress($client, $jobId, $step);
-        $output = runStep($client, (string) $jobId, $step, [
-            'prior' => $output,
-            'idempotency_key' => $key,
-        ]);
-        emitCheckpoint($client, $jobId, $step);
-        if ($crashAfter === $step) {
-            // The whole point of durable jobs: process death is fine.
-            // Runtime kept every envelope; resume picks it up.
-            fprintf(
-                STDERR,
-                '[crash after %s; resume with RESUME_JOB_ID=%s '
-                . 'RESUME_CHECKPOINT_ID=chk_%s_%s '
-                . "RESUME_AFTER_MSG_ID=<last id from your event log>]\n",
-                $step,
-                (string) $jobId,
-                $step,
-                substr((string) $jobId, -6),
-            );
-            exit(137);
-        }
+        return ['report' => 'CRDT survey 2026'];
     }
-    return $output;
-}
+});
 
-function issueResume(ARCPClient $client, JobId $jobId, string $afterMessageId, ?string $checkpointId): ?string
-{
-    $payload = new SessionResume(
-        afterMessageId: $afterMessageId,
-        checkpointId: $checkpointId,
-        includeOpenStreams: true,
+// First connection: open, submit, then drop mid-job (no session.close).
+[$serverT1, $clientT1] = MemoryTransport::pair();
+$runtime->serveAsync($serverT1);
+$client1 = new ARCPClient($clientT1);
+$welcome1 = $client1->open(Auth::anonymous(), new PeerInfo('resume-demo', '0.1'), new Capabilities());
+printf("resume_token=%s window=%ds\n", (string) $welcome1->resumeToken, (int) $welcome1->resumeWindowSec);
+
+// Submit in the background; we will not stay around for the result.
+\Amp\async(static function () use ($client1): void {
+    try {
+        $client1->invokeTool('research', ['topic' => 'CRDT collaborative editing']);
+    } catch (\Throwable) {
+        // the transport drops mid-flight; the resumed session sees the result
+    }
+});
+delay(0.12); // a few steps in...
+$lastSeen = $client1->session->lastReceivedEventSeq ?? 0;
+$clientT1->close(); // simulated crash: NOT session.close — the job keeps running
+printf("dropped after event_seq=%d\n", $lastSeen);
+
+// Second connection: resume with the token + last_event_seq. The runtime
+// reattaches the same session, replays events we missed, and the job's
+// terminal job.result arrives on the new transport.
+[$serverT2, $clientT2] = MemoryTransport::pair();
+$runtime->serveAsync($serverT2);
+$client2 = new ARCPClient($clientT2);
+$welcome2 = $client2->open(
+    Auth::anonymous(),
+    new PeerInfo('resume-demo', '0.1'),
+    new Capabilities(),
+    resumeToken: (string) $welcome1->resumeToken,
+    lastEventSeq: $lastSeen,
+);
+printf(
+    "resumed session=%s (same=%s), rotated_token=%s\n",
+    (string) $welcome2->sessionId,
+    (string) $welcome1->sessionId === (string) $welcome2->sessionId ? 'yes' : 'no',
+    (string) $welcome2->resumeToken,
+);
+
+delay(0.3); // let the job finish and its buffered events stream in
+printf("caught up to event_seq=%d\n", $client2->session->lastReceivedEventSeq ?? 0);
+
+// A stale token (the pre-rotation one) is rejected: RESUME_WINDOW_EXPIRED.
+[$serverT3, $clientT3] = MemoryTransport::pair();
+$runtime->serveAsync($serverT3);
+$client3 = new ARCPClient($clientT3);
+try {
+    $client3->open(
+        Auth::anonymous(),
+        new PeerInfo('resume-demo', '0.1'),
+        new Capabilities(),
+        resumeToken: (string) $welcome1->resumeToken, // rotated away above
+        lastEventSeq: 0,
     );
-    $client->session->transport->send(new Envelope(
-        id: MessageId::random(),
-        payload: $payload,
-        timestamp: new SystemClock()->now(),
-        sessionId: $client->session->sessionId,
-        jobId: $jobId,
-    ));
-
-    // Drain replay; capture the last checkpoint label, return when
-    // backfill_complete arrives (replay window closed; now live).
-    // Real impl uses a dedicated subscribe + Future. Throws
-    // ResumeWindowExpired on retention expiry (§6.3 / §12).
-    throw new \RuntimeException('not implemented');
+} catch (ResumeWindowExpiredException $e) {
+    printf("stale token rejected: %s\n", $e->getMessage());
 }
+$client3->close();
 
-function main(): void
-{
-    /** @var ARCPClient $client */
-    $client = elided(); // transport, identity, auth elided
-
-    $rjId = (($v = getenv('RESUME_JOB_ID')) !== false && $v !== '') ? $v : null;
-    $rjAfter = (($v = getenv('RESUME_AFTER_MSG_ID')) !== false && $v !== '') ? $v : null;
-    $rjCheckpoint = (($v = getenv('RESUME_CHECKPOINT_ID')) !== false && $v !== '') ? $v : null;
-
-    if ($rjId !== null && $rjAfter !== null) {
-        $jobId = new JobId($rjId);
-        $last = issueResume($client, $jobId, $rjAfter, $rjCheckpoint);
-        if ($last === null) {
-            echo "already terminal during replay\n";
-        } else {
-            $nextIdx = (int) array_search($last, STEPS, true) + 1;
-            if ($nextIdx >= count(STEPS)) {
-                echo "nothing to resume\n";
-            } else {
-                printf("[resuming at %s]\n", STEPS[$nextIdx]);
-                $final = executeSteps($client, $jobId, '<replayed>', STEPS[$nextIdx], null);
-                $client->session->transport->send(new Envelope(
-                    id: MessageId::random(),
-                    payload: new JobResult(result: $final),
-                    timestamp: new SystemClock()->now(),
-                    sessionId: $client->session->sessionId,
-                    jobId: $jobId,
-                ));
-            }
-        }
-    } else {
-        $jobId = JobId::random();
-        $request = 'Survey CRDT-based collaborative editing in 2026.';
-        $client->session->transport->send(new Envelope(
-            id: MessageId::random(),
-            payload: new WorkflowStart(payload: ['workflow' => 'research.v1', 'arguments' => ['request' => $request]]),
-            timestamp: new SystemClock()->now(),
-            sessionId: $client->session->sessionId,
-            jobId: $jobId,
-        ));
-        $crash = (($v = getenv('CRASH_AFTER_STEP')) !== false && $v !== '') ? $v : null;
-        $final = executeSteps($client, $jobId, $request, STEPS[0], $crash);
-        $client->session->transport->send(new Envelope(
-            id: MessageId::random(),
-            payload: new JobResult(result: $final),
-            timestamp: new SystemClock()->now(),
-            sessionId: $client->session->sessionId,
-            jobId: $jobId,
-        ));
-        printf("job_id=%s\n%s\n", (string) $jobId, var_export($final, true));
-    }
-
-    $client->close();
-}
-
-function elided(): ARCPClient
-{
-    throw new \RuntimeException('not implemented');
-}
-
-main();
+$client2->close();

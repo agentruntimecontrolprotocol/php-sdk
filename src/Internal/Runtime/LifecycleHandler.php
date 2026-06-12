@@ -12,7 +12,6 @@ use Arcp\Envelope\MessageType;
 use Arcp\Envelope\Priority;
 use Arcp\Errors\ARCPException;
 use Arcp\Errors\ErrorPayload;
-use Arcp\Errors\InvalidRequestException;
 use Arcp\Ids\JobId;
 use Arcp\Ids\MessageId;
 use Arcp\Ids\SessionId;
@@ -27,7 +26,6 @@ use Arcp\Messages\Permissions\LeaseRefresh;
 use Arcp\Messages\Session\SessionAck;
 use Arcp\Messages\Session\SessionPing;
 use Arcp\Messages\Session\SessionPong;
-use Arcp\Messages\Session\SessionResume;
 use Arcp\Messages\Telemetry\EventEmit;
 use Arcp\Runtime\ARCPRuntime;
 use Arcp\Runtime\Job;
@@ -36,8 +34,8 @@ use Arcp\Runtime\SessionState;
 
 /**
  * Owns the small ARCP message handlers: session.ping/pong, session.ack,
- * session.close, job.cancel, interrupt, session.resume, lease.refresh,
- * plus shared nack/no-session helpers used by sibling collaborators.
+ * session.close, job.cancel, interrupt, lease.refresh, plus shared
+ * nack/no-session helpers used by sibling collaborators.
  *
  * @internal
  */
@@ -59,14 +57,20 @@ final readonly class LifecycleHandler
     }
 
     /**
-     * §6.5: record the client's advisory processing watermark. Purely
-     * advisory in this phase; buffer release keys off it later.
+     * §6.5: advance the client's processing watermark and free buffered
+     * events with `seq <= last_processed_seq` ahead of the time-based
+     * resume window. Stale (lower) acks are ignored.
      */
     public function handleSessionAck(Session $session, SessionAck $msg): void
     {
         $current = $session->lastAckedEventSeq;
-        if ($current === null || $msg->lastProcessedSeq > $current) {
-            $session->lastAckedEventSeq = $msg->lastProcessedSeq;
+        if ($current !== null && $msg->lastProcessedSeq <= $current) {
+            return;
+        }
+        $session->lastAckedEventSeq = $msg->lastProcessedSeq;
+        $sessionId = $session->sessionId;
+        if ($sessionId instanceof SessionId) {
+            $this->runtime->eventLog->releaseAcked($sessionId, $msg->lastProcessedSeq);
         }
     }
 
@@ -156,33 +160,6 @@ final readonly class LifecycleHandler
                 // job keeps running throughout (§7.3 has no blocked state).
             }
         });
-    }
-
-    public function handleResume(Session $session, Envelope $env, SessionResume $msg): void
-    {
-        if ($msg->checkpointId !== null && $msg->afterMessageId === null) {
-            $this->nack($session, $env, 'INVALID_REQUEST', 'checkpoint resume deferred (RFC §19)');
-            return;
-        }
-        $sessionId = $session->sessionId;
-        if ($sessionId === null) {
-            $this->nack($session, $env, 'INVALID_REQUEST', 'resume requires an authenticated session');
-            return;
-        }
-        $after = $msg->afterMessageId ?? '';
-        try {
-            foreach ($this->runtime->eventLog->replayAfterForSession($after, $sessionId) as $past) {
-                $session->transport->send($past);
-            }
-        } catch (InvalidRequestException) {
-            // SessionResume is a lifecycle operation, not a tool invocation; surface
-            // the failure as a correlated nack like every other lifecycle path.
-            $this->nack($session, $env, 'RESUME_WINDOW_EXPIRED', 'after_message_id retention expired');
-            return;
-        }
-        // Phase-2 work (#55/#125) replaces this with token-based resume;
-        // for now acknowledge replay completion with a correlated event.
-        $this->runtime->emit($session, new EventEmit('session.resumed'), ['correlation_id' => $env->id]);
     }
 
     public function handleLeaseRefresh(Session $session, Envelope $env, LeaseRefresh $msg): void

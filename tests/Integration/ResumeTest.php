@@ -4,186 +4,275 @@ declare(strict_types=1);
 
 namespace Arcp\Tests\Integration;
 
-use Arcp\Auth\AnonymousAuth;
+use Amp\Cancellation;
+
+use function Amp\delay;
+
 use Arcp\Auth\AuthRouter;
+use Arcp\Auth\BearerAuth;
 use Arcp\Client\ARCPClient;
-use Arcp\Envelope\Envelope;
-use Arcp\Envelope\MessageCatalog;
-use Arcp\Errors\InvalidRequestException;
-use Arcp\Ids\MessageId;
-use Arcp\Ids\SessionId;
-use Arcp\Json\EnvelopeSerializer;
+use Arcp\Errors\ResumeWindowExpiredException;
 use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\Capabilities;
 use Arcp\Messages\Session\PeerInfo;
-use Arcp\Messages\Session\SessionResume;
-use Arcp\Messages\Telemetry\EventEmit;
 use Arcp\Runtime\ARCPRuntime;
-use Arcp\Store\EventLog;
+use Arcp\Runtime\JobContext;
+use Arcp\Runtime\ToolHandler;
 use Arcp\Transport\MemoryTransport;
 use PHPUnit\Framework\TestCase;
 
 /**
- * RFC §19 — message-id resume. Phase 5 only commits to walking the
- * EventLog from `after_message_id`. Checkpoint-based resume is deferred
- * to v0.2.
+ * ARCP v1.1 §6.3 — token-based resume. The welcome carries a rotating
+ * `resume_token` + `resume_window_sec`; a reconnect presents the token
+ * and `last_event_seq` in `session.hello` and receives the buffered
+ * events past that sequence before going live.
  */
 final class ResumeTest extends TestCase
 {
-    public function testEventLogReplayProducesDeterministicOrder(): void
+    public function testWelcomeCarriesResumeParameters(): void
     {
-        $registry = MessageCatalog::create();
-        $serializer = new EnvelopeSerializer($registry);
-        $log = EventLog::inMemory($serializer);
-        $sess = new SessionId('sess_x');
+        $runtime = new ARCPRuntime();
+        [$serverT, $clientT] = MemoryTransport::pair();
+        $serverFuture = $runtime->serveAsync($serverT);
 
-        $ids = [];
-        foreach (range(1, 6) as $i) {
-            $env = new Envelope(
-                id: new MessageId('msg_' . $i),
-                payload: new EventEmit('demo', ['n' => $i]),
-                timestamp: new \DateTimeImmutable('now'),
-                sessionId: $sess,
+        $client = new ARCPClient($clientT);
+        $welcome = $client->open(
+            Auth::anonymous(),
+            new PeerInfo('cli', '0.1'),
+            new Capabilities(features: ['heartbeat']),
+        );
+
+        self::assertNotNull($welcome->resumeToken);
+        self::assertSame($runtime->resumeWindowSec, $welcome->resumeWindowSec);
+        // §6.4: heartbeat negotiated -> interval present.
+        self::assertSame($runtime->heartbeatIntervalSec, $welcome->heartbeatIntervalSec);
+
+        $client->close();
+        $serverFuture->await();
+    }
+
+    public function testHeartbeatIntervalOmittedWhenNotNegotiated(): void
+    {
+        $runtime = new ARCPRuntime();
+        [$serverT, $clientT] = MemoryTransport::pair();
+        $serverFuture = $runtime->serveAsync($serverT);
+
+        $client = new ARCPClient($clientT);
+        $welcome = $client->open(Auth::anonymous(), new PeerInfo('cli', '0.1'), new Capabilities());
+        self::assertNull($welcome->heartbeatIntervalSec);
+
+        $client->close();
+        $serverFuture->await();
+    }
+
+    public function testResumeReattachesSessionRotatesTokenAndReplays(): void
+    {
+        $runtime = $this->runtimeWithBearer(['t-alice' => 'alice']);
+        $runtime->registerTool('echo', self::echoTool());
+
+        [$serverT1, $clientT1] = MemoryTransport::pair();
+        $future1 = $runtime->serveAsync($serverT1);
+        $client1 = new ARCPClient($clientT1);
+        $welcome1 = $client1->open(Auth::bearer('t-alice'), new PeerInfo('cli', '0.1'), new Capabilities());
+        $client1->invokeTool('echo', ['n' => 1]);
+        $lastSeen = $client1->session->lastReceivedEventSeq ?? 0;
+        self::assertGreaterThan(0, $lastSeen, 'sequenced job messages must carry event_seq');
+
+        // Unexpected transport drop (no session.close): session parks.
+        $clientT1->close();
+        $future1->await();
+
+        // Reconnect presenting resume_token + last_event_seq = 0 so the
+        // runtime replays everything still buffered.
+        [$serverT2, $clientT2] = MemoryTransport::pair();
+        $future2 = $runtime->serveAsync($serverT2);
+        $client2 = new ARCPClient($clientT2);
+        $token = $welcome1->resumeToken;
+        self::assertNotNull($token);
+        $welcome2 = $client2->open(
+            Auth::bearer('t-alice'),
+            new PeerInfo('cli', '0.1'),
+            new Capabilities(),
+            resumeToken: $token,
+            lastEventSeq: 0,
+        );
+
+        // Same logical session; token rotated on the new welcome (§6.3).
+        self::assertSame((string) $welcome1->sessionId, (string) $welcome2->sessionId);
+        self::assertNotNull($welcome2->resumeToken);
+        self::assertNotSame($token, $welcome2->resumeToken);
+
+        // Replayed buffered events reach the new connection.
+        delay(0.05);
+        self::assertSame($lastSeen, $client2->session->lastReceivedEventSeq);
+
+        // The resumed session stays live: a new invocation works.
+        $result = $client2->invokeTool('echo', ['n' => 2]);
+        self::assertSame(['n' => 2], $result->result);
+
+        $client2->close();
+        $future2->await();
+    }
+
+    public function testUnknownResumeTokenIsResumeWindowExpired(): void
+    {
+        $runtime = new ARCPRuntime();
+        [$serverT, $clientT] = MemoryTransport::pair();
+        $serverFuture = $runtime->serveAsync($serverT);
+
+        $client = new ARCPClient($clientT);
+        try {
+            $client->open(
+                Auth::anonymous(),
+                new PeerInfo('cli', '0.1'),
+                new Capabilities(),
+                resumeToken: 'rt_does_not_exist',
+                lastEventSeq: 0,
             );
-            $log->append($env);
-            $ids[] = (string) $env->id;
+            self::fail('expected ResumeWindowExpiredException');
+        } catch (ResumeWindowExpiredException $e) {
+            // §6.3: unknown/expired token -> RESUME_WINDOW_EXPIRED.
+            self::assertStringContainsString('resume token', $e->getMessage());
+        } finally {
+            $client->close();
+            $serverFuture->await();
         }
-
-        unset($env);
-
-        $replay1 = [];
-        foreach ($log->replayAfter('') as $past1) {
-            $replay1[] = (string) $past1->id;
-        }
-        self::assertSame($ids, $replay1);
-
-        $replay2 = [];
-        foreach ($log->replayAfter('msg_3') as $past2) {
-            $replay2[] = (string) $past2->id;
-        }
-        self::assertSame(['msg_4', 'msg_5', 'msg_6'], $replay2);
-
-        // Determinism: a second replay returns the same sequence.
-        $replay3 = [];
-        foreach ($log->replayAfter('') as $past3) {
-            $replay3[] = (string) $past3->id;
-        }
-        self::assertSame($replay1, $replay3);
     }
 
-    public function testReplayAfterForSessionScopedToOneSession(): void
+    public function testResumeByOtherPrincipalRejectedAndOwnerCanStillResume(): void
     {
-        $registry = MessageCatalog::create();
-        $serializer = new EnvelopeSerializer($registry);
-        $log = EventLog::inMemory($serializer);
+        $runtime = $this->runtimeWithBearer(['t-alice' => 'alice', 't-bob' => 'bob']);
+        $runtime->registerTool('echo', self::echoTool());
 
-        $sessA = new SessionId('sess_a');
-        $sessB = new SessionId('sess_b');
+        [$serverT1, $clientT1] = MemoryTransport::pair();
+        $future1 = $runtime->serveAsync($serverT1);
+        $client1 = new ARCPClient($clientT1);
+        $welcome1 = $client1->open(Auth::bearer('t-alice'), new PeerInfo('cli', '0.1'), new Capabilities());
+        $token = $welcome1->resumeToken;
+        self::assertNotNull($token);
+        $clientT1->close();
+        $future1->await();
 
-        $i = 0;
-        foreach ([$sessA, $sessB, $sessA, $sessB, $sessA] as $sid) {
-            ++$i;
-            $log->append(new Envelope(
-                id: new MessageId('msg_' . $i),
-                payload: new EventEmit('demo', ['n' => $i]),
-                timestamp: new \DateTimeImmutable('now'),
-                sessionId: $sid,
-            ));
+        // Bob presents Alice's token: rejected, token stays valid for Alice.
+        [$serverT2, $clientT2] = MemoryTransport::pair();
+        $future2 = $runtime->serveAsync($serverT2);
+        $mallory = new ARCPClient($clientT2);
+        try {
+            $mallory->open(
+                Auth::bearer('t-bob'),
+                new PeerInfo('cli', '0.1'),
+                new Capabilities(),
+                resumeToken: $token,
+                lastEventSeq: 0,
+            );
+            self::fail('expected ResumeWindowExpiredException');
+        } catch (ResumeWindowExpiredException) {
+            // §6.3/§14: same-principal enforcement must not leak the session.
         }
+        $mallory->close();
+        $future2->await();
 
-        $aReplay = [];
-        foreach ($log->replayAfterForSession('', $sessA) as $env) {
-            $aReplay[] = (string) $env->id;
-        }
-        self::assertSame(['msg_1', 'msg_3', 'msg_5'], $aReplay);
-
-        $bReplay = [];
-        foreach ($log->replayAfterForSession('', $sessB) as $past) {
-            $bReplay[] = (string) $past->id;
-        }
-        self::assertSame(['msg_2', 'msg_4'], $bReplay);
-    }
-
-    public function testReplayAfterForSessionRejectsCrossSessionAfterId(): void
-    {
-        $registry = MessageCatalog::create();
-        $serializer = new EnvelopeSerializer($registry);
-        $log = EventLog::inMemory($serializer);
-
-        $sessA = new SessionId('sess_a');
-        $sessB = new SessionId('sess_b');
-        $log->append(new Envelope(
-            id: new MessageId('m_a1'),
-            payload: new EventEmit('demo'),
-            timestamp: new \DateTimeImmutable('now'),
-            sessionId: $sessA,
-        ));
-
-        $this->expectException(InvalidRequestException::class);
-        // Drain the generator; the exception fires on the prelude check.
-        iterator_to_array($log->replayAfterForSession('m_a1', $sessB));
-    }
-
-    public function testResumeOnlyReplaysCallingSessionEnvelopes(): void
-    {
-        $runtime = new ARCPRuntime(
-            authRouter: new AuthRouter([new AnonymousAuth('public')]),
+        [$serverT3, $clientT3] = MemoryTransport::pair();
+        $future3 = $runtime->serveAsync($serverT3);
+        $alice = new ARCPClient($clientT3);
+        $welcome3 = $alice->open(
+            Auth::bearer('t-alice'),
+            new PeerInfo('cli', '0.1'),
+            new Capabilities(),
+            resumeToken: $token,
+            lastEventSeq: 0,
         );
-        [$serverTA, $clientTA] = MemoryTransport::pair();
-        [$serverTB, $clientTB] = MemoryTransport::pair();
-        $serverFutureA = $runtime->serveAsync($serverTA);
-        $serverFutureB = $runtime->serveAsync($serverTB);
+        self::assertSame((string) $welcome1->sessionId, (string) $welcome3->sessionId);
 
-        $clientA = new ARCPClient($clientTA);
-        $clientB = new ARCPClient($clientTB);
-        $clientA->open(Auth::anonymous(), new PeerInfo('cli-a', '0.1'), new Capabilities());
-        $clientB->open(Auth::anonymous(), new PeerInfo('cli-b', '0.1'), new Capabilities());
+        $alice->close();
+        $future3->await();
+    }
 
-        // Both sessions push some events that get recorded in the event log.
-        $clientA->ping();
-        $clientB->ping();
-        $clientA->ping();
+    public function testResumeBeyondReleasedBufferIsResumeWindowExpired(): void
+    {
+        $runtime = $this->runtimeWithBearer(['t-alice' => 'alice']);
+        $runtime->registerTool('echo', self::echoTool());
 
-        // Session A asks for a full replay from the beginning. The bug
-        // pre-fix would forward session B's envelopes too.
-        $resumeEnv = new Envelope(
-            id: MessageId::random(),
-            payload: new SessionResume(afterMessageId: ''),
-            timestamp: new \DateTimeImmutable('now'),
-            sessionId: $clientA->session->sessionId,
-        );
-        $clientTA->send($resumeEnv);
+        [$serverT1, $clientT1] = MemoryTransport::pair();
+        $future1 = $runtime->serveAsync($serverT1);
+        $client1 = new ARCPClient($clientT1);
+        $welcome1 = $client1->open(Auth::bearer('t-alice'), new PeerInfo('cli', '0.1'), new Capabilities());
+        $client1->invokeTool('echo', ['n' => 1]);
+        $lastSeen = $client1->session->lastReceivedEventSeq;
+        self::assertNotNull($lastSeen);
 
-        $foreignSessionId = (string) $clientB->session->sessionId;
-        $sawForeign = false;
-        $sawAck = false;
-        $loops = 0;
-        while (!$sawAck && $loops < 200) {
-            ++$loops;
-            $env = $clientTA->receive();
-            if (!$env instanceof Envelope) {
-                break;
-            }
-            if (
-                $env->sessionId instanceof SessionId
-                && (string) $env->sessionId === $foreignSessionId
-            ) {
-                $sawForeign = true;
-            }
-            if (
-                $env->correlationId instanceof MessageId
-                && (string) $env->correlationId === (string) $resumeEnv->id
-            ) {
-                $sawAck = true;
-            }
+        // §6.5: acknowledge everything; the runtime releases the buffer.
+        $client1->ack($lastSeen);
+        delay(0.05);
+        $clientT1->close();
+        $future1->await();
+
+        // A resume claiming last_event_seq=0 needs events 1..N, which were
+        // just released -> RESUME_WINDOW_EXPIRED (§6.3).
+        [$serverT2, $clientT2] = MemoryTransport::pair();
+        $future2 = $runtime->serveAsync($serverT2);
+        $client2 = new ARCPClient($clientT2);
+        $token = $welcome1->resumeToken;
+        self::assertNotNull($token);
+        try {
+            $client2->open(
+                Auth::bearer('t-alice'),
+                new PeerInfo('cli', '0.1'),
+                new Capabilities(),
+                resumeToken: $token,
+                lastEventSeq: 0,
+            );
+            self::fail('expected ResumeWindowExpiredException');
+        } catch (ResumeWindowExpiredException) {
+            // expected
+        } finally {
+            $client2->close();
+            $future2->await();
         }
+    }
 
-        self::assertTrue($sawAck, 'expected SessionResume ack from runtime');
-        self::assertFalse($sawForeign, 'resume must not leak envelopes from another session');
+    public function testHeartbeatTrafficIsNeitherSequencedNorBuffered(): void
+    {
+        $runtime = new ARCPRuntime();
+        [$serverT, $clientT] = MemoryTransport::pair();
+        $serverFuture = $runtime->serveAsync($serverT);
 
-        $clientA->close();
-        $clientB->close();
-        $serverFutureA->await();
-        $serverFutureB->await();
+        $client = new ARCPClient($clientT);
+        $client->open(
+            Auth::anonymous(),
+            new PeerInfo('cli', '0.1'),
+            new Capabilities(features: ['heartbeat', 'ack']),
+        );
+
+        $before = $runtime->eventLog->count();
+        $pong = $client->ping();
+        $client->ack(0);
+        delay(0.05);
+
+        // §6.4/§6.5: ping/pong/ack never reach the event log or consume
+        // event_seq.
+        self::assertSame($before, $runtime->eventLog->count());
+        self::assertNull($client->session->lastReceivedEventSeq);
+        self::assertNotSame('', $pong->pingNonce);
+
+        $client->close();
+        $serverFuture->await();
+    }
+
+    /** @param array<string, string> $tokens */
+    private function runtimeWithBearer(array $tokens): ARCPRuntime
+    {
+        return new ARCPRuntime(authRouter: new AuthRouter([new BearerAuth($tokens)]));
+    }
+
+    private static function echoTool(): ToolHandler
+    {
+        return new class () implements ToolHandler {
+            #[\Override]
+            public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
+            {
+                return $arguments;
+            }
+        };
     }
 }

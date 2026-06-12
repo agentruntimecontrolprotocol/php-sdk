@@ -31,7 +31,6 @@ use Arcp\Messages\Session\SessionAck;
 use Arcp\Messages\Session\SessionClose;
 use Arcp\Messages\Session\SessionPing;
 use Arcp\Messages\Session\SessionPong;
-use Arcp\Messages\Session\SessionResume;
 use Arcp\Messages\Subscriptions\JobSubscribe;
 use Arcp\Messages\Subscriptions\JobUnsubscribe;
 use Arcp\Runtime\ARCPRuntime;
@@ -97,6 +96,16 @@ final readonly class Dispatcher
      */
     private function shouldDispatch(Envelope $env): bool
     {
+        // §6.4/§6.5: heartbeat and ack traffic is session control — it is
+        // never appended to the event log / resume buffer.
+        $payload = $env->payload;
+        if (
+            $payload instanceof SessionPing
+            || $payload instanceof SessionPong
+            || $payload instanceof SessionAck
+        ) {
+            return true;
+        }
         try {
             // Inbound (client→runtime) envelope: recorded for dedup/audit but
             // excluded from resume/backfill replay (RFC §6.3).
@@ -159,7 +168,6 @@ final readonly class Dispatcher
             $msg instanceof SessionClose => $this->lifecycle->handleSessionClose($session),
             $msg instanceof JobCancel => $this->lifecycle->handleCancel($session, $env, $msg),
             $msg instanceof Interrupt => $this->lifecycle->handleInterrupt($session, $env, $msg),
-            $msg instanceof SessionResume => $this->lifecycle->handleResume($session, $env, $msg),
             $msg instanceof LeaseRefresh
                 => $this->lifecycle->handleLeaseRefresh($session, $env, $msg),
             default => $handled = false,

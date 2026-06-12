@@ -33,13 +33,17 @@ final class EventLogTest extends TestCase
         $this->sess = new SessionId('sess_t');
     }
 
-    private function envelope(string $id, string $type = 'subscription.backfill_complete'): Envelope
-    {
+    private function envelope(
+        string $id,
+        string $type = 'subscription.backfill_complete',
+        ?int $eventSeq = null,
+    ): Envelope {
         return new Envelope(
             id: new MessageId($id),
             payload: new EventEmit($type),
             timestamp: $this->clock->now(),
             sessionId: $this->sess,
+            eventSeq: $eventSeq,
         );
     }
 
@@ -103,19 +107,39 @@ final class EventLogTest extends TestCase
         self::assertSame(['msg_1', 'msg_2'], $ids);
     }
 
-    public function testSessionReplayExcludesInboundEnvelopes(): void
+    public function testReplaySinceReturnsSequencedOutboundRowsOnly(): void
     {
-        // Outbound runtime event, then an inbound client command, then
-        // another outbound event — all for the same session.
-        $this->log->append($this->envelope('out_1'), outbound: true);
-        $this->log->append($this->envelope('in_1', 'tool.invoke'), outbound: false);
-        $this->log->append($this->envelope('out_2'), outbound: true);
+        // Sequenced outbound rows replay (§6.3); inbound rows and
+        // unsequenced control rows do not.
+        $this->log->append($this->envelope('out_1', eventSeq: 1), outbound: true);
+        $this->log->append($this->envelope('in_1', 'job.submit'), outbound: false);
+        $this->log->append($this->envelope('out_ctl'), outbound: true);
+        $this->log->append($this->envelope('out_2', eventSeq: 2), outbound: true);
+        $this->log->append($this->envelope('out_3', eventSeq: 3), outbound: true);
 
         $ids = [];
-        foreach ($this->log->replayAfterForSession('', $this->sess) as $env) {
+        foreach ($this->log->replaySince($this->sess, 1) as $env) {
             $ids[] = (string) $env->id;
         }
-        self::assertSame(['out_1', 'out_2'], $ids, 'resume must replay only outbound rows');
+        self::assertSame(['out_2', 'out_3'], $ids);
+    }
+
+    public function testReleaseAckedFreesBufferedEventsAtOrBelowWatermark(): void
+    {
+        foreach ([1, 2, 3] as $seq) {
+            $this->log->append($this->envelope('seq_' . $seq, eventSeq: $seq));
+        }
+        self::assertSame(1, $this->log->earliestBufferedSeq($this->sess));
+
+        // §6.5: ack releases buffered events with seq <= last_processed_seq.
+        self::assertSame(2, $this->log->releaseAcked($this->sess, 2));
+        self::assertSame(3, $this->log->earliestBufferedSeq($this->sess));
+
+        $ids = [];
+        foreach ($this->log->replaySince($this->sess, 0) as $env) {
+            $ids[] = (string) $env->id;
+        }
+        self::assertSame(['seq_3'], $ids);
     }
 
     public function testInboundDedupStillWorks(): void

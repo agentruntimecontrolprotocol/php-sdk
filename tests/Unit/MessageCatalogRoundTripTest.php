@@ -66,7 +66,6 @@ use Arcp\Messages\Session\SessionPing;
 use Arcp\Messages\Session\SessionPong;
 use Arcp\Messages\Session\SessionRefresh;
 use Arcp\Messages\Session\SessionRejected;
-use Arcp\Messages\Session\SessionResume;
 use Arcp\Messages\Session\SessionUnauthenticated;
 use Arcp\Messages\Session\SessionWelcome;
 use Arcp\Messages\Streaming\StreamChunk;
@@ -140,7 +139,6 @@ final class MessageCatalogRoundTripTest extends TestCase
         yield 'nack' => [new Nack($err)];
         yield 'job.cancel' => [new JobCancel(new JobId('job_x'), 'aborted')];
         yield 'interrupt' => [new Interrupt('job', 'job_x', 'pause and ask')];
-        yield 'session.resume' => [new SessionResume('msg_xyz', null, true)];
         yield 'backpressure' => [new Backpressure(20, 65536, 'render queue full')];
         yield 'checkpoint.create' => [new CheckpointCreate(['cursor' => 12])];
         yield 'checkpoint.restore' => [new CheckpointRestore('chk_001')];

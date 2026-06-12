@@ -8,7 +8,13 @@ use Arcp\Envelope\MessageType;
 use Arcp\Errors\InvalidRequestException;
 use Arcp\Ids\SessionId;
 
-/** ARCP v1.1 §6.2 — session established successfully (`session.welcome`). */
+/**
+ * ARCP v1.1 §6.2 — session established successfully (`session.welcome`).
+ *
+ * Carries the §6.3 resume parameters (`resume_token`, rotated on every
+ * successful welcome, and `resume_window_sec`) plus the §6.4
+ * `heartbeat_interval_sec` when the heartbeat feature was negotiated.
+ */
 final readonly class SessionWelcome extends MessageType
 {
     public function __construct(
@@ -16,6 +22,9 @@ final readonly class SessionWelcome extends MessageType
         public Capabilities $capabilities,
         public ?PeerInfo $runtime = null,
         public ?\DateTimeImmutable $leaseExpiresAt = null,
+        public ?string $resumeToken = null,
+        public ?int $resumeWindowSec = null,
+        public ?int $heartbeatIntervalSec = null,
     ) {
     }
 
@@ -34,6 +43,15 @@ final readonly class SessionWelcome extends MessageType
         ];
         if ($this->runtime instanceof PeerInfo) {
             $out['runtime'] = $this->runtime->toArray();
+        }
+        if ($this->resumeToken !== null) {
+            $out['resume_token'] = $this->resumeToken;
+        }
+        if ($this->resumeWindowSec !== null) {
+            $out['resume_window_sec'] = $this->resumeWindowSec;
+        }
+        if ($this->heartbeatIntervalSec !== null) {
+            $out['heartbeat_interval_sec'] = $this->heartbeatIntervalSec;
         }
         if ($this->leaseExpiresAt instanceof \DateTimeImmutable) {
             $out['lease'] = [
@@ -57,7 +75,34 @@ final readonly class SessionWelcome extends MessageType
             Capabilities::fromArray($caps),
             self::extractRuntime($data),
             self::extractLeaseExpiry($data),
+            self::optionalString($data, 'resume_token'),
+            self::optionalInt($data, 'resume_window_sec'),
+            self::optionalInt($data, 'heartbeat_interval_sec'),
         );
+    }
+
+    /** @param array<string, mixed> $data */
+    private static function optionalString(array $data, string $key): ?string
+    {
+        if (!isset($data[$key])) {
+            return null;
+        }
+        if (!\is_string($data[$key])) {
+            throw new InvalidRequestException($key . ' must be string');
+        }
+        return $data[$key];
+    }
+
+    /** @param array<string, mixed> $data */
+    private static function optionalInt(array $data, string $key): ?int
+    {
+        if (!isset($data[$key])) {
+            return null;
+        }
+        if (!\is_int($data[$key])) {
+            throw new InvalidRequestException($key . ' must be integer');
+        }
+        return $data[$key];
     }
 
     /** @param array<string, mixed> $data */

@@ -32,7 +32,6 @@ use Arcp\Messages\Permissions\LeaseRefresh;
 use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\Capabilities;
 use Arcp\Messages\Session\PeerInfo;
-use Arcp\Messages\Session\SessionResume;
 use Arcp\Messages\Telemetry\EventEmit;
 use Arcp\Runtime\ARCPRuntime;
 use Arcp\Runtime\JobContext;
@@ -217,45 +216,6 @@ final class LifecycleHandlerTest extends TestCase
         // Give the HumanInputRequest a moment to arrive at the client.
         delay(0.05);
         self::assertTrue($sawHumanInput, 'expected human input request to arrive at the client');
-
-        $client->close();
-        $serverFuture->await();
-    }
-
-    public function testResumeWithCheckpointIsNackedAsInvalidRequest(): void
-    {
-        [, $client, $serverFuture] = $this->pair();
-        $msgId = MessageId::random();
-        $env = new Envelope(
-            id: $msgId,
-            payload: new SessionResume(checkpointId: 'ckpt_abc'),
-            timestamp: new \DateTimeImmutable(),
-            sessionId: $client->session->sessionId,
-        );
-        $client->session->transport->send($env);
-        $response = $client->pending->awaitResponse($msgId, 5.0);
-        self::assertInstanceOf(Nack::class, $response);
-        self::assertSame('INVALID_REQUEST', $response->error->code);
-
-        $client->close();
-        $serverFuture->await();
-    }
-
-    public function testResumeWithUnknownAfterMessageIdYieldsResumeWindowExpiredNack(): void
-    {
-        [, $client, $serverFuture] = $this->pair();
-
-        $msgId = MessageId::random();
-        $env = new Envelope(
-            id: $msgId,
-            payload: new SessionResume(afterMessageId: 'msg_definitely_not_in_log'),
-            timestamp: new \DateTimeImmutable(),
-            sessionId: $client->session->sessionId,
-        );
-        $client->session->transport->send($env);
-        $response = $client->pending->awaitResponse($msgId, 5.0);
-        self::assertInstanceOf(Nack::class, $response);
-        self::assertSame('RESUME_WINDOW_EXPIRED', $response->error->code);
 
         $client->close();
         $serverFuture->await();

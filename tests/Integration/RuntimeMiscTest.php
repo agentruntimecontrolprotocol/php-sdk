@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Arcp\Tests\Integration;
 
-use Amp\Cancellation;
 use Amp\Future;
 use Arcp\Auth\AnonymousAuth;
 use Arcp\Auth\AuthRouter;
@@ -23,11 +22,7 @@ use Arcp\Messages\Permissions\LeaseRefresh;
 use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\Capabilities;
 use Arcp\Messages\Session\PeerInfo;
-use Arcp\Messages\Session\SessionResume;
-use Arcp\Messages\Telemetry\EventEmit;
 use Arcp\Runtime\ARCPRuntime;
-use Arcp\Runtime\JobContext;
-use Arcp\Runtime\ToolHandler;
 use Arcp\Transport\MemoryTransport;
 use PHPUnit\Framework\TestCase;
 
@@ -93,36 +88,6 @@ final class RuntimeMiscTest extends TestCase
         $response = $client->pending->awaitResponse($msgId, 5.0);
         self::assertInstanceOf(Nack::class, $response);
         self::assertSame('INVALID_REQUEST', $response->error->code);
-        $client->close();
-        $serverFuture->await();
-    }
-
-    public function testResumeAfterMessageIdReplaysEvents(): void
-    {
-        [$runtime, $client, $serverFuture] = $this->client();
-        $runtime->registerTool('seed', new class () implements ToolHandler {
-            #[\Override]
-            public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
-            {
-                $ctx->reportProgress(50);
-                return null;
-            }
-        });
-        $client->invokeTool('seed');
-
-        // Issue a resume to walk events from the beginning.
-        $msgId = MessageId::random();
-        $env = new Envelope(
-            id: $msgId,
-            payload: new SessionResume(afterMessageId: ''),
-            timestamp: new \DateTimeImmutable(),
-            sessionId: $client->session->sessionId,
-        );
-        $client->session->transport->send($env);
-        $response = $client->pending->awaitResponse($msgId, 5.0);
-        self::assertInstanceOf(EventEmit::class, $response);
-        self::assertSame('session.resumed', $response->eventType);
-
         $client->close();
         $serverFuture->await();
     }

@@ -145,8 +145,16 @@ final class ARCPClient
     /**
      * Send `session.hello`, await `session.welcome`, and start the read-loop.
      *
+     * For a §6.3 resume after a transport drop, pass the `resume_token`
+     * from the previous welcome plus the highest processed `event_seq`
+     * (`lastEventSeq`); the runtime reattaches the prior session and
+     * replays buffered events past that sequence.
+     *
      * @throws \Arcp\Errors\UnauthenticatedException when the runtime rejects credentials.
-     * @throws \Arcp\Errors\InvalidRequestException for capability mismatches.
+     * @throws \Arcp\Errors\ResumeWindowExpiredException when a presented
+     *                                                   resume token is unknown/expired or the buffer no longer covers
+     *                                                   `lastEventSeq` (§6.3).
+     * @throws \Arcp\Errors\InvalidRequestException for malformed hellos.
      * @throws \Arcp\Errors\ARCPExceptionInterface for other handshake errors.
      * @throws \Arcp\Errors\TransportClosedException if the transport drops.
      *
@@ -157,8 +165,10 @@ final class ARCPClient
         PeerInfo $client,
         Capabilities $capabilities,
         ?Cancellation $cancellation = null,
+        ?string $resumeToken = null,
+        ?int $lastEventSeq = null,
     ): SessionWelcome {
-        $env = $this->handshake->prepareEnvelope($auth, $client, $capabilities);
+        $env = $this->handshake->prepareEnvelope($auth, $client, $capabilities, $resumeToken, $lastEventSeq);
         $this->session->state = SessionState::Opening;
         $this->session->transport->send($env);
 
@@ -167,6 +177,7 @@ final class ARCPClient
         $this->session->capabilities = $accepted->capabilities;
         $this->session->peerInfo = $accepted->runtime;
         $this->session->principal = $client->principal;
+        $this->session->resumeToken = $accepted->resumeToken;
         $this->session->state = SessionState::Authenticated;
 
         $this->readLoop = async(fn () => $this->runReadLoop($cancellation));
@@ -549,6 +560,13 @@ final class ARCPClient
             // §5: unrecognized message types are ignored, not fatal.
             $this->logger->info('ignored unknown message type', ['type' => $env->type()]);
             return true;
+        }
+        if (
+            $env->eventSeq !== null
+            && $env->eventSeq > ($this->session->lastReceivedEventSeq ?? 0)
+        ) {
+            // §6.3: track the resume watermark presented as last_event_seq.
+            $this->session->lastReceivedEventSeq = $env->eventSeq;
         }
         if ($env->payload instanceof ResultChunk) {
             $this->resultChunks->push($env->payload);

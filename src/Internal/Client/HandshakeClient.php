@@ -10,6 +10,7 @@ use Arcp\Envelope\Envelope;
 use Arcp\Errors\InvalidRequestException;
 use Arcp\Errors\UnauthenticatedException;
 use Arcp\Ids\MessageId;
+use Arcp\Messages\Execution\JobError;
 use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\Capabilities;
 use Arcp\Messages\Session\PeerInfo;
@@ -31,14 +32,20 @@ final readonly class HandshakeClient
     public function __construct(
         private Session $session,
         private ClockInterface $clock,
+        private ErrorMapper $errorMapper = new ErrorMapper(),
     ) {
     }
 
-    public function prepareEnvelope(Auth $auth, PeerInfo $client, Capabilities $caps): Envelope
-    {
+    public function prepareEnvelope(
+        Auth $auth,
+        PeerInfo $client,
+        Capabilities $caps,
+        ?string $resumeToken = null,
+        ?int $lastEventSeq = null,
+    ): Envelope {
         return new Envelope(
             id: MessageId::random(),
-            payload: new SessionHello($auth, $client, $caps),
+            payload: new SessionHello($auth, $client, $caps, $resumeToken, $lastEventSeq),
             timestamp: $this->clock->now(),
         );
     }
@@ -55,6 +62,11 @@ final readonly class HandshakeClient
         }
         if ($msg instanceof SessionRejected) {
             throw new InvalidRequestException($msg->error->message);
+        }
+        if ($msg instanceof JobError) {
+            // §6.3: a rejected resume is a correlated top-level job.error
+            // (e.g. RESUME_WINDOW_EXPIRED); surface the typed exception.
+            throw $this->errorMapper->raise($msg->error);
         }
         if (!$msg instanceof SessionWelcome) {
             throw new UnauthenticatedException(
