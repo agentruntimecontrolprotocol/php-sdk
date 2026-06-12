@@ -202,7 +202,10 @@ final readonly class HandshakeNegotiator
         if (\is_array($required)) {
             $advertisedFeatures = $this->runtime->advertisedCapabilitiesForSession()->features;
             foreach ($required as $feature) {
-                if (\is_string($feature) && !\in_array($feature, $advertisedFeatures, true)) {
+                if (!\is_string($feature)) {
+                    return 'required_features entry must be string';
+                }
+                if (!\in_array($feature, $advertisedFeatures, true)) {
                     return 'feature unsupported: ' . $feature;
                 }
             }

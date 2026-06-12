@@ -23,7 +23,6 @@ use Arcp\Messages\Control\Nack;
 use Arcp\Messages\Control\Ping;
 use Arcp\Messages\Control\Pong;
 use Arcp\Messages\Control\Resume;
-use Arcp\Messages\Execution\ToolError;
 use Arcp\Messages\Human\HumanInputRequest;
 use Arcp\Messages\Human\HumanInputResponse;
 use Arcp\Messages\Permissions\LeaseExtended;
@@ -79,7 +78,11 @@ final readonly class LifecycleHandler
             return;
         }
         $job = $this->runtime->jobs->tryGet(new JobId($msg->targetId));
-        if (!$job instanceof Job || $job->state->isTerminal()) {
+        if (!$job instanceof Job) {
+            $this->nack($session, $env, 'NOT_FOUND', 'job not found');
+            return;
+        }
+        if ($job->state->isTerminal()) {
             $this->nack($session, $env, 'FAILED_PRECONDITION', 'job already terminal');
             return;
         }
@@ -95,8 +98,12 @@ final readonly class LifecycleHandler
     public function handleInterrupt(Session $session, Envelope $env, Interrupt $msg): void
     {
         $job = $this->runtime->jobs->tryGet(new JobId($msg->targetId));
-        if (!$job instanceof Job || $job->state->isTerminal()) {
-            $this->nack($session, $env, 'FAILED_PRECONDITION', 'job not interruptible');
+        if (!$job instanceof Job) {
+            $this->nack($session, $env, 'NOT_FOUND', 'job not found');
+            return;
+        }
+        if ($job->state->isTerminal()) {
+            $this->nack($session, $env, 'FAILED_PRECONDITION', 'job already terminal');
             return;
         }
         // Only the owning session may interrupt a job (cf. handleCancel).
@@ -159,11 +166,9 @@ final readonly class LifecycleHandler
                 $session->transport->send($past);
             }
         } catch (InvalidArgumentException) {
-            $this->runtime->emit($session, new ToolError(
-                new ErrorPayload('DATA_LOSS', 'after_message_id retention expired'),
-            ), [
-                'correlation_id' => $env->id,
-            ]);
+            // Resume is a lifecycle operation, not a tool invocation; surface
+            // the failure as a correlated nack like every other lifecycle path.
+            $this->nack($session, $env, 'DATA_LOSS', 'after_message_id retention expired');
             return;
         }
         $this->runtime->emit($session, new Ack('resumed'), ['correlation_id' => $env->id]);

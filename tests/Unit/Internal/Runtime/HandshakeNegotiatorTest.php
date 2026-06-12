@@ -151,6 +151,28 @@ final class HandshakeNegotiatorTest extends TestCase
         $futureB->await();
     }
 
+    public function testNonStringRequiredFeatureIsRejected(): void
+    {
+        $runtime = new ARCPRuntime();
+        [$serverT, $clientT] = MemoryTransport::pair();
+        $serverFuture = $runtime->serveAsync($serverT);
+
+        $client = new ARCPClient($clientT);
+        try {
+            $client->open(
+                Auth::none(),
+                new PeerInfo('cli', '0.1'),
+                new Capabilities(anonymous: true, extra: ['required_features' => [123]]),
+            );
+            self::fail('expected UnimplementedException for non-string required feature');
+        } catch (UnimplementedException $e) {
+            self::assertStringContainsString('required_features entry must be string', $e->getMessage());
+        } finally {
+            $client->close();
+            $serverFuture->await();
+        }
+    }
+
     public function testMtlsAuthRouterReturnsUnimplemented(): void
     {
         // AuthRouter does not register mtls scheme; mtls is reserved -> UnimplementedException.
