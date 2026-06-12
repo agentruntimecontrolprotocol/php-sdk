@@ -143,6 +143,7 @@ final readonly class Dispatcher
 
     private function routeLifecycle(Session $session, Envelope $env, MessageType $msg): bool
     {
+        $handled = true;
         match (true) {
             $msg instanceof Ping => $this->lifecycle->handlePing($session, $env, $msg),
             $msg instanceof Pong, $msg instanceof Ack => null,
@@ -152,16 +153,9 @@ final readonly class Dispatcher
             $msg instanceof Resume => $this->lifecycle->handleResume($session, $env, $msg),
             $msg instanceof LeaseRefresh
                 => $this->lifecycle->handleLeaseRefresh($session, $env, $msg),
-            default => null,
+            default => $handled = false,
         };
-        return $msg instanceof Ping
-            || $msg instanceof Pong
-            || $msg instanceof Ack
-            || $msg instanceof SessionClose
-            || $msg instanceof Cancel
-            || $msg instanceof Interrupt
-            || $msg instanceof Resume
-            || $msg instanceof LeaseRefresh;
+        return $handled;
     }
 
     private function routeWork(Session $session, Envelope $env, MessageType $msg): bool
@@ -176,6 +170,7 @@ final readonly class Dispatcher
             $this->lifecycle->nack($session, $env, 'UNIMPLEMENTED', 'subscribe not negotiated');
             return true;
         }
+        $handled = true;
         match (true) {
             $msg instanceof ToolInvoke => $this->toolInvocation->handle($session, $env, $msg),
             $msg instanceof ListJobs => $this->jobList->handle($session, $env, $msg),
@@ -184,15 +179,9 @@ final readonly class Dispatcher
             $msg instanceof ArtifactPut => $this->artifacts->put($session, $env, $msg),
             $msg instanceof ArtifactFetch => $this->artifacts->fetch($session, $env, $msg),
             $msg instanceof ArtifactRelease => $this->artifacts->release($session, $env, $msg),
-            default => null,
+            default => $handled = false,
         };
-        return $msg instanceof ToolInvoke
-            || $msg instanceof ListJobs
-            || $msg instanceof Subscribe
-            || $msg instanceof Unsubscribe
-            || $msg instanceof ArtifactPut
-            || $msg instanceof ArtifactFetch
-            || $msg instanceof ArtifactRelease;
+        return $handled;
     }
 
     private function featureEnabled(Session $session, string $feature): bool
