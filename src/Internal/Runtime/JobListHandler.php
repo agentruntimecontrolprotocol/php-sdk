@@ -30,7 +30,7 @@ final readonly class JobListHandler
         [$page, $next] = $this->paginate($jobs, $msg->cursor, min($msg->limit, 100));
         $this->runtime->emit($session, new Jobs(
             requestId: (string) $env->id,
-            jobs: array_map(fn (Job $job): array => $this->entry($session, $job), $page),
+            jobs: array_map(fn (Job $job): array => $this->entry($job), $page),
             nextCursor: $next,
         ), ['correlation_id' => $env->id]);
     }
@@ -132,30 +132,18 @@ final readonly class JobListHandler
     }
 
     /** @return array<string, mixed> */
-    private function entry(Session $session, Job $job): array
+    private function entry(Job $job): array
     {
-        $entry = [
+        // §14: never surface plaintext credential `value` on an
+        // introspection surface. Credentials are delivered only on
+        // job.accepted to the submitter; the list_jobs inventory omits them
+        // entirely (clients re-fetch via the job's own accepted payload).
+        return [
             'job_id' => (string) $job->id,
             'agent' => $job->toolRef(),
             'status' => $job->state->value,
             'created_at' => $job->createdAt->format(\DateTimeInterface::RFC3339_EXTENDED),
             'trace_id' => $job->invocation->traceId?->__toString(),
         ];
-        if ($this->sameSubmitter($session, $job)) {
-            $credentials = $this->runtime->credentials->forJob($job->id);
-            if ($credentials !== []) {
-                $entry['credentials'] = array_map(
-                    fn ($credential): array => $credential->toArray(),
-                    $credentials,
-                );
-            }
-        }
-        return $entry;
-    }
-
-    private function sameSubmitter(Session $session, Job $job): bool
-    {
-        return $session === $job->session
-            || ($session->principal !== null && $session->principal === $job->session->principal);
     }
 }

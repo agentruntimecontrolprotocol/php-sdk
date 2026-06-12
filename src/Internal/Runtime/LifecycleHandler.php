@@ -15,6 +15,7 @@ use Arcp\Errors\ErrorPayload;
 use Arcp\Errors\InvalidArgumentException;
 use Arcp\Ids\JobId;
 use Arcp\Ids\MessageId;
+use Arcp\Ids\SessionId;
 use Arcp\Messages\Control\Ack;
 use Arcp\Messages\Control\Cancel;
 use Arcp\Messages\Control\CancelAccepted;
@@ -176,9 +177,16 @@ final readonly class LifecycleHandler
 
     public function handleLeaseRefresh(Session $session, Envelope $env, LeaseRefresh $msg): void
     {
+        $sessionId = $session->sessionId;
+        if (!$sessionId instanceof SessionId) {
+            $this->nack($session, $env, 'PERMISSION_DENIED', 'lease refresh requires an authenticated session');
+            return;
+        }
         try {
             $extra = $msg->extendSeconds ?? 300;
-            $current = $this->runtime->leases->get($msg->leaseId);
+            // Resolve through the session-scoped accessor so a session cannot
+            // refresh a lease that belongs to another session (auth bypass).
+            $current = $this->runtime->leases->getForSession($msg->leaseId, $sessionId);
             $newExp = $current->expiresAt->modify('+' . $extra . ' seconds');
             $extended = $this->runtime->leases->extend($msg->leaseId, $newExp);
             $this->runtime->emit(
