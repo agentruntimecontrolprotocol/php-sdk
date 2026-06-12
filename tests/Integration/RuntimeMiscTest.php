@@ -14,9 +14,9 @@ use Arcp\Errors\InvalidRequestException;
 use Arcp\Ids\ArtifactId;
 use Arcp\Ids\LeaseId;
 use Arcp\Ids\MessageId;
-use Arcp\Messages\Control\Ack;
+use Arcp\Messages\Telemetry\EventEmit;
 use Arcp\Messages\Control\Nack;
-use Arcp\Messages\Control\Resume;
+use Arcp\Messages\Session\SessionResume;
 use Arcp\Messages\Execution\AgentDelegate;
 use Arcp\Messages\Execution\JobSchedule;
 use Arcp\Messages\Permissions\LeaseExtended;
@@ -53,7 +53,7 @@ final class RuntimeMiscTest extends TestCase
     {
         [, $client, $serverFuture] = $this->client();
         $pong = $client->ping('hello-1', deadlineSeconds: 5.0);
-        self::assertSame('hello-1', $pong->nonce);
+        self::assertSame('hello-1', $pong->pingNonce);
         $client->close();
         $serverFuture->await();
     }
@@ -114,13 +114,14 @@ final class RuntimeMiscTest extends TestCase
         $msgId = MessageId::random();
         $env = new Envelope(
             id: $msgId,
-            payload: new Resume(afterMessageId: ''),
+            payload: new SessionResume(afterMessageId: ''),
             timestamp: new \DateTimeImmutable(),
             sessionId: $client->session->sessionId,
         );
         $client->session->transport->send($env);
         $response = $client->pending->awaitResponse($msgId, 5.0);
-        self::assertInstanceOf(Ack::class, $response);
+        self::assertInstanceOf(EventEmit::class, $response);
+        self::assertSame('session.resumed', $response->eventType);
 
         $client->close();
         $serverFuture->await();

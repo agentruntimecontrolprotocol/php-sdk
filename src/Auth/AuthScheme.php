@@ -8,7 +8,7 @@ use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\PeerInfo;
 
 /**
- * Pluggable verification of an inbound `session.open` auth block (RFC §8.2).
+ * Pluggable verification of an inbound `session.hello` auth block (§6.1).
  *
  * Implementations declare which scheme name(s) they handle and accept or
  * reject the credential. The {@see \Arcp\Runtime\ARCPRuntime} dispatches

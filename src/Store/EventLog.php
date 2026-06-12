@@ -81,11 +81,11 @@ final readonly class EventLog
      * @var list<string>
      */
     private const array INBOUND_TYPES = [
-        'tool.invoke', 'ping', 'session.close', 'cancel', 'interrupt',
-        'resume', 'lease.refresh', 'subscribe', 'unsubscribe',
-        'session.list_jobs', 'artifact.put', 'artifact.fetch',
-        'artifact.release', 'job.schedule', 'workflow.start',
-        'agent.delegate', 'agent.handoff',
+        'job.submit', 'session.ping', 'session.ack', 'session.close',
+        'job.cancel', 'interrupt', 'session.resume', 'lease.refresh',
+        'job.subscribe', 'job.unsubscribe', 'session.list_jobs',
+        'artifact.put', 'artifact.fetch', 'artifact.release',
+        'job.schedule', 'workflow.start', 'agent.delegate', 'agent.handoff',
     ];
 
     public static function inMemory(

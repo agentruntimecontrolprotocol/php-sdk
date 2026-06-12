@@ -9,13 +9,13 @@ use Arcp\Client\Handlers\PermissionHandler;
 use Arcp\Envelope\Envelope;
 use Arcp\Envelope\MessageType;
 use Arcp\Envelope\Priority;
+use Arcp\Ids\JobId;
 use Arcp\Ids\MessageId;
-use Arcp\Ids\SubscriptionId;
-use Arcp\Messages\Control\Ping;
-use Arcp\Messages\Control\Pong;
 use Arcp\Messages\Human\HumanChoiceRequest;
 use Arcp\Messages\Human\HumanInputRequest;
 use Arcp\Messages\Permissions\PermissionRequest;
+use Arcp\Messages\Session\SessionPing;
+use Arcp\Messages\Session\SessionPong;
 use Arcp\Messages\Subscriptions\SubscribeEvent;
 
 /**
@@ -29,9 +29,9 @@ use Arcp\Messages\Subscriptions\SubscribeEvent;
 final class ResponseRouter
 {
     /**
-     * Upper bound on events buffered for a not-yet-registered subscription,
-     * so a never-registered (racy or bogus) subscription id cannot grow the
-     * buffer without limit.
+     * Upper bound on events buffered for a not-yet-registered job
+     * subscription, so a never-registered (racy or bogus) job id cannot
+     * grow the buffer without limit.
      */
     private const int MAX_PENDING_SUBSCRIPTION_EVENTS = 1024;
 
@@ -50,16 +50,16 @@ final class ResponseRouter
     /**
      * @param \Closure(Envelope): void $onEvent
      */
-    public function registerSubscriber(SubscriptionId $id, \Closure $onEvent): void
+    public function registerSubscriber(JobId $jobId, \Closure $onEvent): void
     {
-        $key = (string) $id;
+        $key = (string) $jobId;
         $this->subscribers[$key] = $onEvent;
         $this->drainBuffered($key, $onEvent);
     }
 
-    public function unregisterSubscriber(SubscriptionId $id): void
+    public function unregisterSubscriber(JobId $jobId): void
     {
-        $key = (string) $id;
+        $key = (string) $jobId;
         unset($this->subscribers[$key], $this->pendingSubscriptionEvents[$key]);
     }
 
@@ -73,11 +73,15 @@ final class ResponseRouter
         ) {
             return;
         }
-        if ($msg instanceof Ping) {
-            // §6.4: the receiver MUST answer an inbound ping with a
-            // correlated pong carrying the same nonce, independent of any
-            // configured application handlers.
-            $this->sendReply($env, new Pong($msg->nonce), Priority::High);
+        if ($msg instanceof SessionPing) {
+            // §6.4: the receiver MUST answer an inbound session.ping with a
+            // correlated session.pong carrying ping_nonce and received_at,
+            // independent of any configured application handlers.
+            $this->sendReply(
+                $env,
+                new SessionPong($msg->nonce, $this->deps->clock->now()),
+                Priority::High,
+            );
             return;
         }
         if ($msg instanceof SubscribeEvent) {
@@ -92,11 +96,12 @@ final class ResponseRouter
 
     private function routeSubscribeEvent(Envelope $env, SubscribeEvent $msg): void
     {
-        $sid = $env->subscriptionId;
-        if (!$sid instanceof SubscriptionId) {
+        // §7.6: subscriptions are job-scoped; route on the wrapped job id.
+        $jobId = $env->jobId;
+        if (!$jobId instanceof JobId) {
             return;
         }
-        $key = (string) $sid;
+        $key = (string) $jobId;
         try {
             $inner = $this->deps->serializer->envelopeFromArray($msg->event);
         } catch (\Throwable $e) {
@@ -113,8 +118,8 @@ final class ResponseRouter
         }
         if (\count($this->pendingSubscriptionEvents[$key] ?? []) >= self::MAX_PENDING_SUBSCRIPTION_EVENTS) {
             $this->deps->logger->warning(
-                'dropping subscription event; pending buffer full for unregistered subscription',
-                ['subscription_id' => $key, 'cap' => self::MAX_PENDING_SUBSCRIPTION_EVENTS],
+                'dropping subscription event; pending buffer full for unregistered job',
+                ['job_id' => $key, 'cap' => self::MAX_PENDING_SUBSCRIPTION_EVENTS],
             );
             return;
         }

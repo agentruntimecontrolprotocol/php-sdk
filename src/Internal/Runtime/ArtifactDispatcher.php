@@ -9,7 +9,7 @@ use Arcp\Errors\ARCPException;
 use Arcp\Messages\Artifacts\ArtifactFetch;
 use Arcp\Messages\Artifacts\ArtifactPut;
 use Arcp\Messages\Artifacts\ArtifactRelease;
-use Arcp\Messages\Control\Ack;
+use Arcp\Messages\Artifacts\ArtifactReleased;
 use Arcp\Runtime\ARCPRuntime;
 use Arcp\Runtime\ArtifactBlob;
 use Arcp\Runtime\Session;
@@ -93,7 +93,7 @@ final readonly class ArtifactDispatcher
             $this->lifecycle->nack($session, $env, $e->code()->value, $e->getMessage());
             return;
         }
-        $this->runtime->emit($session, new Ack($ok ? 'released' : 'unknown'), [
+        $this->runtime->emit($session, new ArtifactReleased($ok), [
             'correlation_id' => $env->id,
         ]);
     }

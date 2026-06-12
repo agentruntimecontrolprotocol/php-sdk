@@ -24,7 +24,7 @@ use Arcp\Clock\SystemClock;
 use Arcp\Envelope\Envelope;
 use Arcp\Ids\JobId;
 use Arcp\Ids\MessageId;
-use Arcp\Messages\Control\Resume;
+use Arcp\Messages\Session\SessionResume;
 use Arcp\Messages\Execution\JobCheckpoint;
 use Arcp\Messages\Execution\JobCompleted;
 use Arcp\Messages\Execution\JobProgress;
@@ -108,7 +108,7 @@ function executeSteps(
 
 function issueResume(ARCPClient $client, JobId $jobId, string $afterMessageId, ?string $checkpointId): ?string
 {
-    $payload = new Resume(
+    $payload = new SessionResume(
         afterMessageId: $afterMessageId,
         checkpointId: $checkpointId,
         includeOpenStreams: true,

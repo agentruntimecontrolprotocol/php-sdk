@@ -16,18 +16,19 @@ use Arcp\Errors\InvalidRequestException;
 use Arcp\Ids\JobId;
 use Arcp\Ids\MessageId;
 use Arcp\Ids\SessionId;
-use Arcp\Messages\Control\Ack;
-use Arcp\Messages\Control\Cancel;
-use Arcp\Messages\Control\CancelAccepted;
 use Arcp\Messages\Control\Interrupt;
 use Arcp\Messages\Control\Nack;
-use Arcp\Messages\Control\Ping;
-use Arcp\Messages\Control\Pong;
-use Arcp\Messages\Control\Resume;
+use Arcp\Messages\Execution\JobCancel;
+use Arcp\Messages\Execution\JobCancelled;
 use Arcp\Messages\Human\HumanInputRequest;
 use Arcp\Messages\Human\HumanInputResponse;
 use Arcp\Messages\Permissions\LeaseExtended;
 use Arcp\Messages\Permissions\LeaseRefresh;
+use Arcp\Messages\Session\SessionAck;
+use Arcp\Messages\Session\SessionPing;
+use Arcp\Messages\Session\SessionPong;
+use Arcp\Messages\Session\SessionResume;
+use Arcp\Messages\Telemetry\EventEmit;
 use Arcp\Runtime\ARCPRuntime;
 use Arcp\Runtime\Job;
 use Arcp\Runtime\JobState;
@@ -35,9 +36,9 @@ use Arcp\Runtime\Session;
 use Arcp\Runtime\SessionState;
 
 /**
- * Owns the small ARCP message handlers: ping/pong, session.close,
- * cancel, interrupt, resume, lease.refresh, plus shared nack/no-session
- * helpers used by sibling collaborators.
+ * Owns the small ARCP message handlers: session.ping/pong, session.ack,
+ * session.close, job.cancel, interrupt, session.resume, lease.refresh,
+ * plus shared nack/no-session helpers used by sibling collaborators.
  *
  * @internal
  */
@@ -47,11 +48,27 @@ final readonly class LifecycleHandler
     {
     }
 
-    public function handlePing(Session $session, Envelope $env, Ping $msg): void
+    public function handlePing(Session $session, Envelope $env, SessionPing $msg): void
     {
-        $this->runtime->emit($session, new Pong($msg->nonce), [
-            'correlation_id' => $env->id,
-        ]);
+        // §6.4: respond promptly with session.pong carrying ping_nonce and
+        // the receiver-side received_at timestamp.
+        $this->runtime->emit(
+            $session,
+            new SessionPong($msg->nonce, $this->runtime->clock->now()),
+            ['correlation_id' => $env->id],
+        );
+    }
+
+    /**
+     * §6.5: record the client's advisory processing watermark. Purely
+     * advisory in this phase; buffer release keys off it later.
+     */
+    public function handleSessionAck(Session $session, SessionAck $msg): void
+    {
+        $current = $session->lastAckedEventSeq;
+        if ($current === null || $msg->lastProcessedSeq > $current) {
+            $session->lastAckedEventSeq = $msg->lastProcessedSeq;
+        }
     }
 
     public function handleSessionClose(Session $session): void
@@ -67,18 +84,9 @@ final readonly class LifecycleHandler
         $session->transport->close();
     }
 
-    public function handleCancel(Session $session, Envelope $env, Cancel $msg): void
+    public function handleCancel(Session $session, Envelope $env, JobCancel $msg): void
     {
-        if ($msg->target !== 'job') {
-            $this->nack(
-                $session,
-                $env,
-                'INVALID_REQUEST',
-                'cancel target ' . $msg->target . ' deferred',
-            );
-            return;
-        }
-        $job = $this->runtime->jobs->tryGet(new JobId($msg->targetId));
+        $job = $this->runtime->jobs->tryGet($msg->jobId);
         if (!$job instanceof Job) {
             $this->nack($session, $env, 'JOB_NOT_FOUND', 'job not found');
             return;
@@ -90,7 +98,10 @@ final readonly class LifecycleHandler
         $job->cancellation->cancel(
             new CancelledException(new \RuntimeException($msg->reason)),
         );
-        $this->runtime->emit($session, new CancelAccepted($msg->deadlineMs), [
+        // §7.4: acknowledge with job.cancelled; the cooperative handler
+        // fiber then terminates the job with job.error (code CANCELLED,
+        // final_status "cancelled").
+        $this->runtime->emit($session, new JobCancelled($msg->reason), [
             'correlation_id' => $env->id,
             'job_id' => $job->id,
         ]);
@@ -123,7 +134,9 @@ final readonly class LifecycleHandler
             'priority' => Priority::High,
         ]);
         $this->awaitInterruptResponse($job, $requestId);
-        $this->runtime->emit($session, new Ack(), ['correlation_id' => $env->id]);
+        $this->runtime->emit($session, new EventEmit('interrupt.accepted'), [
+            'correlation_id' => $env->id,
+        ]);
     }
 
     /**
@@ -150,7 +163,7 @@ final readonly class LifecycleHandler
         });
     }
 
-    public function handleResume(Session $session, Envelope $env, Resume $msg): void
+    public function handleResume(Session $session, Envelope $env, SessionResume $msg): void
     {
         if ($msg->checkpointId !== null && $msg->afterMessageId === null) {
             $this->nack($session, $env, 'INVALID_REQUEST', 'checkpoint resume deferred (RFC §19)');
@@ -167,12 +180,14 @@ final readonly class LifecycleHandler
                 $session->transport->send($past);
             }
         } catch (InvalidRequestException) {
-            // Resume is a lifecycle operation, not a tool invocation; surface
+            // SessionResume is a lifecycle operation, not a tool invocation; surface
             // the failure as a correlated nack like every other lifecycle path.
             $this->nack($session, $env, 'RESUME_WINDOW_EXPIRED', 'after_message_id retention expired');
             return;
         }
-        $this->runtime->emit($session, new Ack('resumed'), ['correlation_id' => $env->id]);
+        // Phase-2 work (#55/#125) replaces this with token-based resume;
+        // for now acknowledge replay completion with a correlated event.
+        $this->runtime->emit($session, new EventEmit('session.resumed'), ['correlation_id' => $env->id]);
     }
 
     public function handleLeaseRefresh(Session $session, Envelope $env, LeaseRefresh $msg): void

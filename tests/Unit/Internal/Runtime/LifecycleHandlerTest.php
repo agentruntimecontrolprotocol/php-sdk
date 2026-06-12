@@ -17,12 +17,12 @@ use Arcp\Envelope\Envelope;
 use Arcp\Ids\JobId;
 use Arcp\Ids\LeaseId;
 use Arcp\Ids\MessageId;
-use Arcp\Messages\Control\Ack;
-use Arcp\Messages\Control\Cancel;
-use Arcp\Messages\Control\CancelAccepted;
 use Arcp\Messages\Control\Interrupt;
+use Arcp\Messages\Execution\JobCancel;
+use Arcp\Messages\Execution\JobCancelled;
+use Arcp\Messages\Telemetry\EventEmit;
 use Arcp\Messages\Control\Nack;
-use Arcp\Messages\Control\Resume;
+use Arcp\Messages\Session\SessionResume;
 use Arcp\Messages\Execution\ToolInvoke;
 use Arcp\Messages\Human\HumanChoiceRequest;
 use Arcp\Messages\Human\HumanChoiceResponse;
@@ -53,32 +53,13 @@ final class LifecycleHandlerTest extends TestCase
         return [$runtime, $client, $serverFuture];
     }
 
-    public function testCancelNonJobTargetIsNackedAsInvalidRequest(): void
-    {
-        [, $client, $serverFuture] = $this->pair();
-        $msgId = MessageId::random();
-        $env = new Envelope(
-            id: $msgId,
-            payload: new Cancel('stream', 'str_anything'),
-            timestamp: new \DateTimeImmutable(),
-            sessionId: $client->session->sessionId,
-        );
-        $client->session->transport->send($env);
-        $response = $client->pending->awaitResponse($msgId, 5.0);
-        self::assertInstanceOf(Nack::class, $response);
-        self::assertSame('INVALID_REQUEST', $response->error->code);
-
-        $client->close();
-        $serverFuture->await();
-    }
-
     public function testCancelUnknownJobReturnsJobNotFound(): void
     {
         [, $client, $serverFuture] = $this->pair();
         $msgId = MessageId::random();
         $env = new Envelope(
             id: $msgId,
-            payload: new Cancel('job', 'job_does_not_exist'),
+            payload: new JobCancel(new JobId('job_does_not_exist')),
             timestamp: new \DateTimeImmutable(),
             sessionId: $client->session->sessionId,
         );
@@ -91,7 +72,7 @@ final class LifecycleHandlerTest extends TestCase
         $serverFuture->await();
     }
 
-    public function testCancelLiveJobYieldsCancelAccepted(): void
+    public function testCancelLiveJobYieldsJobCancelled(): void
     {
         [$runtime, $client, $serverFuture] = $this->pair();
         $runtime->registerTool('slow', new class () implements ToolHandler {
@@ -131,13 +112,14 @@ final class LifecycleHandlerTest extends TestCase
         $cancelId = MessageId::random();
         $cancelEnv = new Envelope(
             id: $cancelId,
-            payload: new Cancel('job', (string) $jobId, 'user_aborted', 5000),
+            payload: new JobCancel($jobId, 'user_aborted'),
             timestamp: new \DateTimeImmutable(),
             sessionId: $client->session->sessionId,
         );
         $client->session->transport->send($cancelEnv);
         $response = $client->pending->awaitResponse($cancelId, 5.0);
-        self::assertInstanceOf(CancelAccepted::class, $response);
+        // §7.4: the runtime acknowledges job.cancel with job.cancelled.
+        self::assertInstanceOf(JobCancelled::class, $response);
 
         $client->close();
         $serverFuture->await();
@@ -230,7 +212,7 @@ final class LifecycleHandlerTest extends TestCase
             sessionId: $client->session->sessionId,
         ));
         $response = $client->pending->awaitResponse($intId, 5.0);
-        self::assertInstanceOf(Ack::class, $response);
+        self::assertInstanceOf(EventEmit::class, $response);
 
         // Give the HumanInputRequest a moment to arrive at the client.
         delay(0.05);
@@ -246,7 +228,7 @@ final class LifecycleHandlerTest extends TestCase
         $msgId = MessageId::random();
         $env = new Envelope(
             id: $msgId,
-            payload: new Resume(checkpointId: 'ckpt_abc'),
+            payload: new SessionResume(checkpointId: 'ckpt_abc'),
             timestamp: new \DateTimeImmutable(),
             sessionId: $client->session->sessionId,
         );
@@ -266,7 +248,7 @@ final class LifecycleHandlerTest extends TestCase
         $msgId = MessageId::random();
         $env = new Envelope(
             id: $msgId,
-            payload: new Resume(afterMessageId: 'msg_definitely_not_in_log'),
+            payload: new SessionResume(afterMessageId: 'msg_definitely_not_in_log'),
             timestamp: new \DateTimeImmutable(),
             sessionId: $client->session->sessionId,
         );

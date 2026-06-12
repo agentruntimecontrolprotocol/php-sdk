@@ -13,7 +13,7 @@ use Arcp\Errors\TransportClosedException;
 use Arcp\Ids\MessageId;
 use Arcp\Ids\SessionId;
 use Arcp\Json\EnvelopeSerializer;
-use Arcp\Messages\Subscriptions\Subscribe;
+use Arcp\Messages\Subscriptions\JobSubscribe;
 use Arcp\Messages\Subscriptions\SubscribeEvent;
 use Arcp\Runtime\Session;
 use Arcp\Runtime\SubscriptionManager;
@@ -79,7 +79,7 @@ final class SubscriptionManagerTest extends TestCase
         $session->sessionId = SessionId::random();
 
         $manager = new SubscriptionManager($this->serializer(), $clock);
-        $manager->compile($session, new Subscribe([]));
+        $manager->compile($session, new JobSubscribe([]));
         $manager->dispatch($this->envelopeFor($session));
 
         self::assertInstanceOf(Envelope::class, $captured);
@@ -123,7 +123,7 @@ final class SubscriptionManagerTest extends TestCase
         $session->sessionId = SessionId::random();
 
         $manager = new SubscriptionManager($this->serializer(), new FakeClock(), $logger);
-        $manager->compile($session, new Subscribe([]));
+        $manager->compile($session, new JobSubscribe([]));
         self::assertSame(1, $manager->count());
 
         $manager->dispatch($this->envelopeFor($session));
@@ -163,7 +163,7 @@ final class SubscriptionManagerTest extends TestCase
         $session->sessionId = SessionId::random();
 
         $manager = new SubscriptionManager($this->serializer(), new FakeClock());
-        $manager->compile($session, new Subscribe([]));
+        $manager->compile($session, new JobSubscribe([]));
 
         $low = new Envelope(
             id: MessageId::random(),

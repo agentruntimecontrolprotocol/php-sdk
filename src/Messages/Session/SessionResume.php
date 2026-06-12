@@ -2,12 +2,16 @@
 
 declare(strict_types=1);
 
-namespace Arcp\Messages\Control;
+namespace Arcp\Messages\Session;
 
 use Arcp\Envelope\MessageType;
 
-/** RFC §19 — resume a session/job after reconnection. v0.1: `after_message_id` only. */
-final readonly class Resume extends MessageType
+/**
+ * ARCP v1.1 §6.3 — resume a session after a transport drop. Phase 1
+ * renames the wire type; the §6.3 payload (`last_event_seq` +
+ * `resume_token`) lands with the resume-token work.
+ */
+final readonly class SessionResume extends MessageType
 {
     public function __construct(
         public ?string $afterMessageId = null,
@@ -19,7 +23,7 @@ final readonly class Resume extends MessageType
     #[\Override]
     public static function typeName(): string
     {
-        return 'resume';
+        return 'session.resume';
     }
 
     #[\Override]

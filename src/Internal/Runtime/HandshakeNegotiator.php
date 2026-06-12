@@ -13,8 +13,8 @@ use Arcp\Ids\MessageId;
 use Arcp\Ids\SessionId;
 use Arcp\Messages\Session\Capabilities;
 use Arcp\Messages\Session\PeerInfo;
-use Arcp\Messages\Session\SessionAccepted;
-use Arcp\Messages\Session\SessionOpen;
+use Arcp\Messages\Session\SessionWelcome;
+use Arcp\Messages\Session\SessionHello;
 use Arcp\Messages\Session\SessionRejected;
 use Arcp\Messages\Session\SessionUnauthenticated;
 use Arcp\Runtime\ARCPRuntime;
@@ -23,7 +23,7 @@ use Arcp\Runtime\SessionState;
 use Arcp\Version;
 
 /**
- * Drives the `session.open` -> `session.accepted` handshake, including
+ * Drives the `session.hello` -> `session.welcome` handshake, including
  * capability negotiation and auth-router verification.
  *
  * @internal
@@ -45,15 +45,15 @@ final readonly class HandshakeNegotiator
             $session->state = SessionState::Closed;
             return;
         }
-        if (!$env->payload instanceof SessionOpen) {
+        if (!$env->payload instanceof SessionHello) {
             $this->lifecycle->sendNoSession($session, new SessionRejected(new ErrorPayload(
                 'INVALID_REQUEST',
-                'expected session.open as first message',
+                'expected session.hello as first message',
             )), $env->id);
             $session->state = SessionState::Rejected;
             return;
         }
-        $ctx = new SessionOpenContext($session, $env->id, $env->payload);
+        $ctx = new SessionHelloContext($session, $env->id, $env->payload);
         if (!$this->verifyCapabilities($session, $env->id, $ctx->open->capabilities)) {
             return;
         }
@@ -87,7 +87,7 @@ final readonly class HandshakeNegotiator
      * (in which case the session state has already been moved to
      * {@see SessionState::Rejected} and a reject envelope sent).
      */
-    private function authenticate(SessionOpenContext $ctx): ?string
+    private function authenticate(SessionHelloContext $ctx): ?string
     {
         $router = $this->authRouter;
         if (!$router instanceof AuthRouter) {
@@ -96,7 +96,7 @@ final readonly class HandshakeNegotiator
         return $this->authenticateWithRouter($ctx, $router);
     }
 
-    private function authenticateAnonymous(SessionOpenContext $ctx): ?string
+    private function authenticateAnonymous(SessionHelloContext $ctx): ?string
     {
         $open = $ctx->open;
         // No auth router: allow `none` if anonymous capability is requested.
@@ -120,7 +120,7 @@ final readonly class HandshakeNegotiator
     }
 
     private function authenticateWithRouter(
-        SessionOpenContext $ctx,
+        SessionHelloContext $ctx,
         AuthRouter $router,
     ): ?string {
         $open = $ctx->open;
@@ -150,7 +150,7 @@ final readonly class HandshakeNegotiator
         return $result->principal ?? 'anonymous';
     }
 
-    private function acceptSession(SessionOpenContext $ctx, string $principal): void
+    private function acceptSession(SessionHelloContext $ctx, string $principal): void
     {
         $session = $ctx->session;
         $open = $ctx->open;
@@ -166,7 +166,7 @@ final readonly class HandshakeNegotiator
             Version::IMPL_VERSION,
             trustLevel: 'trusted',
         );
-        $accepted = new SessionAccepted(
+        $accepted = new SessionWelcome(
             sessionId: $session->sessionId,
             capabilities: $acceptedCapabilities,
             runtime: $this->runtimeIdentity ?? $defaultRuntime,

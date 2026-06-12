@@ -16,7 +16,7 @@ use Arcp\Messages\Control\Nack;
 use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\Capabilities;
 use Arcp\Messages\Session\PeerInfo;
-use Arcp\Messages\Subscriptions\Unsubscribe;
+use Arcp\Messages\Subscriptions\JobUnsubscribe;
 use Arcp\Runtime\ARCPRuntime;
 use Arcp\Transport\MemoryTransport;
 use PHPUnit\Framework\TestCase;
@@ -73,7 +73,7 @@ final class SubscriptionRouterTest extends TestCase
         $msgId = MessageId::random();
         $env = new Envelope(
             id: $msgId,
-            payload: new Unsubscribe(),
+            payload: new JobUnsubscribe(),
             timestamp: new \DateTimeImmutable(),
             sessionId: $client->session->sessionId,
             // intentionally no subscriptionId
@@ -95,7 +95,7 @@ final class SubscriptionRouterTest extends TestCase
         $msgId = MessageId::random();
         $env = new Envelope(
             id: $msgId,
-            payload: new Unsubscribe(),
+            payload: new JobUnsubscribe(),
             timestamp: new \DateTimeImmutable(),
             sessionId: $client->session->sessionId,
             subscriptionId: $subId,

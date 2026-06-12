@@ -17,16 +17,16 @@ use Arcp\Messages\Artifacts\ArtifactRef;
 use Arcp\Messages\Artifacts\ArtifactRelease;
 use Arcp\Messages\Control\Ack;
 use Arcp\Messages\Control\Backpressure;
-use Arcp\Messages\Control\Cancel;
+use Arcp\Messages\Execution\JobCancel;
 use Arcp\Messages\Control\CancelAccepted;
 use Arcp\Messages\Control\CancelRefused;
 use Arcp\Messages\Control\CheckpointCreate;
 use Arcp\Messages\Control\CheckpointRestore;
 use Arcp\Messages\Control\Interrupt;
 use Arcp\Messages\Control\Nack;
-use Arcp\Messages\Control\Ping;
-use Arcp\Messages\Control\Pong;
-use Arcp\Messages\Control\Resume;
+use Arcp\Messages\Session\SessionPing;
+use Arcp\Messages\Session\SessionPong;
+use Arcp\Messages\Session\SessionResume;
 use Arcp\Messages\Execution\AgentDelegate;
 use Arcp\Messages\Execution\AgentHandoff;
 use Arcp\Messages\Execution\JobAccepted;
@@ -62,12 +62,12 @@ use Arcp\Messages\Session\Capabilities;
 use Arcp\Messages\Session\Jobs;
 use Arcp\Messages\Session\ListJobs;
 use Arcp\Messages\Session\PeerInfo;
-use Arcp\Messages\Session\SessionAccepted;
+use Arcp\Messages\Session\SessionWelcome;
 use Arcp\Messages\Session\SessionAuthenticate;
 use Arcp\Messages\Session\SessionChallenge;
 use Arcp\Messages\Session\SessionClose;
 use Arcp\Messages\Session\SessionEvicted;
-use Arcp\Messages\Session\SessionOpen;
+use Arcp\Messages\Session\SessionHello;
 use Arcp\Messages\Session\SessionRefresh;
 use Arcp\Messages\Session\SessionRejected;
 use Arcp\Messages\Session\SessionUnauthenticated;
@@ -76,11 +76,11 @@ use Arcp\Messages\Streaming\StreamClose;
 use Arcp\Messages\Streaming\StreamError;
 use Arcp\Messages\Streaming\StreamKind;
 use Arcp\Messages\Streaming\StreamOpen;
-use Arcp\Messages\Subscriptions\Subscribe;
-use Arcp\Messages\Subscriptions\SubscribeAccepted;
+use Arcp\Messages\Subscriptions\JobSubscribe;
+use Arcp\Messages\Subscriptions\JobSubscribed;
 use Arcp\Messages\Subscriptions\SubscribeClosed;
 use Arcp\Messages\Subscriptions\SubscribeEvent;
-use Arcp\Messages\Subscriptions\Unsubscribe;
+use Arcp\Messages\Subscriptions\JobUnsubscribe;
 use Arcp\Messages\Telemetry\EventEmit;
 use Arcp\Messages\Telemetry\LogEvent;
 use Arcp\Messages\Telemetry\MetricEvent;
@@ -110,14 +110,14 @@ final class MessageCatalogRoundTripTest extends TestCase
         $now = new \DateTimeImmutable('2026-05-09T12:00:00Z');
         $err = new ErrorPayload('INTERNAL', 'something went wrong', true);
 
-        yield 'session.open' => [new SessionOpen(
+        yield 'session.open' => [new SessionHello(
             Auth::bearer('t'),
             new PeerInfo('cli', '0.1', principal: 'p'),
             new Capabilities(streaming: true),
         )];
         yield 'session.challenge' => [new SessionChallenge('chal-token-123')];
         yield 'session.authenticate' => [new SessionAuthenticate(Auth::bearer('t'))];
-        yield 'session.accepted' => [new SessionAccepted(
+        yield 'session.accepted' => [new SessionWelcome(
             new SessionId('sess_x'),
             Capabilities::defaultRuntime(),
             new PeerInfo('rt', '1.0', trustLevel: 'trusted'),
@@ -136,15 +136,15 @@ final class MessageCatalogRoundTripTest extends TestCase
         yield 'session.evicted' => [new SessionEvicted('idle timeout', 'IDLE')];
         yield 'session.close' => [new SessionClose('client_close')];
 
-        yield 'ping' => [new Ping('nonce-123')];
-        yield 'pong' => [new Pong('nonce-123')];
+        yield 'ping' => [new SessionPing('nonce-123')];
+        yield 'pong' => [new SessionPong('nonce-123')];
         yield 'ack' => [new Ack('replay')];
         yield 'nack' => [new Nack($err)];
-        yield 'cancel' => [new Cancel('job', 'job_x', 'aborted', 5000)];
+        yield 'cancel' => [new JobCancel('job', 'job_x', 'aborted', 5000)];
         yield 'cancel.accepted' => [new CancelAccepted(5000)];
         yield 'cancel.refused' => [new CancelRefused('not_cancellable')];
         yield 'interrupt' => [new Interrupt('job', 'job_x', 'pause and ask')];
-        yield 'resume' => [new Resume('msg_xyz', null, true)];
+        yield 'resume' => [new SessionResume('msg_xyz', null, true)];
         yield 'backpressure' => [new Backpressure(20, 65536, 'render queue full')];
         yield 'checkpoint.create' => [new CheckpointCreate(['cursor' => 12])];
         yield 'checkpoint.restore' => [new CheckpointRestore('chk_001')];
@@ -207,10 +207,10 @@ final class MessageCatalogRoundTripTest extends TestCase
         yield 'lease.revoked' => [new LeaseRevoked(new LeaseId('lease_x'), 'policy_violation')];
         yield 'lease.refresh' => [new LeaseRefresh(new LeaseId('lease_x'), 60)];
 
-        yield 'subscribe' => [new Subscribe(['types' => ['log']], 'msg_after')];
-        yield 'subscribe.accepted' => [new SubscribeAccepted(new SubscriptionId('sub_x'))];
+        yield 'subscribe' => [new JobSubscribe(['types' => ['log']], 'msg_after')];
+        yield 'subscribe.accepted' => [new JobSubscribed(new SubscriptionId('sub_x'))];
         yield 'subscribe.event' => [new SubscribeEvent(['type' => 'log', 'arcp' => '1.1', 'id' => 'msg_inner', 'timestamp' => '2026-05-09T12:00:00Z', 'payload' => ['level' => 'info', 'message' => 'hi']])];
-        yield 'unsubscribe' => [new Unsubscribe()];
+        yield 'unsubscribe' => [new JobUnsubscribe()];
         yield 'subscribe.closed' => [new SubscribeClosed('UNAVAILABLE', 'shutdown')];
 
         yield 'artifact.put' => [new ArtifactPut('text/plain', 'aGVsbG8=', 60, 'sha256-deadbeef')];

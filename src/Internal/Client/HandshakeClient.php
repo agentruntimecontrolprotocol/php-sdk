@@ -13,14 +13,14 @@ use Arcp\Ids\MessageId;
 use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\Capabilities;
 use Arcp\Messages\Session\PeerInfo;
-use Arcp\Messages\Session\SessionAccepted;
-use Arcp\Messages\Session\SessionOpen;
+use Arcp\Messages\Session\SessionWelcome;
+use Arcp\Messages\Session\SessionHello;
 use Arcp\Messages\Session\SessionRejected;
 use Arcp\Messages\Session\SessionUnauthenticated;
 use Arcp\Runtime\Session;
 
 /**
- * Handles the `session.open` -> `session.accepted` send/receive for the
+ * Handles the `session.hello` -> `session.welcome` send/receive for the
  * client. Extracted from {@see \Arcp\Client\ARCPClient} so the public
  * class stays under the class-size budget.
  *
@@ -38,12 +38,12 @@ final readonly class HandshakeClient
     {
         return new Envelope(
             id: MessageId::random(),
-            payload: new SessionOpen($auth, $client, $caps),
+            payload: new SessionHello($auth, $client, $caps),
             timestamp: $this->clock->now(),
         );
     }
 
-    public function awaitResponse(?Cancellation $cancellation): SessionAccepted
+    public function awaitResponse(?Cancellation $cancellation): SessionWelcome
     {
         $response = $this->session->transport->receive($cancellation);
         if (!$response instanceof Envelope) {
@@ -56,7 +56,7 @@ final readonly class HandshakeClient
         if ($msg instanceof SessionRejected) {
             throw new InvalidRequestException($msg->error->message);
         }
-        if (!$msg instanceof SessionAccepted) {
+        if (!$msg instanceof SessionWelcome) {
             throw new UnauthenticatedException(
                 'handshake: unexpected response ' . $response->type(),
             );

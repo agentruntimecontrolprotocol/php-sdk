@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace Arcp\Tests\Unit;
 
 use Arcp\Errors\InvalidRequestException;
-use Arcp\Messages\Control\CancelRefused;
+use Arcp\Messages\Session\SessionAck;
+use Arcp\Messages\Session\SessionPing;
 use Arcp\Messages\Control\CheckpointRestore;
 use Arcp\Messages\Execution\JobProgress;
 use Arcp\Messages\Execution\ToolInvoke;
@@ -24,16 +25,22 @@ use PHPUnit\Framework\TestCase;
  */
 final class MessageValidationTest extends TestCase
 {
-    public function testCancelRefusedRequiresReason(): void
+    public function testSessionAckRejectsNegativeSeq(): void
     {
         $this->expectException(InvalidRequestException::class);
-        new CancelRefused('');
+        new SessionAck(-1);
     }
 
-    public function testCancelRefusedFromArrayRejectsNonString(): void
+    public function testSessionAckFromArrayRequiresInt(): void
     {
         $this->expectException(InvalidRequestException::class);
-        CancelRefused::fromArray(['reason' => 42]);
+        SessionAck::fromArray(['last_processed_seq' => 'lots']);
+    }
+
+    public function testSessionPingFromArrayRequiresSentAt(): void
+    {
+        $this->expectException(InvalidRequestException::class);
+        SessionPing::fromArray(['nonce' => 'p_1']);
     }
 
     public function testCheckpointRestoreRequiresId(): void

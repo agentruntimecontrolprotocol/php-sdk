@@ -33,7 +33,7 @@ final class ExtensionNamespace
         'event.emit', 'log', 'metric', 'trace.span',
         'ping', 'pong', 'ack', 'nack',
         'cancel', 'interrupt', 'resume', 'backpressure',
-        'checkpoint.', 'workflow.', 'agent.',
+        'checkpoint.', 'workflow.', 'agent.', 'result.',
     ];
 
     private function __construct()

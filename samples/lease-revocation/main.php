@@ -98,7 +98,7 @@ function main(): void
     /** @var array<string, array{0: string, 1: \DateTimeImmutable}> $leases */
     $leases = [];
 
-    // Subscribe to lease lifecycle events; revocations drop cache entries.
+    // JobSubscribe to lease lifecycle events; revocations drop cache entries.
     $client->subscribe(
         ['types' => ['lease.revoked', 'lease.extended']],
         static function (Envelope $env) use (&$leases): void {

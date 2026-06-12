@@ -9,7 +9,7 @@ namespace Arcp;
  *
  * RFC §6.1 — the protocol version is included in every envelope as the
  * `arcp` field; the implementation version is reported via runtime/client
- * identity blocks in `session.open` / `session.accepted` (RFC §8.2, §8.3).
+ * identity blocks in `session.hello` / `session.welcome` (ARCP v1.1 §6.2).
  */
 final class Version
 {

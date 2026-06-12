@@ -13,7 +13,7 @@ use Arcp\Errors\InvalidRequestException;
 use Arcp\Ids\MessageId;
 use Arcp\Ids\SessionId;
 use Arcp\Json\EnvelopeSerializer;
-use Arcp\Messages\Control\Resume;
+use Arcp\Messages\Session\SessionResume;
 use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\Capabilities;
 use Arcp\Messages\Session\PeerInfo;
@@ -148,7 +148,7 @@ final class ResumeTest extends TestCase
         // pre-fix would forward session B's envelopes too.
         $resumeEnv = new Envelope(
             id: MessageId::random(),
-            payload: new Resume(afterMessageId: ''),
+            payload: new SessionResume(afterMessageId: ''),
             timestamp: new \DateTimeImmutable('now'),
             sessionId: $clientA->session->sessionId,
         );
@@ -178,7 +178,7 @@ final class ResumeTest extends TestCase
             }
         }
 
-        self::assertTrue($sawAck, 'expected Resume ack from runtime');
+        self::assertTrue($sawAck, 'expected SessionResume ack from runtime');
         self::assertFalse($sawForeign, 'resume must not leak envelopes from another session');
 
         $clientA->close();

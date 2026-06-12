@@ -13,8 +13,8 @@ use Arcp\Internal\Client\HumanHandlers;
 use Arcp\Internal\Client\ResponseRouter;
 use Arcp\Internal\Client\ResponseRouterDeps;
 use Arcp\Json\EnvelopeSerializer;
-use Arcp\Messages\Control\Ping;
-use Arcp\Messages\Control\Pong;
+use Arcp\Messages\Session\SessionPing;
+use Arcp\Messages\Session\SessionPong;
 use Arcp\Runtime\PendingRegistry;
 use Arcp\Runtime\Session;
 use Arcp\Transport\MemoryTransport;
@@ -42,14 +42,14 @@ final class ResponseRouterPingTest extends TestCase
         $pingId = new MessageId('msg_ping');
         $router->handle(new Envelope(
             id: $pingId,
-            payload: new Ping('nonce-1'),
+            payload: new SessionPing('nonce-1', new \DateTimeImmutable('2026-05-09T13:00:00Z')),
             timestamp: new \DateTimeImmutable(),
         ));
 
         $reply = $peerT->receive();
         self::assertInstanceOf(Envelope::class, $reply);
-        self::assertInstanceOf(Pong::class, $reply->payload);
-        self::assertSame('nonce-1', $reply->payload->nonce);
+        self::assertInstanceOf(SessionPong::class, $reply->payload);
+        self::assertSame('nonce-1', $reply->payload->pingNonce);
         self::assertNotNull($reply->correlationId);
         self::assertSame('msg_ping', (string) $reply->correlationId);
     }

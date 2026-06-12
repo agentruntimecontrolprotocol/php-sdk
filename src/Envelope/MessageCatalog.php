@@ -8,21 +8,16 @@ use Arcp\Messages\Artifacts\ArtifactFetch;
 use Arcp\Messages\Artifacts\ArtifactPut;
 use Arcp\Messages\Artifacts\ArtifactRef;
 use Arcp\Messages\Artifacts\ArtifactRelease;
-use Arcp\Messages\Control\Ack;
+use Arcp\Messages\Artifacts\ArtifactReleased;
 use Arcp\Messages\Control\Backpressure;
-use Arcp\Messages\Control\Cancel;
-use Arcp\Messages\Control\CancelAccepted;
-use Arcp\Messages\Control\CancelRefused;
 use Arcp\Messages\Control\CheckpointCreate;
 use Arcp\Messages\Control\CheckpointRestore;
 use Arcp\Messages\Control\Interrupt;
 use Arcp\Messages\Control\Nack;
-use Arcp\Messages\Control\Ping;
-use Arcp\Messages\Control\Pong;
-use Arcp\Messages\Control\Resume;
 use Arcp\Messages\Execution\AgentDelegate;
 use Arcp\Messages\Execution\AgentHandoff;
 use Arcp\Messages\Execution\JobAccepted;
+use Arcp\Messages\Execution\JobCancel;
 use Arcp\Messages\Execution\JobCancelled;
 use Arcp\Messages\Execution\JobCheckpoint;
 use Arcp\Messages\Execution\JobCompleted;
@@ -51,32 +46,37 @@ use Arcp\Messages\Permissions\PermissionGrant;
 use Arcp\Messages\Permissions\PermissionRequest;
 use Arcp\Messages\Session\Jobs;
 use Arcp\Messages\Session\ListJobs;
-use Arcp\Messages\Session\SessionAccepted;
+use Arcp\Messages\Session\SessionAck;
 use Arcp\Messages\Session\SessionAuthenticate;
 use Arcp\Messages\Session\SessionChallenge;
 use Arcp\Messages\Session\SessionClose;
 use Arcp\Messages\Session\SessionEvicted;
-use Arcp\Messages\Session\SessionOpen;
+use Arcp\Messages\Session\SessionHello;
+use Arcp\Messages\Session\SessionPing;
+use Arcp\Messages\Session\SessionPong;
 use Arcp\Messages\Session\SessionRefresh;
 use Arcp\Messages\Session\SessionRejected;
+use Arcp\Messages\Session\SessionResume;
 use Arcp\Messages\Session\SessionUnauthenticated;
+use Arcp\Messages\Session\SessionWelcome;
 use Arcp\Messages\Streaming\StreamChunk;
 use Arcp\Messages\Streaming\StreamClose;
 use Arcp\Messages\Streaming\StreamError;
 use Arcp\Messages\Streaming\StreamOpen;
-use Arcp\Messages\Subscriptions\Subscribe;
-use Arcp\Messages\Subscriptions\SubscribeAccepted;
+use Arcp\Messages\Subscriptions\JobSubscribe;
+use Arcp\Messages\Subscriptions\JobSubscribed;
 use Arcp\Messages\Subscriptions\SubscribeClosed;
 use Arcp\Messages\Subscriptions\SubscribeEvent;
-use Arcp\Messages\Subscriptions\Unsubscribe;
+use Arcp\Messages\Subscriptions\JobUnsubscribe;
 use Arcp\Messages\Telemetry\EventEmit;
 use Arcp\Messages\Telemetry\LogEvent;
 use Arcp\Messages\Telemetry\MetricEvent;
 use Arcp\Messages\Telemetry\TraceSpan;
 
 /**
- * Convenience builder that pre-registers every core RFC §6.2 message-type
- * class into a fresh {@see MessageTypeRegistry}.
+ * Convenience builder that pre-registers every core ARCP v1.1 message-type
+ * class (plus this SDK's extension surfaces) into a fresh
+ * {@see MessageTypeRegistry}.
  *
  * Tests and samples that need the full catalog should call
  * {@see MessageCatalog::create()}; the runtime calls it during boot.
@@ -86,10 +86,10 @@ final class MessageCatalog
     /** @var list<class-string<MessageType>> */
     private const array CORE_CLASSES = [
         // Session
-        SessionOpen::class,
+        SessionHello::class,
         SessionChallenge::class,
         SessionAuthenticate::class,
-        SessionAccepted::class,
+        SessionWelcome::class,
         SessionUnauthenticated::class,
         SessionRejected::class,
         SessionRefresh::class,
@@ -97,16 +97,14 @@ final class MessageCatalog
         Jobs::class,
         SessionEvicted::class,
         SessionClose::class,
+        SessionPing::class,
+        SessionPong::class,
+        SessionAck::class,
+        SessionResume::class,
         // Control
-        Ping::class,
-        Pong::class,
-        Ack::class,
         Nack::class,
-        Cancel::class,
-        CancelAccepted::class,
-        CancelRefused::class,
+        JobCancel::class,
         Interrupt::class,
-        Resume::class,
         Backpressure::class,
         CheckpointCreate::class,
         CheckpointRestore::class,
@@ -148,16 +146,17 @@ final class MessageCatalog
         LeaseRevoked::class,
         LeaseRefresh::class,
         // Subscriptions
-        Subscribe::class,
-        SubscribeAccepted::class,
+        JobSubscribe::class,
+        JobSubscribed::class,
         SubscribeEvent::class,
-        Unsubscribe::class,
+        JobUnsubscribe::class,
         SubscribeClosed::class,
         // Artifacts
         ArtifactPut::class,
         ArtifactFetch::class,
         ArtifactRef::class,
         ArtifactRelease::class,
+        ArtifactReleased::class,
         // Telemetry
         EventEmit::class,
         LogEvent::class,

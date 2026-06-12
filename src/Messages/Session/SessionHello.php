@@ -7,8 +7,8 @@ namespace Arcp\Messages\Session;
 use Arcp\Envelope\MessageType;
 use Arcp\Errors\InvalidRequestException;
 
-/** RFC §8.1 / §8.2 — initial handshake message. */
-final readonly class SessionOpen extends MessageType
+/** ARCP v1.1 §6.2 — initial handshake message (`session.hello`). */
+final readonly class SessionHello extends MessageType
 {
     public function __construct(
         public Auth $auth,
@@ -20,7 +20,7 @@ final readonly class SessionOpen extends MessageType
     #[\Override]
     public static function typeName(): string
     {
-        return 'session.open';
+        return 'session.hello';
     }
 
     #[\Override]
@@ -36,12 +36,12 @@ final readonly class SessionOpen extends MessageType
     #[\Override]
     public static function fromArray(array $data): static
     {
-        $auth = $data['auth'] ?? throw new InvalidRequestException('session.open auth missing');
+        $auth = $data['auth'] ?? throw new InvalidRequestException('session.hello auth missing');
         $client = $data['client']
-            ?? throw new InvalidRequestException('session.open client missing');
+            ?? throw new InvalidRequestException('session.hello client missing');
         $caps = $data['capabilities'] ?? [];
         if (!\is_array($auth) || !\is_array($client) || !\is_array($caps)) {
-            throw new InvalidRequestException('session.open fields must be objects');
+            throw new InvalidRequestException('session.hello fields must be objects');
         }
         /** @var array<string, mixed> $auth */
         /** @var array<string, mixed> $client */

@@ -49,7 +49,7 @@ use Psr\Log\NullLogger;
 /**
  * Server-side runtime. Owns sessions, jobs, streams, subscriptions,
  * leases, artifacts, and the event log. The complete lifecycle from
- * `session.open` through `session.close` flows through {@see serve()}.
+ * `session.hello` through `session.close` flows through {@see serve()}.
  *
  * The protocol surface is intentionally a single public entry point; the
  * per-message handlers live in {@see \Arcp\Internal\Runtime} and are not

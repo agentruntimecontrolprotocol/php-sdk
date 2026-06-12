@@ -6,22 +6,22 @@ namespace Arcp\Internal\Runtime;
 
 use Arcp\Envelope\Envelope;
 use Arcp\Ids\MessageId;
-use Arcp\Ids\SessionId;
-use Arcp\Ids\SubscriptionId;
-use Arcp\Messages\Control\Ack;
-use Arcp\Messages\Subscriptions\Subscribe;
-use Arcp\Messages\Subscriptions\SubscribeAccepted;
+use Arcp\Messages\Subscriptions\JobSubscribe;
+use Arcp\Messages\Subscriptions\JobSubscribed;
+use Arcp\Messages\Subscriptions\JobUnsubscribe;
 use Arcp\Messages\Subscriptions\SubscribeClosed;
 use Arcp\Messages\Subscriptions\SubscribeEvent;
 use Arcp\Messages\Telemetry\EventEmit;
 use Arcp\Runtime\ARCPRuntime;
+use Arcp\Runtime\Job;
 use Arcp\Runtime\Session;
 use Arcp\Runtime\Subscription;
 use Arcp\Version;
 
 /**
- * Handles subscribe/unsubscribe ARCP requests: authorization scoping,
- * compilation, backfill (RFC §13.3), and close.
+ * Handles `job.subscribe` / `job.unsubscribe` (ARCP v1.1 §7.6):
+ * authorization, history replay (`from_event_seq` + `history`), and
+ * detach.
  *
  * @internal
  */
@@ -33,90 +33,90 @@ final readonly class SubscriptionRouter
     ) {
     }
 
-    public function subscribe(Session $session, Envelope $env, Subscribe $msg): void
+    public function subscribe(Session $session, Envelope $env, JobSubscribe $msg): void
     {
-        if (!$this->authorizeFilter($session, $env, $msg)) {
+        $job = $this->runtime->jobs->tryGet($msg->jobId);
+        if (!$job instanceof Job) {
+            // §12: the job does not exist or is not visible.
+            $this->lifecycle->nack($session, $env, 'JOB_NOT_FOUND', 'job not found');
             return;
         }
-        $sub = $this->runtime->subscriptions->compile($session, $msg);
-        $this->runtime->emit($session, new SubscribeAccepted($sub->id), [
-            'correlation_id' => $env->id,
-            'subscription_id' => $sub->id,
-        ]);
-        if (!$this->backfill($session, $sub, $msg)) {
-            return;
-        }
-        $this->emitBackfillComplete($session, $sub->id);
-    }
-
-    public function unsubscribe(Session $session, Envelope $env): void
-    {
-        if (!$env->subscriptionId instanceof SubscriptionId) {
+        if (!$this->authorized($session, $job)) {
+            // §7.6: unauthorized subscription returns PERMISSION_DENIED.
             $this->lifecycle->nack(
                 $session,
                 $env,
-                'INVALID_REQUEST',
-                'unsubscribe missing subscription_id',
+                'PERMISSION_DENIED',
+                'principal may not observe this job',
             );
             return;
         }
-        $closed = $this->runtime->subscriptions->close($env->subscriptionId);
-        $this->runtime->emit($session, new Ack($closed ? 'closed' : 'unknown'), [
+        $sub = $this->runtime->subscriptions->compile($session, $msg);
+        $replayed = false;
+        if ($msg->history && !$this->backfill($session, $sub, $msg, $replayed)) {
+            return;
+        }
+        $this->runtime->emit($session, new JobSubscribed(
+            jobId: $job->id,
+            currentStatus: $job->state->value,
+            agent: $job->toolRef(),
+            traceId: $job->invocation->traceId,
+            subscribedFrom: $session->currentEventSeq(),
+            replayed: $replayed,
+        ), [
             'correlation_id' => $env->id,
+            'job_id' => $job->id,
+            'subscription_id' => $sub->id,
         ]);
+        $this->emitBackfillComplete($session, $sub, $job);
+    }
+
+    public function unsubscribe(Session $session, Envelope $env, JobUnsubscribe $msg): void
+    {
+        $sub = $this->runtime->subscriptions->findForJob($session, $msg->jobId);
+        if ($sub instanceof Subscription) {
+            $this->runtime->subscriptions->close($sub->id);
+        }
+        // §7.6 defines no acknowledgement for job.unsubscribe; detach is
+        // silent and idempotent.
     }
 
     /**
-     * Authorization: a subscriber may only observe sessions they own
-     * (their own session id, in the current single-tenant model). Returns
-     * true if the filter is in scope, false (and emits a nack) otherwise.
+     * §7.6: principals that submitted the job are always permitted; the
+     * single-tenant runtime otherwise restricts observation to the same
+     * principal.
      */
-    private function authorizeFilter(Session $session, Envelope $env, Subscribe $msg): bool
+    private function authorized(Session $session, Job $job): bool
     {
-        $sid = $session->sessionId instanceof SessionId ? (string) $session->sessionId : null;
-        $requested = $msg->filter['session_id'] ?? null;
-        if (\is_array($requested)) {
-            foreach ($requested as $r) {
-                if ($sid !== null && \is_string($r) && $r !== $sid) {
-                    return $this->denyOutOfScope($session, $env);
-                }
-            }
+        if ($job->session === $session) {
             return true;
         }
-        if (\is_string($requested) && $sid !== null && $requested !== $sid) {
-            return $this->denyOutOfScope($session, $env);
-        }
-        return true;
-    }
-
-    private function denyOutOfScope(Session $session, Envelope $env): bool
-    {
-        $this->lifecycle->nack(
-            $session,
-            $env,
-            'PERMISSION_DENIED',
-            'subscription session_id outside scope',
-        );
-        return false;
+        return $session->principal !== null && $session->principal === $job->session->principal;
     }
 
     /**
-     * Replay matching log entries to the new subscriber. Returns false if
-     * the backfill could not complete and the subscription has been
-     * closed with DATA_LOSS.
+     * Replay buffered events for the subscribed job with
+     * `seq > from_event_seq` (§7.6). Returns false if the backfill could
+     * not complete and the subscription has been closed.
      */
-    private function backfill(Session $session, Subscription $sub, Subscribe $msg): bool
-    {
-        $after = $msg->sinceMessageId ?? '';
-        $sessionId = $session->sessionId;
+    private function backfill(
+        Session $session,
+        Subscription $sub,
+        JobSubscribe $msg,
+        bool &$replayed,
+    ): bool {
         try {
-            $stream = $sessionId instanceof SessionId
-                ? $this->runtime->eventLog->replayAfterForSession($after, $sessionId)
-                : $this->runtime->eventLog->replayAfter($after);
-            foreach ($stream as $past) {
+            foreach ($this->runtime->eventLog->replayAfter('') as $past) {
                 if (!$sub->matches($past)) {
                     continue;
                 }
+                if (
+                    $msg->fromEventSeq !== null
+                    && ($past->eventSeq === null || $past->eventSeq <= $msg->fromEventSeq)
+                ) {
+                    continue;
+                }
+                $replayed = true;
                 $session->transport->send(new Envelope(
                     id: MessageId::random(),
                     payload: new SubscribeEvent(
@@ -125,6 +125,7 @@ final readonly class SubscriptionRouter
                     timestamp: $this->runtime->clock->now(),
                     priority: $past->priority,
                     sessionId: $session->sessionId,
+                    jobId: $past->jobId,
                     subscriptionId: $sub->id,
                 ));
             }
@@ -132,7 +133,7 @@ final readonly class SubscriptionRouter
             $this->runtime->emit(
                 $session,
                 new SubscribeClosed('RESUME_WINDOW_EXPIRED', $e->getMessage()),
-                ['subscription_id' => $sub->id],
+                ['subscription_id' => $sub->id, 'job_id' => $msg->jobId],
             );
             $this->runtime->subscriptions->close($sub->id);
             return false;
@@ -140,7 +141,7 @@ final readonly class SubscriptionRouter
         return true;
     }
 
-    private function emitBackfillComplete(Session $session, SubscriptionId $subId): void
+    private function emitBackfillComplete(Session $session, Subscription $sub, Job $job): void
     {
         $timestamp = $this->runtime->clock->now()->format(\DateTimeInterface::RFC3339_EXTENDED);
         $this->runtime->emit($session, new SubscribeEvent([
@@ -148,7 +149,8 @@ final readonly class SubscriptionRouter
             'id' => (string) MessageId::random(),
             'type' => 'event.emit',
             'timestamp' => $timestamp,
+            'job_id' => (string) $job->id,
             'payload' => new EventEmit('subscription.backfill_complete')->toArray(),
-        ]), ['subscription_id' => $subId]);
+        ]), ['subscription_id' => $sub->id, 'job_id' => $job->id]);
     }
 }

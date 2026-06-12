@@ -13,7 +13,7 @@ use Arcp\Errors\ARCPException;
 use Arcp\Errors\ErrorPayload;
 use Arcp\Errors\InvalidRequestException;
 use Arcp\Ids\IdempotencyKey;
-use Arcp\Messages\Control\Ack;
+use Arcp\Messages\Control\Nack;
 use Arcp\Messages\Execution\JobAccepted;
 use Arcp\Messages\Execution\JobCancelled;
 use Arcp\Messages\Execution\JobCompleted;
@@ -142,10 +142,14 @@ final readonly class ToolInvocationHandler
             }
             $this->runtime->emit($session, $original->payload, $hints);
         } else {
-            // Fallback: if the original outcome envelope is no longer in the
-            // log (e.g. retention purged it), still ack the duplicate so
-            // synchronous callers stop waiting.
-            $this->runtime->emit($session, new Ack('replay'), $hints);
+            // Fallback: if the original outcome envelope is no longer in
+            // the log (e.g. retention purged it), fail the duplicate so
+            // synchronous callers stop waiting (§7.2: the original
+            // job.accepted payload can no longer be reproduced).
+            $this->runtime->emit($session, new Nack(new ErrorPayload(
+                'INTERNAL_ERROR',
+                'idempotent outcome no longer available for replay',
+            )), $hints);
         }
         return true;
     }

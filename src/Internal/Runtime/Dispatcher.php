@@ -17,23 +17,23 @@ use Arcp\Ids\MessageId;
 use Arcp\Messages\Artifacts\ArtifactFetch;
 use Arcp\Messages\Artifacts\ArtifactPut;
 use Arcp\Messages\Artifacts\ArtifactRelease;
-use Arcp\Messages\Control\Ack;
-use Arcp\Messages\Control\Cancel;
 use Arcp\Messages\Control\Interrupt;
 use Arcp\Messages\Control\Nack;
-use Arcp\Messages\Control\Ping;
-use Arcp\Messages\Control\Pong;
-use Arcp\Messages\Control\Resume;
 use Arcp\Messages\Execution\AgentDelegate;
 use Arcp\Messages\Execution\AgentHandoff;
 use Arcp\Messages\Execution\JobSchedule;
 use Arcp\Messages\Execution\ToolInvoke;
 use Arcp\Messages\Execution\WorkflowStart;
 use Arcp\Messages\Permissions\LeaseRefresh;
+use Arcp\Messages\Execution\JobCancel;
 use Arcp\Messages\Session\ListJobs;
+use Arcp\Messages\Session\SessionAck;
 use Arcp\Messages\Session\SessionClose;
-use Arcp\Messages\Subscriptions\Subscribe;
-use Arcp\Messages\Subscriptions\Unsubscribe;
+use Arcp\Messages\Session\SessionPing;
+use Arcp\Messages\Session\SessionPong;
+use Arcp\Messages\Session\SessionResume;
+use Arcp\Messages\Subscriptions\JobSubscribe;
+use Arcp\Messages\Subscriptions\JobUnsubscribe;
 use Arcp\Runtime\ARCPRuntime;
 use Arcp\Runtime\Session;
 
@@ -153,12 +153,13 @@ final readonly class Dispatcher
     {
         $handled = true;
         match (true) {
-            $msg instanceof Ping => $this->lifecycle->handlePing($session, $env, $msg),
-            $msg instanceof Pong, $msg instanceof Ack => null,
+            $msg instanceof SessionPing => $this->lifecycle->handlePing($session, $env, $msg),
+            $msg instanceof SessionPong => null,
+            $msg instanceof SessionAck => $this->lifecycle->handleSessionAck($session, $msg),
             $msg instanceof SessionClose => $this->lifecycle->handleSessionClose($session),
-            $msg instanceof Cancel => $this->lifecycle->handleCancel($session, $env, $msg),
+            $msg instanceof JobCancel => $this->lifecycle->handleCancel($session, $env, $msg),
             $msg instanceof Interrupt => $this->lifecycle->handleInterrupt($session, $env, $msg),
-            $msg instanceof Resume => $this->lifecycle->handleResume($session, $env, $msg),
+            $msg instanceof SessionResume => $this->lifecycle->handleResume($session, $env, $msg),
             $msg instanceof LeaseRefresh
                 => $this->lifecycle->handleLeaseRefresh($session, $env, $msg),
             default => $handled = false,
@@ -174,7 +175,7 @@ final readonly class Dispatcher
             $this->lifecycle->nack($session, $env, 'INVALID_REQUEST', 'list_jobs not negotiated');
             return true;
         }
-        if ($msg instanceof Subscribe && !$this->featureEnabled($session, 'subscribe')) {
+        if ($msg instanceof JobSubscribe && !$this->featureEnabled($session, 'subscribe')) {
             $this->lifecycle->nack($session, $env, 'INVALID_REQUEST', 'subscribe not negotiated');
             return true;
         }
@@ -182,8 +183,8 @@ final readonly class Dispatcher
         match (true) {
             $msg instanceof ToolInvoke => $this->toolInvocation->handle($session, $env, $msg),
             $msg instanceof ListJobs => $this->jobList->handle($session, $env, $msg),
-            $msg instanceof Subscribe => $this->subscriptions->subscribe($session, $env, $msg),
-            $msg instanceof Unsubscribe => $this->subscriptions->unsubscribe($session, $env),
+            $msg instanceof JobSubscribe => $this->subscriptions->subscribe($session, $env, $msg),
+            $msg instanceof JobUnsubscribe => $this->subscriptions->unsubscribe($session, $env),
             $msg instanceof ArtifactPut => $this->artifacts->put($session, $env, $msg),
             $msg instanceof ArtifactFetch => $this->artifacts->fetch($session, $env, $msg),
             $msg instanceof ArtifactRelease => $this->artifacts->release($session, $env, $msg),
@@ -209,7 +210,7 @@ final readonly class Dispatcher
             $this->lifecycle->nack($session, $env, 'INVALID_REQUEST', 'feature deferred to v0.2');
             return;
         }
-        // Pong, ack, etc. with no waiter: silently drop.
+        // session.pong etc. with no waiter: silently drop.
         $this->runtime->logger->debug('unhandled message', ['type' => $msg::class]);
     }
 }

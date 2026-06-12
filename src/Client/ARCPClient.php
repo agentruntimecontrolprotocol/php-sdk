@@ -22,7 +22,6 @@ use Arcp\Ids\ArtifactId;
 use Arcp\Ids\IdempotencyKey;
 use Arcp\Ids\JobId;
 use Arcp\Ids\MessageId;
-use Arcp\Ids\SubscriptionId;
 use Arcp\Ids\TraceId;
 use Arcp\Internal\Client\ErrorMapper;
 use Arcp\Internal\Client\HandshakeClient;
@@ -34,11 +33,12 @@ use Arcp\Messages\Artifacts\ArtifactFetch;
 use Arcp\Messages\Artifacts\ArtifactPut;
 use Arcp\Messages\Artifacts\ArtifactRef;
 use Arcp\Messages\Artifacts\ArtifactRelease;
-use Arcp\Messages\Control\Ack;
-use Arcp\Messages\Control\Cancel;
+use Arcp\Messages\Artifacts\ArtifactReleased;
+use Arcp\Messages\Execution\JobCancel;
 use Arcp\Messages\Control\Nack;
-use Arcp\Messages\Control\Ping;
-use Arcp\Messages\Control\Pong;
+use Arcp\Messages\Session\SessionAck;
+use Arcp\Messages\Session\SessionPing;
+use Arcp\Messages\Session\SessionPong;
 use Arcp\Messages\Execution\ResultChunk;
 use Arcp\Messages\Execution\ToolError;
 use Arcp\Messages\Execution\ToolInvoke;
@@ -48,11 +48,11 @@ use Arcp\Messages\Session\Capabilities;
 use Arcp\Messages\Session\Jobs;
 use Arcp\Messages\Session\ListJobs;
 use Arcp\Messages\Session\PeerInfo;
-use Arcp\Messages\Session\SessionAccepted;
+use Arcp\Messages\Session\SessionWelcome;
 use Arcp\Messages\Session\SessionClose;
-use Arcp\Messages\Subscriptions\Subscribe;
-use Arcp\Messages\Subscriptions\SubscribeAccepted;
-use Arcp\Messages\Subscriptions\Unsubscribe;
+use Arcp\Messages\Subscriptions\JobSubscribe;
+use Arcp\Messages\Subscriptions\JobSubscribed;
+use Arcp\Messages\Subscriptions\JobUnsubscribe;
 use Arcp\Runtime\PendingRegistry;
 use Arcp\Runtime\Session;
 use Arcp\Runtime\SessionState;
@@ -143,21 +143,21 @@ final class ARCPClient
     }
 
     /**
-     * Send `session.open`, await `session.accepted`, and start the read-loop.
+     * Send `session.hello`, await `session.welcome`, and start the read-loop.
      *
      * @throws \Arcp\Errors\UnauthenticatedException when the runtime rejects credentials.
      * @throws \Arcp\Errors\InvalidRequestException for capability mismatches.
      * @throws \Arcp\Errors\ARCPExceptionInterface for other handshake errors.
      * @throws \Arcp\Errors\TransportClosedException if the transport drops.
      *
-     * @size-check-suppress public BC; mirrors RFC §8.3 session.open shape.
+     * @size-check-suppress public BC; mirrors §6.2 session.hello shape.
      */
     public function open(
         Auth $auth,
         PeerInfo $client,
         Capabilities $capabilities,
         ?Cancellation $cancellation = null,
-    ): SessionAccepted {
+    ): SessionWelcome {
         $env = $this->handshake->prepareEnvelope($auth, $client, $capabilities);
         $this->session->state = SessionState::Opening;
         $this->session->transport->send($env);
@@ -220,52 +220,61 @@ final class ARCPClient
     }
 
     /**
-     * Subscribe and dispatch matching `subscribe.event` payloads to a callback.
+     * Attach to a job's event stream (`job.subscribe`, §7.6) and dispatch
+     * the job's `subscribe.event` payloads to a callback.
      *
-     * @param array<string, mixed> $filter
      * @param \Closure(Envelope): void $onEvent Called with the unwrapped envelope.
      *
-     * @throws \Arcp\Errors\PermissionDeniedException when the filter
-     *                                                crosses session-scope boundaries.
+     * @throws \Arcp\Errors\JobNotFoundException when the job does not
+     *                                            exist or is not visible.
+     * @throws \Arcp\Errors\PermissionDeniedException when this principal
+     *                                                may not observe the job.
      * @throws \Arcp\Errors\ARCPExceptionInterface for other runtime errors.
      * @throws InvalidRequestException for unexpected response shapes.
      *
-     * @size-check-suppress public BC; subscribe is the RFC §13 entry-point.
+     * @size-check-suppress public BC; subscribe is the §7.6 entry-point.
      */
     public function subscribe(
-        array $filter,
+        JobId $jobId,
         \Closure $onEvent,
-        ?string $sinceMessageId = null,
+        ?int $fromEventSeq = null,
+        bool $history = false,
         ?Cancellation $cancellation = null,
-    ): SubscriptionId {
+    ): JobSubscribed {
         $id = MessageId::random();
         $env = new Envelope(
             id: $id,
-            payload: new Subscribe($filter, $sinceMessageId),
+            payload: new JobSubscribe($jobId, $fromEventSeq, $history),
             timestamp: $this->clock->now(),
             sessionId: $this->session->sessionId,
+            jobId: $jobId,
         );
+        $this->router->registerSubscriber($jobId, $onEvent);
         $this->session->transport->send($env);
-        $response = $this->pending->awaitResponse($id, 30.0, $cancellation);
-        if ($response instanceof Nack) {
-            throw $this->errorMapper->raise($response->error);
+        try {
+            $response = $this->pending->awaitResponse($id, 30.0, $cancellation);
+            if ($response instanceof Nack) {
+                throw $this->errorMapper->raise($response->error);
+            }
+            if (!$response instanceof JobSubscribed) {
+                throw new InvalidRequestException('expected job.subscribed');
+            }
+        } catch (\Throwable $e) {
+            $this->router->unregisterSubscriber($jobId);
+            throw $e;
         }
-        if (!$response instanceof SubscribeAccepted) {
-            throw new InvalidRequestException('expected subscribe.accepted');
-        }
-        $this->router->registerSubscriber($response->subscriptionId, $onEvent);
-        return $response->subscriptionId;
+        return $response;
     }
 
-    public function unsubscribe(SubscriptionId $id): void
+    public function unsubscribe(JobId $jobId): void
     {
-        $this->router->unregisterSubscriber($id);
+        $this->router->unregisterSubscriber($jobId);
         $env = new Envelope(
             id: MessageId::random(),
-            payload: new Unsubscribe(),
+            payload: new JobUnsubscribe($jobId),
             timestamp: $this->clock->now(),
             sessionId: $this->session->sessionId,
-            subscriptionId: $id,
+            jobId: $jobId,
         );
         $this->session->transport->send($env);
     }
@@ -303,16 +312,32 @@ final class ARCPClient
         return $response;
     }
 
+    /**
+     * §6.5: advise the runtime of the highest session-scoped `event_seq`
+     * this client has processed. Fire-and-forget; the runtime MAY use it
+     * to free buffered events earlier than the resume window.
+     */
+    public function ack(int $lastProcessedSeq): void
+    {
+        $env = new Envelope(
+            id: MessageId::random(),
+            payload: new SessionAck($lastProcessedSeq),
+            timestamp: $this->clock->now(),
+            sessionId: $this->session->sessionId,
+        );
+        $this->session->transport->send($env);
+    }
+
     public function cancelJob(
         JobId $jobId,
         string $reason = 'user_aborted',
-        int $deadlineMs = 5000,
     ): void {
         $env = new Envelope(
             id: MessageId::random(),
-            payload: new Cancel('job', (string) $jobId, $reason, $deadlineMs),
+            payload: new JobCancel($jobId, $reason),
             timestamp: $this->clock->now(),
             sessionId: $this->session->sessionId,
+            jobId: $jobId,
         );
         $this->session->transport->send($env);
     }
@@ -321,15 +346,18 @@ final class ARCPClient
      * Round-trip a ping/pong heartbeat.
      *
      * @throws \Arcp\Errors\ARCPExceptionInterface when the runtime
-     *                                             returns a Nack instead of a Pong.
+     *                                             returns a Nack instead of a SessionPong.
      * @throws InvalidRequestException for an unexpected response type.
      */
-    public function ping(?string $nonce = null, float $deadlineSeconds = 5.0): Pong
+    public function ping(?string $nonce = null, float $deadlineSeconds = 5.0): SessionPong
     {
         $id = MessageId::random();
         $env = new Envelope(
             id: $id,
-            payload: new Ping($nonce),
+            payload: new SessionPing(
+                $nonce ?? 'p_' . bin2hex(random_bytes(8)),
+                $this->clock->now(),
+            ),
             timestamp: $this->clock->now(),
             sessionId: $this->session->sessionId,
         );
@@ -338,8 +366,8 @@ final class ARCPClient
         if ($resp instanceof Nack) {
             throw $this->errorMapper->raise($resp->error);
         }
-        if (!$resp instanceof Pong) {
-            throw new InvalidRequestException('expected pong as ping response');
+        if (!$resp instanceof SessionPong) {
+            throw new InvalidRequestException('expected session.pong as ping response');
         }
         return $resp;
     }
@@ -433,10 +461,10 @@ final class ARCPClient
         if ($resp instanceof Nack) {
             throw $this->errorMapper->raise($resp->error);
         }
-        if (!$resp instanceof Ack) {
-            throw new InvalidRequestException('expected ack as artifact.release response');
+        if (!$resp instanceof ArtifactReleased) {
+            throw new InvalidRequestException('expected artifact.released as release response');
         }
-        return $resp->note === 'released';
+        return $resp->released;
     }
 
     public function close(): void

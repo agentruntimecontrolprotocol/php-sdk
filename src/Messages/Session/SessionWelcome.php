@@ -8,8 +8,8 @@ use Arcp\Envelope\MessageType;
 use Arcp\Errors\InvalidRequestException;
 use Arcp\Ids\SessionId;
 
-/** RFC §8.3 — session established successfully. */
-final readonly class SessionAccepted extends MessageType
+/** ARCP v1.1 §6.2 — session established successfully (`session.welcome`). */
+final readonly class SessionWelcome extends MessageType
 {
     public function __construct(
         public SessionId $sessionId,
@@ -22,7 +22,7 @@ final readonly class SessionAccepted extends MessageType
     #[\Override]
     public static function typeName(): string
     {
-        return 'session.accepted';
+        return 'session.welcome';
     }
 
     #[\Override]
