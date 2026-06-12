@@ -202,16 +202,22 @@ final readonly class CredentialLifecycle
                 $provisioner->revoke($credentialId);
                 return true;
             } catch (\Throwable $e) {
-                if ($attempt === 2) {
-                    $this->runtime->logger->error(
-                        'credential revocation failed; record retained for retry',
-                        [
-                            'credential_id' => $credentialId,
-                            'job_id' => (string) $job->id,
-                            'error' => $e->getMessage(),
-                        ],
-                    );
+                if ($attempt < 2) {
+                    // Brief backoff so the retry has a chance to clear a
+                    // transient upstream failure rather than failing twice
+                    // back-to-back.
+                    \Amp\delay(0.02 * $attempt);
+
+                    continue;
                 }
+                $this->runtime->logger->error(
+                    'credential revocation failed; record retained for retry',
+                    [
+                        'credential_id' => $credentialId,
+                        'job_id' => (string) $job->id,
+                        'error' => $e->getMessage(),
+                    ],
+                );
             }
         }
         return false;

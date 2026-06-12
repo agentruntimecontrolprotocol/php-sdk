@@ -27,8 +27,10 @@ trait JobCredentialControls
         if (!$provisioner instanceof CredentialProvisioner) {
             throw new FailedPreconditionException('no credential provisioner configured');
         }
-        $this->runtime->credentials->remove($this->jobId, $previousCredentialId);
+        // Add the replacement before removing the old record so a store
+        // add() failure cannot leave the job with neither credential.
         $this->runtime->credentials->add($this->jobId, $new);
+        $this->runtime->credentials->remove($this->jobId, $previousCredentialId);
         $this->revokePreviousCredential($provisioner, $previousCredentialId);
         $this->runtime->emit($this->session, new EventEmit('status', [
             'phase' => 'credential_rotated',
@@ -44,13 +46,23 @@ trait JobCredentialControls
         CredentialProvisioner $provisioner,
         string $credentialId,
     ): void {
-        try {
-            $provisioner->revoke($credentialId);
-        } catch (\Throwable $e) {
-            $this->runtime->logger->warning(
-                'credential revocation failed during rotation',
-                ['credential_id' => $credentialId, 'error' => $e->getMessage()],
-            );
+        // §9.8.2: revocation is best-effort but SHOULD retry transient
+        // failures before giving up and logging a permanent failure.
+        for ($attempt = 1; $attempt <= 2; $attempt++) {
+            try {
+                $provisioner->revoke($credentialId);
+                return;
+            } catch (\Throwable $e) {
+                if ($attempt < 2) {
+                    \Amp\delay(0.02 * $attempt);
+
+                    continue;
+                }
+                $this->runtime->logger->error(
+                    'credential revocation failed during rotation',
+                    ['credential_id' => $credentialId, 'error' => $e->getMessage()],
+                );
+            }
         }
     }
 }
