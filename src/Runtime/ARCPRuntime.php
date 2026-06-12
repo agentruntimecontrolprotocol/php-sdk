@@ -411,19 +411,29 @@ final class ARCPRuntime
     {
         $id = MessageId::random();
         $redactedPayload = $this->redactedPayload($payload);
+        $jobId = $hints['job_id'] ?? null;
+        $eventSeq = $this->isSequenced($payload) ? $session->nextEventSeq() : null;
         $env = new Envelope(
             id: $id,
             payload: $payload,
             timestamp: $this->clock->now(),
             priority: $hints['priority'] ?? Priority::Normal,
             sessionId: $session->sessionId,
-            jobId: $hints['job_id'] ?? null,
-            eventSeq: $this->isSequenced($payload) ? $session->nextEventSeq() : null,
+            jobId: $jobId,
+            eventSeq: $eventSeq,
             streamId: $hints['stream_id'] ?? null,
             subscriptionId: $hints['subscription_id'] ?? null,
             traceId: $hints['trace_id'] ?? null,
             correlationId: $hints['correlation_id'] ?? null,
         );
+        if ($eventSeq !== null && $jobId instanceof JobId) {
+            // §6.6: track the job's most recent sequenced message so
+            // session.jobs can report last_event_seq.
+            $job = $this->jobs->tryGet($jobId);
+            if ($job instanceof Job) {
+                $job->lastEventSeq = $eventSeq;
+            }
+        }
         $logEnv = $redactedPayload === $payload ? $env : $env->withPayload($redactedPayload);
         // §6.3: while parked (or once the transport dropped) there is no
         // live connection; buffer sequenced messages for resume replay and

@@ -220,6 +220,13 @@ final class JobLifecycleTest extends TestCase
         self::assertCount(1, $page->jobs);
         self::assertSame('slow', $page->jobs[0]['agent'] ?? null);
         self::assertSame('running', $page->jobs[0]['status'] ?? null);
+        // §6.6: entries carry the full spec shape.
+        foreach (['job_id', 'lease', 'parent_job_id', 'created_at', 'trace_id', 'last_event_seq'] as $key) {
+            self::assertArrayHasKey($key, $page->jobs[0]);
+        }
+        // The status job.event emitted at acceptance is sequenced, so a
+        // running job already has a last_event_seq watermark.
+        self::assertIsInt($page->jobs[0]['last_event_seq']);
 
         $future->await();
         $client->close();

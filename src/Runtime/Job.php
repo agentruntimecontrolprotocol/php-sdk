@@ -36,6 +36,12 @@ final class Job
 
     /** Event-loop timer id enforcing `max_runtime_sec`, when armed. */
     public ?string $runtimeTimerId = null;
+
+    /**
+     * `event_seq` of this job's most recent sequenced message (§6.6
+     * `last_event_seq`); null until the first job event is emitted.
+     */
+    public ?int $lastEventSeq = null;
     public int $heartbeatSequence = 0;
     public readonly \DateTimeImmutable $createdAt;
     /** Wall-clock timestamp of the most recent terminal transition, if any. */
@@ -65,6 +71,7 @@ final class Job
         public readonly ?CostBudget $budget = null,
         public readonly ?LeaseGranted $lease = null,
         ?\DateTimeImmutable $createdAt = null,
+        public readonly ?JobId $parentJobId = null,
     ) {
         $this->createdAt = $createdAt ?? new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
     }

@@ -134,6 +134,8 @@ final readonly class JobListHandler
     /** @return array<string, mixed> */
     private function entry(Job $job): array
     {
+        // §6.6 entry shape: {job_id, agent, status, lease, parent_job_id,
+        // created_at, trace_id, last_event_seq}.
         // §14: never surface plaintext credential `value` on an
         // introspection surface. Credentials are delivered only on
         // job.accepted to the submitter; the list_jobs inventory omits them
@@ -142,8 +144,11 @@ final readonly class JobListHandler
             'job_id' => (string) $job->id,
             'agent' => $job->toolRef(),
             'status' => $job->state->value,
+            'lease' => $job->lease?->toArray(),
+            'parent_job_id' => $job->parentJobId?->__toString(),
             'created_at' => $job->createdAt->format(\DateTimeInterface::RFC3339_EXTENDED),
             'trace_id' => $job->invocation->traceId?->__toString(),
+            'last_event_seq' => $job->lastEventSeq,
         ];
     }
 }
