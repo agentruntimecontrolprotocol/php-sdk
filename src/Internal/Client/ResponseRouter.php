@@ -11,6 +11,8 @@ use Arcp\Envelope\MessageType;
 use Arcp\Envelope\Priority;
 use Arcp\Ids\MessageId;
 use Arcp\Ids\SubscriptionId;
+use Arcp\Messages\Control\Ping;
+use Arcp\Messages\Control\Pong;
 use Arcp\Messages\Human\HumanChoiceRequest;
 use Arcp\Messages\Human\HumanInputRequest;
 use Arcp\Messages\Permissions\PermissionRequest;
@@ -61,6 +63,13 @@ final class ResponseRouter
             $env->correlationId instanceof MessageId
             && $this->deps->pending->resolve($env->correlationId, $msg)
         ) {
+            return;
+        }
+        if ($msg instanceof Ping) {
+            // §6.4: the receiver MUST answer an inbound ping with a
+            // correlated pong carrying the same nonce, independent of any
+            // configured application handlers.
+            $this->sendReply($env, new Pong($msg->nonce), Priority::High);
             return;
         }
         if ($msg instanceof SubscribeEvent) {
