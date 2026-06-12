@@ -108,6 +108,46 @@ final class PermissionLeaseTest extends TestCase
         $serverFuture->await();
     }
 
+    public function testReferencedLeaseOverlayCannotWidenBudget(): void
+    {
+        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
+        $runtime->registerTool('spend', new class () implements ToolHandler {
+            #[\Override]
+            public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
+            {
+                return ['ok' => true];
+            }
+        });
+        [$serverT, $clientT] = MemoryTransport::pair();
+        $serverFuture = $runtime->serveAsync($serverT);
+        $client = new ARCPClient($clientT);
+        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(anonymous: true));
+
+        $leaseId = LeaseId::random();
+        $runtime->leases->register(
+            new LeaseGranted(
+                $leaseId,
+                'tool.invoke',
+                'spend',
+                'run',
+                new \DateTimeImmutable('+5 minutes'),
+                null,
+                CostBudget::fromPatterns(['USD:0.50']),
+            ),
+            $client->session->sessionId,
+        );
+
+        // Overlay a wider budget than the parent grants: §9.4 forbids it.
+        $args = ['lease' => ['lease_id' => (string) $leaseId, 'cost.budget' => ['USD:5.00']]];
+        $this->expectException(\Arcp\Errors\LeaseSubsetViolationException::class);
+        try {
+            $client->invokeTool('spend', $args);
+        } finally {
+            $client->close();
+            $serverFuture->await();
+        }
+    }
+
     public function testPermissionDenyRaisesException(): void
     {
         $denyHandler = new class () implements PermissionHandler {

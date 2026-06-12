@@ -71,7 +71,10 @@ final readonly class ToolInvocationHandler
         }
         try {
             $lease = $this->credentials->leaseFromArguments($msg->arguments, $resolved, $session);
-        } catch (\Arcp\Errors\PermissionDeniedException $e) {
+        } catch (ARCPException $e) {
+            // Lease resolution can fail with PERMISSION_DENIED (scope/owner),
+            // LEASE_SUBSET_VIOLATION (widening overlay, §9.4), or another
+            // lease error; surface any of them as a correlated tool.error.
             $this->runtime->emit($session, new ToolError(ErrorPayload::fromException($e)), [
                 'correlation_id' => $env->id,
                 'trace_id' => $env->traceId,

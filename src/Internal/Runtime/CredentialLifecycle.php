@@ -133,7 +133,7 @@ final readonly class CredentialLifecycle
         ?ModelUse $modelUse,
         ?CostBudget $costBudget,
     ): LeaseGranted {
-        return new LeaseGranted(
+        $candidate = new LeaseGranted(
             $base->leaseId,
             $base->permission,
             $base->resource,
@@ -144,6 +144,11 @@ final readonly class CredentialLifecycle
             // lease does not alias (and mutate) the shared counter (§9.6).
             $costBudget ?? $base->costBudget?->snapshot(),
         );
+        // §9.4: a lease derived from a referenced parent may only narrow it.
+        // Reject any overlay that widens model.use, cost.budget, or expires_at.
+        $this->runtime->leases->ensureSubset($base, $candidate);
+
+        return $candidate;
     }
 
     private function expiresAt(mixed $leaseArg): ?\DateTimeImmutable
