@@ -35,10 +35,11 @@ final class SessionCloseTest extends TestCase
 {
     public function testCloseIsAckedAndInFlightJobsSurvive(): void
     {
-        $finished = false;
+        $finished = new \ArrayObject(['done' => false]);
         $runtime = new ARCPRuntime();
         $runtime->registerTool('slow', new class ($finished) implements ToolHandler {
-            public function __construct(private bool &$finished)
+            /** @param \ArrayObject<string, bool> $finished */
+            public function __construct(private readonly \ArrayObject $finished)
             {
             }
 
@@ -46,7 +47,7 @@ final class SessionCloseTest extends TestCase
             public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
             {
                 delay(0.2);
-                $this->finished = true;
+                $this->finished['done'] = true;
                 return ['done' => true];
             }
         });
@@ -82,7 +83,7 @@ final class SessionCloseTest extends TestCase
 
         // …and it runs to natural completion after the transport is gone.
         delay(0.3);
-        self::assertTrue($finished, 'job must finish naturally after session.close');
+        self::assertTrue($finished['done'], 'job must finish naturally after session.close');
         self::assertSame(JobState::Success, $runtime->jobs->all()[0]->state);
 
         try {
