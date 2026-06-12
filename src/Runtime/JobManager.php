@@ -52,6 +52,7 @@ final class JobManager
             toolVersion: $toolVersion,
             budget: $budget,
             lease: $lease,
+            createdAt: $this->clock->now(),
         );
         $this->jobs[(string) $job->id] = $job;
         return $job;

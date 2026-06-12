@@ -47,8 +47,9 @@ final class Job
         public readonly ?string $toolVersion = null,
         public readonly ?CostBudget $budget = null,
         public readonly ?LeaseGranted $lease = null,
+        ?\DateTimeImmutable $createdAt = null,
     ) {
-        $this->createdAt = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
+        $this->createdAt = $createdAt ?? new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
     }
 
     public function toolRef(): string
