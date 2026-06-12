@@ -24,6 +24,13 @@ final class V11FeaturesTest extends TestCase
         AgentRef::parse('Planner@bad/version');
     }
 
+    public function testAgentRefRejectsUppercaseName(): void
+    {
+        // §7.5: name ::= [a-z0-9][a-z0-9._-]* (lowercase only).
+        $this->expectException(InvalidArgumentException::class);
+        new AgentRef('MyTool');
+    }
+
     public function testCostBudgetConsumesCostMetrics(): void
     {
         $budget = CostBudget::fromPatterns(['USD:1.00']);

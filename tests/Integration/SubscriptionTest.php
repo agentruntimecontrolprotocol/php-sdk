@@ -55,7 +55,7 @@ final class SubscriptionTest extends TestCase
     public function testSubscriptionFiltersByType(): void
     {
         $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
-        $runtime->registerTool('emitProgress', new class () implements ToolHandler {
+        $runtime->registerTool('emit_progress', new class () implements ToolHandler {
             #[\Override]
             public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
             {
@@ -79,7 +79,7 @@ final class SubscriptionTest extends TestCase
 
         // Give the subscription a beat to settle.
         delay(0.01);
-        $client->invokeTool('emitProgress');
+        $client->invokeTool('emit_progress');
         delay(0.05);
 
         // Should observe at least one log envelope, and no `job.progress`.
@@ -113,7 +113,7 @@ final class SubscriptionTest extends TestCase
     public function testEmptyFilterDoesNotObserveOtherSessions(): void
     {
         $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
-        $runtime->registerTool('emitProgress', new class () implements ToolHandler {
+        $runtime->registerTool('emit_progress', new class () implements ToolHandler {
             #[\Override]
             public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
             {
@@ -143,7 +143,7 @@ final class SubscriptionTest extends TestCase
         delay(0.01);
 
         // Drive activity on B; A's empty-filter subscription must NOT see it.
-        $clientB->invokeTool('emitProgress');
+        $clientB->invokeTool('emit_progress');
         delay(0.05);
 
         $aSessionId = (string) $clientA->session->sessionId;
