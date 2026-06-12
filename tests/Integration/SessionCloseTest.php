@@ -39,7 +39,7 @@ final class SessionCloseTest extends TestCase
         $runtime = new ARCPRuntime();
         $runtime->registerTool('slow', new class ($finished) implements ToolHandler {
             /** @param \ArrayObject<string, bool> $finished */
-            public function __construct(private readonly \ArrayObject $finished)
+            public function __construct(private \ArrayObject $finished)
             {
             }
 
