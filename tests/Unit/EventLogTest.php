@@ -7,7 +7,7 @@ namespace Arcp\Tests\Unit;
 use Arcp\Clock\FakeClock;
 use Arcp\Envelope\Envelope;
 use Arcp\Envelope\MessageTypeRegistry;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Ids\MessageId;
 use Arcp\Ids\SessionId;
 use Arcp\Json\EnvelopeSerializer;
@@ -86,7 +86,7 @@ final class EventLogTest extends TestCase
 
     public function testReplayAfterUnknownMessageIdRejected(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         iterator_to_array($this->log->replayAfter('msg_does_not_exist'));
     }
 

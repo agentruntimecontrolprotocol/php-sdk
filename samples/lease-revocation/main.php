@@ -15,7 +15,7 @@ require __DIR__ . '/sql.php';
 
 use Arcp\Client\ARCPClient;
 use Arcp\Envelope\Envelope;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Messages\Permissions\LeaseRevoked;
 
 use function Arcp\Samples\LeaseRevocation\classify;
@@ -51,7 +51,7 @@ function authorize(ARCPClient $client, string $sql, array &$leases): string
 {
     $klass = classify($sql);
     if ($klass->tables === []) {
-        throw new InvalidArgumentException('no table referenced');
+        throw new InvalidRequestException('no table referenced');
     }
     $op = $klass->op; // "read" / "write" / "ddl"
     $seconds = $op === 'read' ? READ_LEASE_SECONDS : WRITE_LEASE_SECONDS;

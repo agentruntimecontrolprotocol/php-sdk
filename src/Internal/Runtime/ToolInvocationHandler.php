@@ -11,7 +11,7 @@ use Arcp\Envelope\Envelope;
 use Arcp\Errors\AgentVersionNotAvailableException;
 use Arcp\Errors\ARCPException;
 use Arcp\Errors\ErrorPayload;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Ids\IdempotencyKey;
 use Arcp\Messages\Control\Ack;
 use Arcp\Messages\Execution\JobAccepted;
@@ -105,8 +105,10 @@ final readonly class ToolInvocationHandler
     private function emitNotFound(Session $session, Envelope $env, string $tool): void
     {
         $this->runtime->emit($session, new ToolError(new ErrorPayload(
-            'NOT_FOUND',
+            'AGENT_NOT_AVAILABLE',
             \sprintf('unknown tool: %s', $tool),
+            null,
+            ['agent' => $tool],
         )), [
             'correlation_id' => $env->id,
             'trace_id' => $env->traceId,
@@ -178,7 +180,7 @@ final readonly class ToolInvocationHandler
         $session = $spec->session;
         $env = $spec->env;
         $job = $spec->job;
-        $sid = $session->sessionId ?? throw new InvalidArgumentException('session has no id');
+        $sid = $session->sessionId ?? throw new InvalidRequestException('session has no id');
         $ctx = new JobContext($this->runtime, $session, $job->id, $sid, $env->traceId);
         $ctx->cancellation = $job->cancellation;
         try {
@@ -195,7 +197,7 @@ final readonly class ToolInvocationHandler
         } catch (\Throwable $e) {
             // §12: INTERNAL is always retryable — flag it explicitly so the
             // wire shape is correct and the idempotency key is not consumed.
-            $this->failJob($spec, new ErrorPayload('INTERNAL', $e->getMessage(), true));
+            $this->failJob($spec, new ErrorPayload('INTERNAL_ERROR', $e->getMessage(), true));
         }
     }
 

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Messages\Subscriptions;
 
 use Arcp\Envelope\MessageType;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Ids\SubscriptionId;
 
 /** RFC §13.1 — subscription accepted; envelope `subscription_id` mirrors the payload. */
@@ -31,7 +31,7 @@ final readonly class SubscribeAccepted extends MessageType
     public static function fromArray(array $data): static
     {
         $id = $data['subscription_id']
-            ?? throw new InvalidArgumentException('subscription_id missing');
+            ?? throw new InvalidRequestException('subscription_id missing');
         return new self(SubscriptionId::fromJson($id));
     }
 }

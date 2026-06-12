@@ -15,8 +15,8 @@ use Arcp\Auth\NoneAuth;
 use Arcp\Client\ARCPClient;
 use Arcp\Errors\AgentVersionNotAvailableException;
 use Arcp\Errors\BudgetExhaustedException;
-use Arcp\Errors\InvalidArgumentException;
-use Arcp\Errors\NotFoundException;
+use Arcp\Errors\InvalidRequestException;
+use Arcp\Errors\AgentNotAvailableException;
 use Arcp\Ids\IdempotencyKey;
 use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\Capabilities;
@@ -59,7 +59,7 @@ final class JobLifecycleTest extends TestCase
             #[\Override]
             public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
             {
-                throw new InvalidArgumentException('bad input');
+                throw new InvalidRequestException('bad input');
             }
         });
         [$serverT, $clientT] = MemoryTransport::pair();
@@ -67,7 +67,7 @@ final class JobLifecycleTest extends TestCase
         $client = new ARCPClient($clientT);
         $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(anonymous: true));
 
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         try {
             $client->invokeTool('boom');
         } finally {
@@ -86,8 +86,8 @@ final class JobLifecycleTest extends TestCase
 
         try {
             $client->invokeTool('nope');
-            self::fail('expected NotFoundException');
-        } catch (NotFoundException $e) {
+            self::fail('expected AgentNotAvailableException');
+        } catch (AgentNotAvailableException $e) {
             self::assertStringContainsString('nope', $e->getMessage());
         } finally {
             $client->close();

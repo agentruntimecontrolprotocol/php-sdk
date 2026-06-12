@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Arcp\Client;
 
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Messages\Execution\ResultChunk;
 use Arcp\Messages\Execution\ResultChunkEncoding;
 
@@ -26,7 +26,7 @@ final class ResultChunkAssembler
     {
         $existing = $this->chunks[$chunk->resultId][$chunk->chunkSeq] ?? null;
         if ($existing instanceof ResultChunk && !$this->sameChunkPayload($existing, $chunk)) {
-            throw new InvalidArgumentException(
+            throw new InvalidRequestException(
                 'result_chunk duplicate with conflicting payload',
                 ['result_id' => $chunk->resultId, 'chunk_seq' => $chunk->chunkSeq],
             );
@@ -46,10 +46,10 @@ final class ResultChunkAssembler
     {
         $chunks = $this->chunks[$resultId] ?? [];
         if ($chunks === []) {
-            throw new InvalidArgumentException('unknown result_id: ' . $resultId);
+            throw new InvalidRequestException('unknown result_id: ' . $resultId);
         }
         if (!isset($this->complete[$resultId])) {
-            throw new InvalidArgumentException(
+            throw new InvalidRequestException(
                 'result_chunk stream incomplete: terminal chunk not yet received',
                 ['result_id' => $resultId],
             );
@@ -82,7 +82,7 @@ final class ResultChunkAssembler
         $terminal = null;
         foreach ($chunks as $seq => $chunk) {
             if ($seq !== $expected) {
-                throw new InvalidArgumentException(
+                throw new InvalidRequestException(
                     'result_chunk sequence not contiguous from 0',
                     ['result_id' => $resultId, 'expected_seq' => $expected, 'actual_seq' => $seq],
                 );
@@ -91,7 +91,7 @@ final class ResultChunkAssembler
             $terminal = $chunk;
         }
         if ($terminal instanceof ResultChunk && $terminal->more) {
-            throw new InvalidArgumentException(
+            throw new InvalidRequestException(
                 'result_chunk highest sequence has more=true',
                 ['result_id' => $resultId],
             );
@@ -109,7 +109,7 @@ final class ResultChunkAssembler
     {
         $decoded = base64_decode($chunk->data, strict: true);
         if ($decoded === false) {
-            throw new InvalidArgumentException('result_chunk data is not valid base64');
+            throw new InvalidRequestException('result_chunk data is not valid base64');
         }
         return $decoded;
     }

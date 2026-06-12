@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Arcp\Ids;
 
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 
 /**
  * Distributed tracing root id (RFC §11). ARCP propagates W3C Trace
@@ -34,12 +34,12 @@ final readonly class TraceId extends Id
     public static function fromTraceparent(string $traceparent): self
     {
         if (preg_match(self::TRACEPARENT_PATTERN, $traceparent) !== 1) {
-            throw new InvalidArgumentException('invalid W3C traceparent: ' . $traceparent);
+            throw new InvalidRequestException('invalid W3C traceparent: ' . $traceparent);
         }
         $traceComponent = substr($traceparent, 3, 32);
         $parentComponent = substr($traceparent, 36, 16);
         if (str_repeat('0', 32) === $traceComponent || str_repeat('0', 16) === $parentComponent) {
-            throw new InvalidArgumentException('traceparent has an all-zero id: ' . $traceparent);
+            throw new InvalidRequestException('traceparent has an all-zero id: ' . $traceparent);
         }
         return new self($traceparent);
     }

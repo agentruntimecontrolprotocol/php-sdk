@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Messages\Control;
 
 use Arcp\Envelope\MessageType;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 
 /** RFC §10.4 — runtime refused the cancellation. */
 final readonly class CancelRefused extends MessageType
@@ -13,7 +13,7 @@ final readonly class CancelRefused extends MessageType
     public function __construct(public string $reason)
     {
         if ($reason === '') {
-            throw new InvalidArgumentException('reason must be non-empty');
+            throw new InvalidRequestException('reason must be non-empty');
         }
     }
 
@@ -32,9 +32,9 @@ final readonly class CancelRefused extends MessageType
     #[\Override]
     public static function fromArray(array $data): static
     {
-        $reason = $data['reason'] ?? throw new InvalidArgumentException('reason missing');
+        $reason = $data['reason'] ?? throw new InvalidRequestException('reason missing');
         if (!\is_string($reason)) {
-            throw new InvalidArgumentException('reason must be string');
+            throw new InvalidRequestException('reason must be string');
         }
         return new self($reason);
     }

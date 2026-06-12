@@ -9,7 +9,7 @@ use Arcp\Auth\NoneAuth;
 use Arcp\Client\ARCPClient;
 use Arcp\Envelope\Envelope;
 use Arcp\Envelope\MessageCatalog;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Ids\MessageId;
 use Arcp\Ids\SessionId;
 use Arcp\Json\EnvelopeSerializer;
@@ -119,7 +119,7 @@ final class ResumeTest extends TestCase
             sessionId: $sessA,
         ));
 
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         // Drain the generator; the exception fires on the prelude check.
         iterator_to_array($log->replayAfterForSession('m_a1', $sessB));
     }

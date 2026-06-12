@@ -6,8 +6,9 @@ namespace Arcp\Tests\Unit\Internal\Client;
 
 use Arcp\Errors\ErrorPayload;
 use Arcp\Errors\HeartbeatLostException;
+use Arcp\Errors\InternalErrorException;
+use Arcp\Errors\JobNotFoundException;
 use Arcp\Errors\LeaseExpiredException;
-use Arcp\Errors\LeaseRevokedException;
 use Arcp\Internal\Client\ErrorMapper;
 use PHPUnit\Framework\TestCase;
 
@@ -28,18 +29,26 @@ final class ErrorMapperTest extends TestCase
         self::assertSame('lease_abc', (string) $exception->leaseId);
     }
 
-    public function testLeaseRevokedMapsToTypedException(): void
+    public function testJobNotFoundMapsToTypedException(): void
     {
         $mapper = new ErrorMapper();
-        $payload = new ErrorPayload('LEASE_REVOKED', 'revoked', details: [
-            'lease_id' => 'lease_xyz',
-            'reason' => 'policy',
-        ]);
+        $payload = new ErrorPayload('JOB_NOT_FOUND', 'no such job');
 
         $exception = $mapper->raise($payload);
 
-        self::assertInstanceOf(LeaseRevokedException::class, $exception);
-        self::assertSame('policy', $exception->reason);
+        self::assertInstanceOf(JobNotFoundException::class, $exception);
+        self::assertFalse($exception->isRetryable());
+    }
+
+    public function testUnknownCodeFallsBackToInternalError(): void
+    {
+        // §12: codes outside the taxonomy degrade to INTERNAL_ERROR while
+        // preserving the raw wire code in details.
+        $mapper = new ErrorMapper();
+        $exception = $mapper->raise(new ErrorPayload('arcpx.acme.QUOTA', 'quota'));
+
+        self::assertInstanceOf(InternalErrorException::class, $exception);
+        self::assertSame('arcpx.acme.QUOTA', $exception->details['raw_code']);
     }
 
     public function testHeartbeatLostMapsToTypedException(): void

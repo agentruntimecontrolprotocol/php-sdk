@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Internal\Runtime;
 
 use Arcp\Envelope\Envelope;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Messages\Session\Jobs;
 use Arcp\Messages\Session\ListJobs;
 use Arcp\Runtime\AgentRef;
@@ -63,7 +63,7 @@ final readonly class JobListHandler
         }
         $statuses = \is_string($filter['status']) ? [$filter['status']] : $filter['status'];
         if (!\is_array($statuses)) {
-            throw new InvalidArgumentException('filter.status must be string or list');
+            throw new InvalidRequestException('filter.status must be string or list');
         }
         return \in_array($job->state->value, $statuses, true);
     }
@@ -75,7 +75,7 @@ final readonly class JobListHandler
             return true;
         }
         if (!\is_string($filter['agent'])) {
-            throw new InvalidArgumentException('filter.agent must be string');
+            throw new InvalidRequestException('filter.agent must be string');
         }
         $ref = AgentRef::parse($filter['agent']);
         return $job->tool === $ref->name
@@ -90,7 +90,7 @@ final readonly class JobListHandler
                 continue;
             }
             if (!\is_string($filter[$key])) {
-                throw new InvalidArgumentException("filter.$key must be string");
+                throw new InvalidRequestException("filter.$key must be string");
             }
             $threshold = new \DateTimeImmutable($filter[$key]);
             if ($op === '>' && $job->createdAt <= $threshold) {

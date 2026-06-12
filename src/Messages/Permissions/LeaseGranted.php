@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Messages\Permissions;
 
 use Arcp\Envelope\MessageType;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Ids\LeaseId;
 use Arcp\Runtime\CostBudget;
 use Arcp\Runtime\ModelUse;
@@ -52,13 +52,13 @@ final readonly class LeaseGranted extends MessageType
     #[\Override]
     public static function fromArray(array $data): static
     {
-        $id = $data['lease_id'] ?? throw new InvalidArgumentException('lease_id missing');
-        $p = $data['permission'] ?? throw new InvalidArgumentException('permission missing');
-        $r = $data['resource'] ?? throw new InvalidArgumentException('resource missing');
-        $o = $data['operation'] ?? throw new InvalidArgumentException('operation missing');
-        $exp = $data['expires_at'] ?? throw new InvalidArgumentException('expires_at missing');
+        $id = $data['lease_id'] ?? throw new InvalidRequestException('lease_id missing');
+        $p = $data['permission'] ?? throw new InvalidRequestException('permission missing');
+        $r = $data['resource'] ?? throw new InvalidRequestException('resource missing');
+        $o = $data['operation'] ?? throw new InvalidRequestException('operation missing');
+        $exp = $data['expires_at'] ?? throw new InvalidRequestException('expires_at missing');
         if (!\is_string($p) || !\is_string($r) || !\is_string($o) || !\is_string($exp)) {
-            throw new InvalidArgumentException('field types wrong');
+            throw new InvalidRequestException('field types wrong');
         }
         return new self(
             LeaseId::fromJson($id),
@@ -78,12 +78,12 @@ final readonly class LeaseGranted extends MessageType
             return null;
         }
         if (!\is_array($data['model.use'])) {
-            throw new InvalidArgumentException('model.use must be list');
+            throw new InvalidRequestException('model.use must be list');
         }
         $patterns = [];
         foreach ($data['model.use'] as $pattern) {
             if (!\is_string($pattern)) {
-                throw new InvalidArgumentException('model.use entries must be strings');
+                throw new InvalidRequestException('model.use entries must be strings');
             }
             $patterns[] = $pattern;
         }
@@ -97,12 +97,12 @@ final readonly class LeaseGranted extends MessageType
             return null;
         }
         if (!\is_array($data['cost.budget'])) {
-            throw new InvalidArgumentException('cost.budget must be list');
+            throw new InvalidRequestException('cost.budget must be list');
         }
         $patterns = [];
         foreach ($data['cost.budget'] as $pattern) {
             if (!\is_string($pattern)) {
-                throw new InvalidArgumentException('cost.budget entries must be strings');
+                throw new InvalidRequestException('cost.budget entries must be strings');
             }
             $patterns[] = $pattern;
         }

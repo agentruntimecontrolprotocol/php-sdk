@@ -55,7 +55,7 @@ final readonly class SubscriptionRouter
             $this->lifecycle->nack(
                 $session,
                 $env,
-                'INVALID_ARGUMENT',
+                'INVALID_REQUEST',
                 'unsubscribe missing subscription_id',
             );
             return;
@@ -131,7 +131,7 @@ final readonly class SubscriptionRouter
         } catch (\Throwable $e) {
             $this->runtime->emit(
                 $session,
-                new SubscribeClosed('DATA_LOSS', $e->getMessage()),
+                new SubscribeClosed('RESUME_WINDOW_EXPIRED', $e->getMessage()),
                 ['subscription_id' => $sub->id],
             );
             $this->runtime->subscriptions->close($sub->id);

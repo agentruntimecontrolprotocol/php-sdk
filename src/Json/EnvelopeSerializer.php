@@ -7,8 +7,7 @@ namespace Arcp\Json;
 use Arcp\Envelope\Envelope;
 use Arcp\Envelope\MessageType;
 use Arcp\Envelope\MessageTypeRegistry;
-use Arcp\Errors\InvalidArgumentException;
-use Arcp\Errors\UnimplementedException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Extensions\ExtensionRegistry;
 use Arcp\Ids\IdempotencyKey;
 use Arcp\Ids\JobId;
@@ -49,7 +48,7 @@ final readonly class EnvelopeSerializer
                 \JSON_THROW_ON_ERROR | \JSON_UNESCAPED_SLASHES,
             );
         } catch (\JsonException $e) {
-            throw new InvalidArgumentException(
+            throw new InvalidRequestException(
                 'envelope encode failed: ' . $e->getMessage(),
                 [],
                 null,
@@ -74,7 +73,7 @@ final readonly class EnvelopeSerializer
         try {
             $data = json_decode($json, associative: true, flags: \JSON_THROW_ON_ERROR);
         } catch (\JsonException $e) {
-            throw new InvalidArgumentException(
+            throw new InvalidRequestException(
                 'envelope decode failed: ' . $e->getMessage(),
                 [],
                 null,
@@ -82,7 +81,7 @@ final readonly class EnvelopeSerializer
             );
         }
         if (!\is_array($data)) {
-            throw new InvalidArgumentException('envelope must decode to an object');
+            throw new InvalidRequestException('envelope must decode to an object');
         }
         /** @var array<string, mixed> $data */
         return $this->envelopeFromArray($data);
@@ -135,7 +134,7 @@ final readonly class EnvelopeSerializer
         $payloadData = [];
         if (isset($envelopeData['payload'])) {
             if (!\is_array($envelopeData['payload'])) {
-                throw new InvalidArgumentException('envelope.payload must be object');
+                throw new InvalidRequestException('envelope.payload must be object');
             }
             /** @var array<string, mixed> $payloadData */
             $payloadData = $envelopeData['payload'];
@@ -157,13 +156,12 @@ final readonly class EnvelopeSerializer
             $optional = $this->isOptionalExtension($envelopeData);
             $disposition = $this->extensions->dispositionFor($type, $optional);
             if ($disposition === 'drop' || $disposition === 'advertised') {
-                throw new UnimplementedException(
-                    '§21',
+                throw new InvalidRequestException(
                     \sprintf('extension type %s has no registered class', $type),
                 );
             }
         }
-        throw new UnimplementedException('§6.2', \sprintf('unknown message type %s', $type));
+        throw new InvalidRequestException(\sprintf('unknown message type %s', $type));
     }
 
     /**

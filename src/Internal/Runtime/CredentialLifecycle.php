@@ -7,7 +7,7 @@ namespace Arcp\Internal\Runtime;
 use Arcp\Envelope\Envelope;
 use Arcp\Errors\ARCPException;
 use Arcp\Errors\ErrorPayload;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Ids\LeaseId;
 use Arcp\Messages\Execution\ToolError;
 use Arcp\Messages\Permissions\LeaseGranted;
@@ -75,7 +75,7 @@ final readonly class CredentialLifecycle
             return null;
         } catch (\Throwable $e) {
             $this->failBeforeAccepted($session, $env, $job, new ErrorPayload(
-                'FAILED_PRECONDITION',
+                'INVALID_REQUEST',
                 'credential provisioning failed: ' . $e->getMessage(),
                 false,
             ));
@@ -178,7 +178,7 @@ final readonly class CredentialLifecycle
 
     private function context(Session $session, Envelope $env, Job $job): JobContext
     {
-        $sid = $session->sessionId ?? throw new InvalidArgumentException('session has no id');
+        $sid = $session->sessionId ?? throw new InvalidRequestException('session has no id');
         return new JobContext($this->runtime, $session, $job->id, $sid, $env->traceId);
     }
 

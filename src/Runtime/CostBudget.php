@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Runtime;
 
 use Arcp\Errors\BudgetExhaustedException;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 
 /** ARCP v1.1 §9.6 per-currency cost.budget counters. */
 final class CostBudget
@@ -46,7 +46,7 @@ final class CostBudget
         $out = [];
         foreach ($patterns as $pattern) {
             if (!\is_string($pattern)) {
-                throw new InvalidArgumentException('cost.budget entries must be strings');
+                throw new InvalidRequestException('cost.budget entries must be strings');
             }
             $out[] = $pattern;
         }
@@ -59,14 +59,14 @@ final class CostBudget
             return null;
         }
         if (\is_float($value) && (!is_finite($value) || is_nan($value))) {
-            throw new InvalidArgumentException('cost metric value must be finite', [
+            throw new InvalidRequestException('cost metric value must be finite', [
                 'metric' => $metricName,
                 'value' => $value,
             ]);
         }
         // §9.6: "Negative values are rejected and produce no decrement."
         if ($value < 0) {
-            throw new InvalidArgumentException('cost metric value must not be negative', [
+            throw new InvalidRequestException('cost metric value must not be negative', [
                 'metric' => $metricName,
                 'value' => $value,
             ]);
@@ -128,7 +128,7 @@ final class CostBudget
     private static function parse(string $pattern): array
     {
         if (preg_match('/^([A-Za-z][A-Za-z0-9_-]*):(\d+(?:\.\d+)?)$/', $pattern, $m) !== 1) {
-            throw new InvalidArgumentException('invalid cost.budget amount: ' . $pattern);
+            throw new InvalidRequestException('invalid cost.budget amount: ' . $pattern);
         }
         return [$m[1], self::decimalToScaled($m[2])];
     }
@@ -150,11 +150,11 @@ final class CostBudget
     private static function decimalToScaled(string $decimal): int
     {
         if (preg_match('/^(\d+)(?:\.(\d+))?$/', $decimal, $m) !== 1) {
-            throw new InvalidArgumentException('invalid decimal amount: ' . $decimal);
+            throw new InvalidRequestException('invalid decimal amount: ' . $decimal);
         }
         $rawFraction = $m[2] ?? '';
         if (\strlen($rawFraction) > 6 && rtrim(substr($rawFraction, 6), '0') !== '') {
-            throw new InvalidArgumentException(
+            throw new InvalidRequestException(
                 'decimal amount exceeds six-place precision: ' . $decimal,
             );
         }

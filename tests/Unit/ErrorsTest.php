@@ -4,31 +4,24 @@ declare(strict_types=1);
 
 namespace Arcp\Tests\Unit;
 
-use Arcp\Errors\AbortedException;
+use Arcp\Errors\AgentNotAvailableException;
 use Arcp\Errors\AgentVersionNotAvailableException;
-use Arcp\Errors\AlreadyExistsException;
 use Arcp\Errors\ARCPException;
-use Arcp\Errors\BackpressureOverflowException;
 use Arcp\Errors\BudgetExhaustedException;
 use Arcp\Errors\CancelledException;
-use Arcp\Errors\DataLossException;
-use Arcp\Errors\DeadlineExceededException;
+use Arcp\Errors\DuplicateKeyException;
 use Arcp\Errors\ErrorCode;
 use Arcp\Errors\ErrorPayload;
-use Arcp\Errors\FailedPreconditionException;
 use Arcp\Errors\HeartbeatLostException;
-use Arcp\Errors\InternalException;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InternalErrorException;
+use Arcp\Errors\InvalidRequestException;
+use Arcp\Errors\JobNotFoundException;
 use Arcp\Errors\LeaseExpiredException;
-use Arcp\Errors\LeaseRevokedException;
-use Arcp\Errors\NotFoundException;
-use Arcp\Errors\OutOfRangeException;
+use Arcp\Errors\LeaseSubsetViolationException;
 use Arcp\Errors\PermissionDeniedException;
-use Arcp\Errors\ResourceExhaustedException;
+use Arcp\Errors\ResumeWindowExpiredException;
+use Arcp\Errors\TimeoutException;
 use Arcp\Errors\UnauthenticatedException;
-use Arcp\Errors\UnavailableException;
-use Arcp\Errors\UnimplementedException;
-use Arcp\Errors\UnknownException;
 use Arcp\Ids\JobId;
 use Arcp\Ids\LeaseId;
 use Arcp\Ids\TraceId;
@@ -39,37 +32,32 @@ final class ErrorsTest extends TestCase
 {
     public function testEveryCanonicalCodeHasExactlyOneException(): void
     {
-        // Per-code mapping: the wire string → typed exception. Any new
+        // Per-code mapping: the §12 wire string → typed exception. Any new
         // ErrorCode case added to the enum should land here too.
         $expected = [
-            ErrorCode::Cancelled->value          => new CancelledException('x'),
-            ErrorCode::InvalidArgument->value    => new InvalidArgumentException('x'),
-            ErrorCode::DeadlineExceeded->value   => new DeadlineExceededException('x'),
-            ErrorCode::NotFound->value           => new NotFoundException('x'),
-            ErrorCode::AlreadyExists->value      => new AlreadyExistsException('x'),
-            ErrorCode::PermissionDenied->value   => new PermissionDeniedException('p', 'r'),
-            ErrorCode::ResourceExhausted->value  => new ResourceExhaustedException('x'),
-            ErrorCode::FailedPrecondition->value => new FailedPreconditionException('x'),
-            ErrorCode::Aborted->value            => new AbortedException('x'),
-            ErrorCode::OutOfRange->value         => new OutOfRangeException('x'),
-            ErrorCode::Unimplemented->value      => new UnimplementedException('§1'),
-            ErrorCode::Internal->value           => new InternalException('x'),
-            ErrorCode::Unavailable->value        => new UnavailableException('x'),
-            ErrorCode::DataLoss->value           => new DataLossException('x'),
-            ErrorCode::Unauthenticated->value    => new UnauthenticatedException('x'),
-            ErrorCode::HeartbeatLost->value      => new HeartbeatLostException(new JobId('j_x'), 1),
-            ErrorCode::LeaseExpired->value       => new LeaseExpiredException(
+            ErrorCode::PermissionDenied->value => new PermissionDeniedException('p', 'r'),
+            ErrorCode::LeaseSubsetViolation->value
+                => new LeaseSubsetViolationException('l_p', 'l_c', 'fs.read'),
+            ErrorCode::JobNotFound->value => new JobNotFoundException('x'),
+            ErrorCode::DuplicateKey->value => new DuplicateKeyException('x'),
+            ErrorCode::AgentNotAvailable->value => new AgentNotAvailableException('planner'),
+            ErrorCode::AgentVersionNotAvailable->value
+                => new AgentVersionNotAvailableException('planner', '9.9.9'),
+            ErrorCode::Cancelled->value => new CancelledException('x'),
+            ErrorCode::Timeout->value => new TimeoutException('x'),
+            ErrorCode::ResumeWindowExpired->value => new ResumeWindowExpiredException('x'),
+            ErrorCode::HeartbeatLost->value => new HeartbeatLostException(new JobId('j_x'), 1),
+            ErrorCode::LeaseExpired->value => new LeaseExpiredException(
                 new LeaseId('l_x'),
                 new \DateTimeImmutable('2026-01-01T00:00:00Z'),
             ),
-            ErrorCode::LeaseRevoked->value       => new LeaseRevokedException(new LeaseId('l_x')),
-            ErrorCode::BudgetExhausted->value    => new BudgetExhaustedException('USD', '0'),
-            ErrorCode::AgentVersionNotAvailable->value
-                => new AgentVersionNotAvailableException('planner', '9.9.9'),
-            ErrorCode::BackpressureOverflow->value => new BackpressureOverflowException('x'),
-            ErrorCode::Unknown->value            => new UnknownException('weird.code'),
+            ErrorCode::BudgetExhausted->value => new BudgetExhaustedException('USD', '0'),
+            ErrorCode::InvalidRequest->value => new InvalidRequestException('x'),
+            ErrorCode::Unauthenticated->value => new UnauthenticatedException('x'),
+            ErrorCode::InternalError->value => new InternalErrorException('x'),
         ];
 
+        self::assertCount(\count(ErrorCode::cases()), $expected);
         foreach ($expected as $expectedCode => $exception) {
             $case = ErrorCode::tryFrom($expectedCode);
             self::assertNotNull($case, 'unknown ErrorCode value: ' . $expectedCode);
@@ -80,6 +68,31 @@ final class ErrorsTest extends TestCase
                 $exception::class . ' should report code ' . $expectedCode,
             );
         }
+    }
+
+    public function testWireStringsMatchSpecSection12(): void
+    {
+        $expected = [
+            'PERMISSION_DENIED',
+            'LEASE_SUBSET_VIOLATION',
+            'JOB_NOT_FOUND',
+            'DUPLICATE_KEY',
+            'AGENT_NOT_AVAILABLE',
+            'AGENT_VERSION_NOT_AVAILABLE',
+            'CANCELLED',
+            'TIMEOUT',
+            'RESUME_WINDOW_EXPIRED',
+            'HEARTBEAT_LOST',
+            'LEASE_EXPIRED',
+            'BUDGET_EXHAUSTED',
+            'INVALID_REQUEST',
+            'UNAUTHENTICATED',
+            'INTERNAL_ERROR',
+        ];
+        self::assertSame(
+            $expected,
+            array_map(static fn (ErrorCode $c): string => $c->value, ErrorCode::cases()),
+        );
     }
 
     public function testPermissionDeniedCarriesContext(): void
@@ -103,14 +116,6 @@ final class ErrorsTest extends TestCase
         self::assertSame(ErrorCode::LeaseExpired, $e->code());
     }
 
-    public function testLeaseRevokedCarriesReason(): void
-    {
-        $id = new LeaseId('lease_xyz');
-        $e = new LeaseRevokedException($id, 'policy_violation');
-        self::assertSame('policy_violation', $e->reason);
-        self::assertStringContainsString('policy_violation', $e->getMessage());
-    }
-
     public function testHeartbeatLostCarriesJobAndCount(): void
     {
         $id = new JobId('job_x');
@@ -119,33 +124,41 @@ final class ErrorsTest extends TestCase
         self::assertSame(3, $e->missedCount);
     }
 
-    public function testUnimplementedCarriesSection(): void
+    public function testAgentNotAvailableCarriesAgent(): void
     {
-        $e = new UnimplementedException('§14', 'agent.delegate');
-        self::assertSame('§14', $e->section);
-        self::assertStringContainsString('agent.delegate', $e->getMessage());
+        $e = new AgentNotAvailableException('planner');
+        self::assertSame(ErrorCode::AgentNotAvailable, $e->code());
+        self::assertSame('planner', $e->details['agent']);
+        self::assertStringContainsString('planner', $e->getMessage());
         self::assertFalse($e->isRetryable());
     }
 
     /** @return iterable<string, array{ErrorCode, bool}> */
     public static function retryability(): iterable
     {
-        yield 'cancelled not retryable'        => [ErrorCode::Cancelled, false];
-        yield 'invalid argument not retryable' => [ErrorCode::InvalidArgument, false];
         yield 'permission denied not retryable' => [ErrorCode::PermissionDenied, false];
-        yield 'unimplemented not retryable'    => [ErrorCode::Unimplemented, false];
-        yield 'unauthenticated not retryable'  => [ErrorCode::Unauthenticated, false];
-        yield 'data loss not retryable'        => [ErrorCode::DataLoss, false];
+        yield 'lease subset violation not retryable' => [ErrorCode::LeaseSubsetViolation, false];
+        yield 'job not found not retryable' => [ErrorCode::JobNotFound, false];
+        yield 'duplicate key not retryable' => [ErrorCode::DuplicateKey, false];
+        yield 'agent not available not retryable' => [ErrorCode::AgentNotAvailable, false];
+        yield 'agent version not available not retryable'
+            => [ErrorCode::AgentVersionNotAvailable, false];
+        yield 'cancelled not retryable' => [ErrorCode::Cancelled, false];
+        yield 'resume window expired not retryable' => [ErrorCode::ResumeWindowExpired, false];
+        // §12: LEASE_EXPIRED and BUDGET_EXHAUSTED MUST be retryable: false.
+        yield 'lease expired not retryable' => [ErrorCode::LeaseExpired, false];
+        yield 'budget exhausted not retryable' => [ErrorCode::BudgetExhausted, false];
+        yield 'invalid request not retryable' => [ErrorCode::InvalidRequest, false];
+        yield 'unauthenticated not retryable' => [ErrorCode::Unauthenticated, false];
 
-        yield 'resource exhausted retryable'   => [ErrorCode::ResourceExhausted, true];
-        yield 'unavailable retryable'          => [ErrorCode::Unavailable, true];
-        yield 'deadline exceeded retryable'    => [ErrorCode::DeadlineExceeded, true];
-        yield 'aborted retryable'              => [ErrorCode::Aborted, true];
-        yield 'internal retryable'             => [ErrorCode::Internal, true];
+        yield 'timeout retryable' => [ErrorCode::Timeout, true];
+        yield 'heartbeat lost retryable' => [ErrorCode::HeartbeatLost, true];
+        // §12: INTERNAL_ERROR is always retryable.
+        yield 'internal error retryable' => [ErrorCode::InternalError, true];
     }
 
     #[DataProvider('retryability')]
-    public function testDefaultRetryableMatchesRfc(ErrorCode $code, bool $retryable): void
+    public function testDefaultRetryableMatchesSpec(ErrorCode $code, bool $retryable): void
     {
         self::assertSame($retryable, $code->defaultRetryable());
     }
@@ -153,17 +166,17 @@ final class ErrorsTest extends TestCase
     public function testErrorPayloadRoundTrip(): void
     {
         $payload = new ErrorPayload(
-            code: ErrorCode::ResourceExhausted->value,
-            message: 'Upstream rate limit exceeded',
+            code: ErrorCode::Timeout->value,
+            message: 'job exceeded max_runtime_sec',
             retryable: true,
-            details: ['retry_after_seconds' => 30],
+            details: ['max_runtime_sec' => 30],
         );
         $arr = $payload->toArray();
-        self::assertSame('RESOURCE_EXHAUSTED', $arr['code']);
-        self::assertSame('Upstream rate limit exceeded', $arr['message']);
+        self::assertSame('TIMEOUT', $arr['code']);
+        self::assertSame('job exceeded max_runtime_sec', $arr['message']);
         self::assertSame(true, $arr['retryable'] ?? null);
         $details = $arr['details'] ?? [];
-        self::assertSame(30, $details['retry_after_seconds']);
+        self::assertSame(30, $details['max_runtime_sec']);
 
         $back = ErrorPayload::fromArray($arr);
         self::assertSame($payload->code, $back->code);
@@ -183,11 +196,11 @@ final class ErrorsTest extends TestCase
         $budget = new ErrorPayload('BUDGET_EXHAUSTED', 'no funds');
         self::assertFalse($budget->toArray()['retryable']);
 
-        $internal = new ErrorPayload('INTERNAL', 'boom');
+        $internal = new ErrorPayload('INTERNAL_ERROR', 'boom');
         self::assertTrue($internal->toArray()['retryable']);
 
         // An explicit flag still wins over the derived default.
-        $forced = new ErrorPayload('INTERNAL', 'boom', retryable: false);
+        $forced = new ErrorPayload('INTERNAL_ERROR', 'boom', retryable: false);
         self::assertFalse($forced->toArray()['retryable']);
     }
 
@@ -199,12 +212,6 @@ final class ErrorsTest extends TestCase
         self::assertFalse($payload->retryable);
     }
 
-    public function testErrorPayloadCodeAliasMapsToCanonical(): void
-    {
-        $payload = new ErrorPayload('RATE_LIMITED', 'limited');
-        self::assertSame(ErrorCode::ResourceExhausted, $payload->canonical());
-    }
-
     public function testErrorPayloadNamespacedCanonicalIsNull(): void
     {
         $payload = new ErrorPayload('arcpx.acme.QUOTA_EXCEEDED', 'oops');
@@ -214,32 +221,32 @@ final class ErrorsTest extends TestCase
 
     public function testErrorPayloadRequiresNonEmptyCodeAndMessage(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         new ErrorPayload('', 'msg');
     }
 
     public function testErrorPayloadRejectsEmptyMessage(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        new ErrorPayload('OK', '');
+        $this->expectException(InvalidRequestException::class);
+        new ErrorPayload('CANCELLED', '');
     }
 
     public function testErrorPayloadCauseChainAndTraceRoundTrip(): void
     {
-        $cause = new ErrorPayload('INTERNAL', 'inner failure');
+        $cause = new ErrorPayload('INTERNAL_ERROR', 'inner failure');
         $payload = new ErrorPayload(
-            code: ErrorCode::Internal->value,
+            code: ErrorCode::InternalError->value,
             message: 'outer',
             details: ['k' => 'v'],
             cause: $cause,
             traceId: new TraceId('trace_x'),
         );
         $arr = $payload->toArray();
-        self::assertSame('INTERNAL', $arr['code']);
+        self::assertSame('INTERNAL_ERROR', $arr['code']);
         self::assertSame('trace_x', $arr['trace_id'] ?? null);
         $causeArr = $arr['cause'] ?? null;
         self::assertIsArray($causeArr);
-        self::assertSame('INTERNAL', $causeArr['code']);
+        self::assertSame('INTERNAL_ERROR', $causeArr['code']);
 
         $back = ErrorPayload::fromArray($arr);
         self::assertNotNull($back->cause);
@@ -250,37 +257,41 @@ final class ErrorsTest extends TestCase
 
     public function testErrorPayloadFromArrayRequiresCode(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         ErrorPayload::fromArray(['message' => 'no code']);
     }
 
     public function testErrorPayloadFromArrayRequiresMessage(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        ErrorPayload::fromArray(['code' => 'OK']);
+        $this->expectException(InvalidRequestException::class);
+        ErrorPayload::fromArray(['code' => 'CANCELLED']);
     }
 
     public function testErrorPayloadFromArrayRejectsNonStringCode(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         ErrorPayload::fromArray(['code' => 42, 'message' => 'm']);
     }
 
     public function testErrorPayloadFromArrayRejectsNonBoolRetryable(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        ErrorPayload::fromArray(['code' => 'OK', 'message' => 'm', 'retryable' => 'yes']);
+        $this->expectException(InvalidRequestException::class);
+        ErrorPayload::fromArray(['code' => 'CANCELLED', 'message' => 'm', 'retryable' => 'yes']);
     }
 
     public function testErrorPayloadFromArrayRejectsNonObjectDetails(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        ErrorPayload::fromArray(['code' => 'OK', 'message' => 'm', 'details' => 'not-an-object']);
+        $this->expectException(InvalidRequestException::class);
+        ErrorPayload::fromArray([
+            'code' => 'CANCELLED',
+            'message' => 'm',
+            'details' => 'not-an-object',
+        ]);
     }
 
     public function testErrorPayloadFromArrayRejectsNonObjectCause(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        ErrorPayload::fromArray(['code' => 'OK', 'message' => 'm', 'cause' => 'not-an-object']);
+        $this->expectException(InvalidRequestException::class);
+        ErrorPayload::fromArray(['code' => 'CANCELLED', 'message' => 'm', 'cause' => 'not-an-object']);
     }
 }

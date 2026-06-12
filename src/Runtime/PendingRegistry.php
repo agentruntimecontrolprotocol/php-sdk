@@ -6,9 +6,9 @@ namespace Arcp\Runtime;
 
 use Amp\Cancellation;
 use Amp\DeferredFuture;
-use Amp\TimeoutException;
+use Amp\TimeoutException as AmpTimeoutException;
 use Arcp\Envelope\MessageType;
-use Arcp\Errors\DeadlineExceededException;
+use Arcp\Errors\TimeoutException;
 use Arcp\Ids\MessageId;
 use Revolt\EventLoop;
 
@@ -38,8 +38,8 @@ final class PendingRegistry
             /** @var MessageType $result */
             $result = $deferred->getFuture()->await();
             return $result;
-        } catch (TimeoutException $e) {
-            throw new DeadlineExceededException(
+        } catch (AmpTimeoutException $e) {
+            throw new TimeoutException(
                 \sprintf('await(%s) deadline of %.3fs exceeded', $id, $deadlineSeconds ?? 0.0),
                 ['correlation_id' => (string) $id],
                 null,
@@ -78,7 +78,7 @@ final class PendingRegistry
             function () use (&$timedOut, $deferred): void {
                 if (!$deferred->isComplete()) {
                     $timedOut = true;
-                    $deferred->error(new TimeoutException('deadline exceeded'));
+                    $deferred->error(new AmpTimeoutException('deadline exceeded'));
                 }
             },
         );

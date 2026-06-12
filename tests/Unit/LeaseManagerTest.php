@@ -6,8 +6,6 @@ namespace Arcp\Tests\Unit;
 
 use Arcp\Clock\FakeClock;
 use Arcp\Errors\LeaseExpiredException;
-use Arcp\Errors\LeaseRevokedException;
-use Arcp\Errors\NotFoundException;
 use Arcp\Errors\PermissionDeniedException;
 use Arcp\Ids\LeaseId;
 use Arcp\Ids\SessionId;
@@ -38,10 +36,10 @@ final class LeaseManagerTest extends TestCase
         self::assertSame($lease, $mgr->get($lease->leaseId));
     }
 
-    public function testGetUnknownThrowsNotFound(): void
+    public function testGetUnknownThrowsPermissionDenied(): void
     {
         $mgr = new LeaseManager(new FakeClock());
-        $this->expectException(NotFoundException::class);
+        $this->expectException(PermissionDeniedException::class);
         $mgr->get(new LeaseId('lease_missing'));
     }
 
@@ -64,7 +62,9 @@ final class LeaseManagerTest extends TestCase
         $mgr->register($lease);
         $mgr->revoke($lease->leaseId, 'policy');
         self::assertTrue($mgr->isRevoked($lease->leaseId));
-        $this->expectException(LeaseRevokedException::class);
+        // §12 has no LEASE_REVOKED code: revoked-lease use is rejected by
+        // lease enforcement as PERMISSION_DENIED.
+        $this->expectException(PermissionDeniedException::class);
         $mgr->get($lease->leaseId);
     }
 

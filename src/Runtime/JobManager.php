@@ -9,7 +9,7 @@ use Amp\DeferredCancellation;
 use Arcp\Clock\ClockInterface;
 use Arcp\Clock\SystemClock;
 use Arcp\Envelope\Envelope;
-use Arcp\Errors\NotFoundException;
+use Arcp\Errors\JobNotFoundException;
 use Arcp\Ids\JobId;
 use Arcp\Messages\Permissions\LeaseGranted;
 
@@ -62,7 +62,7 @@ final class JobManager
     public function get(JobId $id): Job
     {
         return $this->jobs[(string) $id]
-            ?? throw new NotFoundException(\sprintf('job %s not found', $id));
+            ?? throw new JobNotFoundException(\sprintf('job %s not found', $id));
     }
 
     public function tryGet(JobId $id): ?Job

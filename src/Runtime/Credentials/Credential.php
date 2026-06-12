@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Arcp\Runtime\Credentials;
 
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Messages\Permissions\LeaseGranted;
 
 /** ARCP v1.1 §9.8.1 provisioned credential wire DTO. */
@@ -20,7 +20,7 @@ final readonly class Credential
         public ?array $constraints = null,
     ) {
         if ($id === '' || $scheme === '' || $value === '' || $endpoint === '') {
-            throw new InvalidArgumentException('credential id/scheme/value/endpoint must be non-empty');
+            throw new InvalidRequestException('credential id/scheme/value/endpoint must be non-empty');
         }
     }
 

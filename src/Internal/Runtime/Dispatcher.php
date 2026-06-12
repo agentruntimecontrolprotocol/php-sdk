@@ -9,10 +9,9 @@ use Arcp\Envelope\Envelope;
 use Arcp\Envelope\MessageType;
 use Arcp\Errors\ARCPException;
 use Arcp\Errors\ErrorPayload;
-use Arcp\Errors\InternalException;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InternalErrorException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Errors\TransportClosedException;
-use Arcp\Errors\UnimplementedException;
 use Arcp\Ids\MessageId;
 use Arcp\Messages\Artifacts\ArtifactFetch;
 use Arcp\Messages\Artifacts\ArtifactPut;
@@ -62,7 +61,7 @@ final readonly class Dispatcher
                 $env = $session->transport->receive($cancellation);
             } catch (TransportClosedException) {
                 return;
-            } catch (InvalidArgumentException | UnimplementedException $e) {
+            } catch (InvalidRequestException $e) {
                 // A single undecodable or unknown-type frame must not tear
                 // down the session (RFC §5 forward-compatibility); log and
                 // keep reading so subsequent valid commands still work.
@@ -112,7 +111,7 @@ final readonly class Dispatcher
                 ['type' => $env->type(), 'error' => $e->getMessage()],
             );
             if (!($e instanceof ARCPException)) {
-                $e = new InternalException($e->getMessage(), [], null, $e);
+                $e = new InternalErrorException($e->getMessage(), [], null, $e);
             }
             $this->runtime->emit($session, new Nack(ErrorPayload::fromException($e)), [
                 'correlation_id' => $env->id,
@@ -163,11 +162,11 @@ final readonly class Dispatcher
         // §6.2: a feature-flagged surface may only be used when it is in the
         // negotiated intersection. Reject un-negotiated list_jobs/subscribe.
         if ($msg instanceof ListJobs && !$this->featureEnabled($session, 'list_jobs')) {
-            $this->lifecycle->nack($session, $env, 'UNIMPLEMENTED', 'list_jobs not negotiated');
+            $this->lifecycle->nack($session, $env, 'INVALID_REQUEST', 'list_jobs not negotiated');
             return true;
         }
         if ($msg instanceof Subscribe && !$this->featureEnabled($session, 'subscribe')) {
-            $this->lifecycle->nack($session, $env, 'UNIMPLEMENTED', 'subscribe not negotiated');
+            $this->lifecycle->nack($session, $env, 'INVALID_REQUEST', 'subscribe not negotiated');
             return true;
         }
         $handled = true;
@@ -198,7 +197,7 @@ final readonly class Dispatcher
             || $msg instanceof AgentDelegate
             || $msg instanceof AgentHandoff
         ) {
-            $this->lifecycle->nack($session, $env, 'UNIMPLEMENTED', 'feature deferred to v0.2');
+            $this->lifecycle->nack($session, $env, 'INVALID_REQUEST', 'feature deferred to v0.2');
             return;
         }
         // Pong, ack, etc. with no waiter: silently drop.

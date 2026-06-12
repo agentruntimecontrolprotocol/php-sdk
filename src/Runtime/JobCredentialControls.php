@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Arcp\Runtime;
 
-use Arcp\Errors\FailedPreconditionException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Errors\PermissionDeniedException;
 use Arcp\Messages\Telemetry\EventEmit;
 use Arcp\Runtime\Credentials\Credential;
@@ -25,7 +25,7 @@ trait JobCredentialControls
     {
         $provisioner = $this->runtime->credentialProvisioner;
         if (!$provisioner instanceof CredentialProvisioner) {
-            throw new FailedPreconditionException('no credential provisioner configured');
+            throw new InvalidRequestException('no credential provisioner configured');
         }
         // Add the replacement before removing the old record so a store
         // add() failure cannot leave the job with neither credential.

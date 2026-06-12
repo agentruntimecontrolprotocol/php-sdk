@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Messages\Human;
 
 use Arcp\Envelope\MessageType;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 
 /** RFC §12.4 — request cancelled / expired / superseded. */
 final readonly class HumanInputCancelled extends MessageType
@@ -15,7 +15,7 @@ final readonly class HumanInputCancelled extends MessageType
         public string $reason = '',
     ) {
         if ($code === '') {
-            throw new InvalidArgumentException('code missing');
+            throw new InvalidRequestException('code missing');
         }
     }
 
@@ -38,9 +38,9 @@ final readonly class HumanInputCancelled extends MessageType
     #[\Override]
     public static function fromArray(array $data): static
     {
-        $code = $data['code'] ?? throw new InvalidArgumentException('code missing');
+        $code = $data['code'] ?? throw new InvalidRequestException('code missing');
         if (!\is_string($code)) {
-            throw new InvalidArgumentException('code must be string');
+            throw new InvalidRequestException('code must be string');
         }
         $reason = '';
         if (isset($data['reason']) && \is_string($data['reason'])) {

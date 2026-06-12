@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Cli;
 
 use Arcp\Envelope\MessageCatalog;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Json\EnvelopeSerializer;
 use Arcp\Store\EventLog;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -42,7 +42,7 @@ final class ReplayCommand extends Command
         $rawDb = $input->getArgument('database');
         $rawAfter = $input->getOption('after');
         if (!\is_string($rawDb) || $rawDb === '') {
-            throw new InvalidArgumentException('database path is required');
+            throw new InvalidRequestException('database path is required');
         }
         $db = $rawDb;
         $after = \is_string($rawAfter) ? $rawAfter : '';

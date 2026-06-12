@@ -8,7 +8,7 @@ use Amp\Cancellation;
 use Arcp\Auth\AuthRouter;
 use Arcp\Envelope\Envelope;
 use Arcp\Errors\ErrorPayload;
-use Arcp\Errors\UnimplementedException;
+use Arcp\Errors\UnauthenticatedException;
 use Arcp\Ids\MessageId;
 use Arcp\Ids\SessionId;
 use Arcp\Messages\Session\Capabilities;
@@ -47,7 +47,7 @@ final readonly class HandshakeNegotiator
         }
         if (!$env->payload instanceof SessionOpen) {
             $this->lifecycle->sendNoSession($session, new SessionRejected(new ErrorPayload(
-                'INVALID_ARGUMENT',
+                'INVALID_REQUEST',
                 'expected session.open as first message',
             )), $env->id);
             $session->state = SessionState::Rejected;
@@ -75,7 +75,7 @@ final readonly class HandshakeNegotiator
         }
         $this->lifecycle->sendNoSession(
             $session,
-            new SessionRejected(new ErrorPayload('UNIMPLEMENTED', $mismatch)),
+            new SessionRejected(new ErrorPayload('INVALID_REQUEST', $mismatch)),
             $envId,
         );
         $session->state = SessionState::Rejected;
@@ -126,10 +126,10 @@ final readonly class HandshakeNegotiator
         $open = $ctx->open;
         try {
             $result = $router->verify($open->auth, $open->client);
-        } catch (UnimplementedException $e) {
+        } catch (UnauthenticatedException $e) {
             $this->lifecycle->sendNoSession(
                 $ctx->session,
-                new SessionRejected(new ErrorPayload('UNIMPLEMENTED', $e->getMessage())),
+                new SessionUnauthenticated(new ErrorPayload('UNAUTHENTICATED', $e->getMessage())),
                 $ctx->envId,
             );
             $ctx->session->state = SessionState::Rejected;

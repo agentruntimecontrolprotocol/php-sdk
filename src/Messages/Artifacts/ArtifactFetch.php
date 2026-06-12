@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Messages\Artifacts;
 
 use Arcp\Envelope\MessageType;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Ids\ArtifactId;
 
 /** RFC §16.2 — request an artifact by id. */
@@ -30,7 +30,7 @@ final readonly class ArtifactFetch extends MessageType
     #[\Override]
     public static function fromArray(array $data): static
     {
-        $id = $data['artifact_id'] ?? throw new InvalidArgumentException('artifact_id missing');
+        $id = $data['artifact_id'] ?? throw new InvalidRequestException('artifact_id missing');
         return new self(ArtifactId::fromJson($id));
     }
 }

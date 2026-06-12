@@ -70,10 +70,10 @@ final class ArtifactTest extends TestCase
                 'real-content',
                 sha256: hash('sha256', 'different-content'),
             );
-        } catch (\Arcp\Errors\InvalidArgumentException $e) {
+        } catch (\Arcp\Errors\InvalidRequestException $e) {
             $caught = $e;
         }
-        self::assertInstanceOf(\Arcp\Errors\InvalidArgumentException::class, $caught);
+        self::assertInstanceOf(\Arcp\Errors\InvalidRequestException::class, $caught);
         self::assertStringContainsString('sha256', $caught->getMessage());
         self::assertSame(0, $runtime->artifacts->count());
 
@@ -92,10 +92,10 @@ final class ArtifactTest extends TestCase
         $caught = null;
         try {
             $client->putArtifact('text/plain', 'real-content', sha256: 'not-a-real-hex-digest');
-        } catch (\Arcp\Errors\InvalidArgumentException $e) {
+        } catch (\Arcp\Errors\InvalidRequestException $e) {
             $caught = $e;
         }
-        self::assertInstanceOf(\Arcp\Errors\InvalidArgumentException::class, $caught);
+        self::assertInstanceOf(\Arcp\Errors\InvalidRequestException::class, $caught);
 
         $client->close();
         $serverFuture->await();

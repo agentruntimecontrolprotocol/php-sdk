@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Arcp\Tests\Unit;
 
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Ids\ArtifactId;
 use Arcp\Ids\Id;
 use Arcp\Ids\IdempotencyKey;
@@ -23,13 +23,13 @@ final class IdsTest extends TestCase
 {
     public function testEmptyValueRejected(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         new SessionId('');
     }
 
     public function testWhitespaceOnlyValueRejected(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         new SessionId("   \t\n");
     }
 
@@ -61,7 +61,7 @@ final class IdsTest extends TestCase
 
     public function testFromJsonRejectsNonString(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         SessionId::fromJson(42);
     }
 
@@ -120,13 +120,13 @@ final class IdsTest extends TestCase
 
     public function testFromTraceparentRejectsMalformed(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         TraceId::fromTraceparent('trace_01J');
     }
 
     public function testFromTraceparentRejectsAllZeroId(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         TraceId::fromTraceparent('00-00000000000000000000000000000000-00f067aa0ba902b7-01');
     }
 

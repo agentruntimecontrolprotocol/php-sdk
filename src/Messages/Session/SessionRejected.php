@@ -6,7 +6,7 @@ namespace Arcp\Messages\Session;
 
 use Arcp\Envelope\MessageType;
 use Arcp\Errors\ErrorPayload;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 
 /** RFC §8.1 — server refused the session for non-auth reasons (e.g. UNIMPLEMENTED). */
 final readonly class SessionRejected extends MessageType
@@ -32,7 +32,7 @@ final readonly class SessionRejected extends MessageType
     {
         $err = $data['error'] ?? [];
         if (!\is_array($err)) {
-            throw new InvalidArgumentException('error must be object');
+            throw new InvalidRequestException('error must be object');
         }
         /** @var array<string, mixed> $err */
         return new self(ErrorPayload::fromArray($err));

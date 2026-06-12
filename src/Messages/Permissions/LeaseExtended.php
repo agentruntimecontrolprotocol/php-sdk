@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Messages\Permissions;
 
 use Arcp\Envelope\MessageType;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Ids\LeaseId;
 
 /** RFC §15.5 — lease horizon extended. */
@@ -35,10 +35,10 @@ final readonly class LeaseExtended extends MessageType
     #[\Override]
     public static function fromArray(array $data): static
     {
-        $id = $data['lease_id'] ?? throw new InvalidArgumentException('lease_id missing');
-        $exp = $data['expires_at'] ?? throw new InvalidArgumentException('expires_at missing');
+        $id = $data['lease_id'] ?? throw new InvalidRequestException('lease_id missing');
+        $exp = $data['expires_at'] ?? throw new InvalidRequestException('expires_at missing');
         if (!\is_string($exp)) {
-            throw new InvalidArgumentException('expires_at must be string');
+            throw new InvalidRequestException('expires_at must be string');
         }
         return new self(LeaseId::fromJson($id), new \DateTimeImmutable($exp));
     }

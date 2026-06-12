@@ -6,8 +6,7 @@ namespace Arcp\Runtime;
 
 use Arcp\Clock\ClockInterface;
 use Arcp\Clock\SystemClock;
-use Arcp\Errors\InvalidArgumentException;
-use Arcp\Errors\NotFoundException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Errors\PermissionDeniedException;
 use Arcp\Ids\ArtifactId;
 use Arcp\Messages\Artifacts\ArtifactRef;
@@ -42,7 +41,7 @@ final class ArtifactStore
     {
         $sessionId = (string) (
             $session->sessionId
-            ?? throw new InvalidArgumentException('session has no id')
+            ?? throw new InvalidRequestException('session has no id')
         );
         $retention = $blob->retentionSeconds ?? $this->defaultRetentionSeconds;
         $retention = min($retention, $this->maxRetentionSeconds);
@@ -67,7 +66,7 @@ final class ArtifactStore
     public function fetch(ArtifactId $id, ?Session $session = null): string
     {
         $row = $this->artifacts[(string) $id]
-            ?? throw new NotFoundException(\sprintf('artifact %s not found', $id));
+            ?? throw new InvalidRequestException(\sprintf('artifact %s not found', $id));
         $this->assertOwnership($id, $row, $session);
         $this->assertNotExpired($id, $row);
         return $row['bytes'];
@@ -76,7 +75,7 @@ final class ArtifactStore
     public function ref(ArtifactId $id, ?Session $session = null): ArtifactRef
     {
         $row = $this->artifacts[(string) $id]
-            ?? throw new NotFoundException(\sprintf('artifact %s not found', $id));
+            ?? throw new InvalidRequestException(\sprintf('artifact %s not found', $id));
         $this->assertOwnership($id, $row, $session);
         $this->assertNotExpired($id, $row);
         return $row['ref'];
@@ -93,7 +92,7 @@ final class ArtifactStore
         $expiresAt = $row['ref']->expiresAt;
         if ($expiresAt !== null && $expiresAt <= $this->clock->now()) {
             unset($this->artifacts[(string) $id]);
-            throw new NotFoundException(\sprintf('artifact %s expired', $id));
+            throw new InvalidRequestException(\sprintf('artifact %s expired', $id));
         }
     }
 

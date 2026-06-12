@@ -7,7 +7,7 @@ namespace Arcp\Tests\Unit;
 use Arcp\Envelope\Envelope;
 use Arcp\Envelope\MessageTypeRegistry;
 use Arcp\Envelope\Priority;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Errors\UnimplementedException;
 use Arcp\Extensions\ExtensionRegistry;
 use Arcp\Ids\IdempotencyKey;
@@ -105,7 +105,7 @@ final class EnvelopeTest extends TestCase
 
     public function testDecodeRejectsMissingType(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         $this->newSerializer()->decode('{"arcp":"1.1","id":"a","timestamp":"2026-05-09T13:00:00Z","payload":{}}');
     }
 
@@ -124,14 +124,14 @@ final class EnvelopeTest extends TestCase
 
     public function testDecodeRejectsMalformedJson(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         $this->newSerializer()->decode('not json');
     }
 
     public function testDecodeRejectsBadTimestamp(): void
     {
         $serializer = $this->newSerializer();
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         $serializer->decode((string) json_encode([
             'arcp' => '1.1',
             'id' => 'msg_x',
@@ -160,7 +160,7 @@ final class EnvelopeTest extends TestCase
 
     public function testEnvelopeRejectsBlankSource(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         new Envelope(
             id: new MessageId('msg_x'),
             payload: new EventEmit('demo'),
@@ -171,7 +171,7 @@ final class EnvelopeTest extends TestCase
 
     public function testEnvelopeRejectsBlankTarget(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         new Envelope(
             id: new MessageId('msg_x'),
             payload: new EventEmit('demo'),
@@ -182,7 +182,7 @@ final class EnvelopeTest extends TestCase
 
     public function testEnvelopeRejectsBlankArcpVersion(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         new Envelope(
             id: new MessageId('msg_x'),
             payload: new EventEmit('demo'),
@@ -193,13 +193,13 @@ final class EnvelopeTest extends TestCase
 
     public function testDecodeRejectsNonObjectJson(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         $this->newSerializer()->decode('"a string"');
     }
 
     public function testDecodeRejectsBlankRequiredFields(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         $this->newSerializer()->decode((string) json_encode([
             'arcp' => '1.1',
             'id' => '',
@@ -211,7 +211,7 @@ final class EnvelopeTest extends TestCase
 
     public function testDecodeRejectsBadPriority(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         $this->newSerializer()->decode((string) json_encode([
             'arcp' => '1.1',
             'id' => 'msg_x',
@@ -224,7 +224,7 @@ final class EnvelopeTest extends TestCase
 
     public function testDecodeRejectsNonObjectPayload(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         $this->newSerializer()->decode((string) json_encode([
             'arcp' => '1.1',
             'id' => 'msg_x',

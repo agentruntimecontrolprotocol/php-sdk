@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Messages\Session;
 
 use Arcp\Envelope\MessageType;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 
 /** RFC §8.1 — challenge issued before acceptance. */
 final readonly class SessionChallenge extends MessageType
@@ -15,7 +15,7 @@ final readonly class SessionChallenge extends MessageType
         public string $scheme = 'bearer',
     ) {
         if ($challenge === '') {
-            throw new InvalidArgumentException('challenge must be non-empty');
+            throw new InvalidRequestException('challenge must be non-empty');
         }
     }
 
@@ -34,14 +34,14 @@ final readonly class SessionChallenge extends MessageType
     #[\Override]
     public static function fromArray(array $data): static
     {
-        $c = $data['challenge'] ?? throw new InvalidArgumentException('challenge missing');
+        $c = $data['challenge'] ?? throw new InvalidRequestException('challenge missing');
         if (!\is_string($c)) {
-            throw new InvalidArgumentException('challenge must be string');
+            throw new InvalidRequestException('challenge must be string');
         }
         $scheme = 'bearer';
         if (isset($data['scheme'])) {
             if (!\is_string($data['scheme'])) {
-                throw new InvalidArgumentException('scheme must be string');
+                throw new InvalidRequestException('scheme must be string');
             }
             $scheme = $data['scheme'];
         }

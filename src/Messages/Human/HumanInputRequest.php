@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Messages\Human;
 
 use Arcp\Envelope\MessageType;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 
 /** RFC §12.1 — request structured human input. */
 final readonly class HumanInputRequest extends MessageType
@@ -21,7 +21,7 @@ final readonly class HumanInputRequest extends MessageType
         public ?array $default = null,
     ) {
         if ($prompt === '') {
-            throw new InvalidArgumentException('prompt missing');
+            throw new InvalidRequestException('prompt missing');
         }
     }
 
@@ -48,19 +48,19 @@ final readonly class HumanInputRequest extends MessageType
     #[\Override]
     public static function fromArray(array $data): static
     {
-        $prompt = $data['prompt'] ?? throw new InvalidArgumentException('prompt missing');
+        $prompt = $data['prompt'] ?? throw new InvalidRequestException('prompt missing');
         $schema = $data['response_schema']
-            ?? throw new InvalidArgumentException('response_schema missing');
-        $exp = $data['expires_at'] ?? throw new InvalidArgumentException('expires_at missing');
+            ?? throw new InvalidRequestException('response_schema missing');
+        $exp = $data['expires_at'] ?? throw new InvalidRequestException('expires_at missing');
         if (!\is_string($prompt) || !\is_array($schema) || !\is_string($exp)) {
-            throw new InvalidArgumentException(
+            throw new InvalidRequestException(
                 'prompt/response_schema/expires_at have wrong types',
             );
         }
         $default = null;
         if (isset($data['default'])) {
             if (!\is_array($data['default'])) {
-                throw new InvalidArgumentException('default must be object');
+                throw new InvalidRequestException('default must be object');
             }
             /** @var array<string, mixed> $default */
             $default = $data['default'];

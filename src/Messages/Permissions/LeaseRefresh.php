@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Messages\Permissions;
 
 use Arcp\Envelope\MessageType;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Ids\LeaseId;
 
 /** RFC §15.5 — holder requests an extension. */
@@ -36,7 +36,7 @@ final readonly class LeaseRefresh extends MessageType
     #[\Override]
     public static function fromArray(array $data): static
     {
-        $id = $data['lease_id'] ?? throw new InvalidArgumentException('lease_id missing');
+        $id = $data['lease_id'] ?? throw new InvalidRequestException('lease_id missing');
         $ext = null;
         if (isset($data['extend_seconds']) && \is_int($data['extend_seconds'])) {
             $ext = $data['extend_seconds'];

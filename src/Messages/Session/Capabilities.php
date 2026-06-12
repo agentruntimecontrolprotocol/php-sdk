@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Arcp\Messages\Session;
 
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 
 /**
  * Capability set negotiated during session establishment (RFC §7).
@@ -49,10 +49,10 @@ final readonly class Capabilities
         public array $extra = [],
     ) {
         if ($heartbeatIntervalSeconds < 1) {
-            throw new InvalidArgumentException('heartbeat_interval_seconds must be ≥ 1');
+            throw new InvalidRequestException('heartbeat_interval_seconds must be ≥ 1');
         }
         if ($heartbeatRecovery !== 'fail' && $heartbeatRecovery !== 'block') {
-            throw new InvalidArgumentException('heartbeat_recovery must be "fail" or "block"');
+            throw new InvalidRequestException('heartbeat_recovery must be "fail" or "block"');
         }
     }
 

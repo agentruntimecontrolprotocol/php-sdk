@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Messages\Session;
 
 use Arcp\Envelope\MessageType;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 
 /** ARCP v1.1 §6.6 — paginated job inventory response. */
 final readonly class Jobs extends MessageType
@@ -19,7 +19,7 @@ final readonly class Jobs extends MessageType
         public ?string $nextCursor = null,
     ) {
         if ($requestId === '') {
-            throw new InvalidArgumentException('request_id missing');
+            throw new InvalidRequestException('request_id missing');
         }
     }
 
@@ -45,25 +45,25 @@ final readonly class Jobs extends MessageType
     #[\Override]
     public static function fromArray(array $data): static
     {
-        $requestId = $data['request_id'] ?? throw new InvalidArgumentException('request_id missing');
+        $requestId = $data['request_id'] ?? throw new InvalidRequestException('request_id missing');
         if (!\is_string($requestId)) {
-            throw new InvalidArgumentException('request_id must be string');
+            throw new InvalidRequestException('request_id must be string');
         }
-        $jobs = $data['jobs'] ?? throw new InvalidArgumentException('jobs missing');
+        $jobs = $data['jobs'] ?? throw new InvalidRequestException('jobs missing');
         if (!\is_array($jobs)) {
-            throw new InvalidArgumentException('jobs must be list');
+            throw new InvalidRequestException('jobs must be list');
         }
         $out = [];
         foreach ($jobs as $job) {
             if (!\is_array($job)) {
-                throw new InvalidArgumentException('jobs entries must be objects');
+                throw new InvalidRequestException('jobs entries must be objects');
             }
             /** @var array<string, mixed> $job */
             $out[] = $job;
         }
         $nextCursor = $data['next_cursor'] ?? null;
         if ($nextCursor !== null && !\is_string($nextCursor)) {
-            throw new InvalidArgumentException('next_cursor must be string or null');
+            throw new InvalidRequestException('next_cursor must be string or null');
         }
         return new self($requestId, $out, $nextCursor);
     }

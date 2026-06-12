@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Messages\Human;
 
 use Arcp\Envelope\MessageType;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 
 /** RFC §12.1 — human's structured response. */
 final readonly class HumanInputResponse extends MessageType
@@ -40,7 +40,7 @@ final readonly class HumanInputResponse extends MessageType
     public static function fromArray(array $data): static
     {
         if (!\array_key_exists('value', $data)) {
-            throw new InvalidArgumentException('value missing');
+            throw new InvalidRequestException('value missing');
         }
         $by = null;
         if (isset($data['responded_by']) && \is_string($data['responded_by'])) {

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Tests\Unit;
 
 use Arcp\Envelope\MessageTypeRegistry;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Messages\Telemetry\EventEmit;
 use PHPUnit\Framework\TestCase;
 
@@ -37,19 +37,19 @@ final class MessagesTest extends TestCase
 
     public function testEventEmitRejectsEmptyType(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         new EventEmit('');
     }
 
     public function testEventEmitFromArrayRequiresType(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         EventEmit::fromArray([]);
     }
 
     public function testEventEmitFromArrayRejectsBadAttributes(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         EventEmit::fromArray(['type' => 'demo', 'attributes' => 'not-an-object']);
     }
 
@@ -57,7 +57,7 @@ final class MessagesTest extends TestCase
     {
         $registry = new MessageTypeRegistry();
         $registry->register(EventEmit::class);
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         $registry->register(EventEmit::class);
     }
 
@@ -83,7 +83,7 @@ final class MessagesTest extends TestCase
     public function testRegistryRejectsNonMessageTypeClass(): void
     {
         $registry = new MessageTypeRegistry();
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         $registry->register(\stdClass::class);
     }
 }

@@ -8,7 +8,7 @@ use Amp\Cancellation;
 use Amp\DeferredCancellation;
 use Arcp\Envelope\Priority;
 use Arcp\Errors\BudgetExhaustedException;
-use Arcp\Errors\DeadlineExceededException;
+use Arcp\Errors\TimeoutException;
 use Arcp\Errors\PermissionDeniedException;
 use Arcp\Ids\JobId;
 use Arcp\Ids\LeaseId;
@@ -200,7 +200,7 @@ final class JobContext
      * @param array<string, mixed> $responseSchema
      * @param array<string, mixed>|null $default
      *
-     * @throws \Arcp\Errors\DeadlineExceededException when `$expiresAt`
+     * @throws \Arcp\Errors\TimeoutException when `$expiresAt`
      *                                                elapses without a response and no `$default` is provided.
      * @throws \Amp\CancelledException when `$cancellation` fires.
      *
@@ -227,11 +227,11 @@ final class JobContext
             /** @var HumanInputResponse $response */
             $response = $this->runtime->pending->awaitResponse($msgId, $deadline, $cancellation);
             return $response;
-        } catch (DeadlineExceededException $e) {
+        } catch (TimeoutException $e) {
             if ($default !== null) {
                 return new HumanInputResponse($default, 'default', $this->runtime->clock->now());
             }
-            $this->runtime->emit($this->session, new HumanInputCancelled('DEADLINE_EXCEEDED'), [
+            $this->runtime->emit($this->session, new HumanInputCancelled('TIMEOUT'), [
                 'job_id' => $this->jobId,
                 'trace_id' => $this->traceId,
                 'correlation_id' => $msgId,
@@ -243,7 +243,7 @@ final class JobContext
     /**
      * @param list<array{id: string, label: string}> $options
      *
-     * @throws \Arcp\Errors\DeadlineExceededException when `$expiresAt`
+     * @throws \Arcp\Errors\TimeoutException when `$expiresAt`
      *                                                elapses before a choice arrives.
      * @throws \Amp\CancelledException when `$cancellation` fires.
      *
@@ -273,7 +273,7 @@ final class JobContext
     /**
      * @throws \Arcp\Errors\PermissionDeniedException when the client
      *                                                denies the permission request.
-     * @throws \Arcp\Errors\DeadlineExceededException when the request
+     * @throws \Arcp\Errors\TimeoutException when the request
      *                                                times out before any decision arrives.
      * @throws \Amp\CancelledException when `$cancellation` fires.
      *

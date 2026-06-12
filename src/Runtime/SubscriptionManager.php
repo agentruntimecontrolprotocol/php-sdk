@@ -8,7 +8,7 @@ use Arcp\Clock\ClockInterface;
 use Arcp\Clock\SystemClock;
 use Arcp\Envelope\Envelope;
 use Arcp\Envelope\Priority;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Ids\MessageId;
 use Arcp\Ids\SessionId;
 use Arcp\Ids\SubscriptionId;
@@ -58,7 +58,7 @@ final class SubscriptionManager
         $min = null;
         if (isset($msg->filter['min_priority']) && \is_string($msg->filter['min_priority'])) {
             $min = Priority::tryFrom($msg->filter['min_priority'])
-                ?? throw new InvalidArgumentException(
+                ?? throw new InvalidRequestException(
                     'min_priority not recognized',
                     ['min_priority' => $msg->filter['min_priority']],
                 );
@@ -141,12 +141,12 @@ final class SubscriptionManager
             return [$val];
         }
         if (!\is_array($val)) {
-            throw new InvalidArgumentException("filter.$key must be string or list of strings");
+            throw new InvalidRequestException("filter.$key must be string or list of strings");
         }
         $out = [];
         foreach ($val as $entry) {
             if (!\is_string($entry)) {
-                throw new InvalidArgumentException("filter.$key entries must be strings");
+                throw new InvalidRequestException("filter.$key entries must be strings");
             }
             $out[] = $entry;
         }

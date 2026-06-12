@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Arcp\Runtime;
 
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 
 /**
  * Parsed ARCP v1.1 agent reference: `name` or `name@version`.
@@ -22,10 +22,10 @@ final readonly class AgentRef
     public function __construct(public string $name, public ?string $version = null)
     {
         if (preg_match(self::NAME_PATTERN, $name) !== 1) {
-            throw new InvalidArgumentException('invalid agent name: ' . $name);
+            throw new InvalidRequestException('invalid agent name: ' . $name);
         }
         if ($version !== null && preg_match(self::VERSION_PATTERN, $version) !== 1) {
-            throw new InvalidArgumentException('invalid agent version: ' . $version);
+            throw new InvalidRequestException('invalid agent version: ' . $version);
         }
     }
 

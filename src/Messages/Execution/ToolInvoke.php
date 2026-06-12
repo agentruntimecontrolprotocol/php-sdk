@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Messages\Execution;
 
 use Arcp\Envelope\MessageType;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 
 /** RFC §6.3 / §10 — execute a named tool with the given arguments. */
 final readonly class ToolInvoke extends MessageType
@@ -16,7 +16,7 @@ final readonly class ToolInvoke extends MessageType
         public array $arguments = [],
     ) {
         if ($tool === '') {
-            throw new InvalidArgumentException('tool name missing');
+            throw new InvalidRequestException('tool name missing');
         }
     }
 
@@ -35,14 +35,14 @@ final readonly class ToolInvoke extends MessageType
     #[\Override]
     public static function fromArray(array $data): static
     {
-        $tool = $data['tool'] ?? throw new InvalidArgumentException('tool missing');
+        $tool = $data['tool'] ?? throw new InvalidRequestException('tool missing');
         if (!\is_string($tool)) {
-            throw new InvalidArgumentException('tool must be string');
+            throw new InvalidRequestException('tool must be string');
         }
         $args = [];
         if (isset($data['arguments'])) {
             if (!\is_array($data['arguments'])) {
-                throw new InvalidArgumentException('arguments must be object');
+                throw new InvalidRequestException('arguments must be object');
             }
             /** @var array<string, mixed> $args */
             $args = $data['arguments'];

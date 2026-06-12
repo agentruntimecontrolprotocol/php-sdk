@@ -7,9 +7,7 @@ namespace Arcp\Runtime;
 use Arcp\Clock\ClockInterface;
 use Arcp\Clock\SystemClock;
 use Arcp\Errors\LeaseExpiredException;
-use Arcp\Errors\LeaseRevokedException;
 use Arcp\Errors\LeaseSubsetViolationException;
-use Arcp\Errors\NotFoundException;
 use Arcp\Errors\PermissionDeniedException;
 use Arcp\Ids\LeaseId;
 use Arcp\Ids\SessionId;
@@ -47,10 +45,20 @@ final class LeaseManager
     {
         $key = (string) $id;
         if (isset($this->revoked[$key])) {
-            throw new LeaseRevokedException($id, $this->revoked[$key]);
+            // §12: operations on a revoked lease are rejected by lease
+            // enforcement — PERMISSION_DENIED.
+            throw new PermissionDeniedException(
+                permission: 'lease.use',
+                resource: $key,
+                message: \sprintf('lease %s revoked: %s', $id, $this->revoked[$key]),
+            );
         }
         $lease = $this->byId[$key]
-            ?? throw new NotFoundException(\sprintf('lease %s not found', $id));
+            ?? throw new PermissionDeniedException(
+                permission: 'lease.use',
+                resource: $key,
+                message: \sprintf('lease %s not found', $id),
+            );
         if ($lease->expiresAt <= $this->clock->now()) {
             throw new LeaseExpiredException($id, $lease->expiresAt);
         }

@@ -9,7 +9,8 @@ use Arcp\Auth\AuthRouter;
 use Arcp\Auth\NoneAuth;
 use Arcp\Client\ARCPClient;
 use Arcp\Errors\UnauthenticatedException;
-use Arcp\Errors\UnimplementedException;
+use Arcp\Errors\InvalidRequestException;
+use Arcp\Errors\UnauthenticatedException;
 use Arcp\Ids\IdempotencyKey;
 use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\Capabilities;
@@ -35,8 +36,8 @@ final class HandshakeNegotiatorTest extends TestCase
                 new PeerInfo('cli', '0.1'),
                 new Capabilities(agentHandoff: true, anonymous: true),
             );
-            self::fail('expected UnimplementedException');
-        } catch (UnimplementedException $e) {
+            self::fail('expected InvalidRequestException');
+        } catch (InvalidRequestException $e) {
             self::assertStringContainsString('agent_handoff', $e->getMessage());
         } finally {
             $client->close();
@@ -57,8 +58,8 @@ final class HandshakeNegotiatorTest extends TestCase
                 new PeerInfo('cli', '0.1'),
                 new Capabilities(checkpoints: true, anonymous: true),
             );
-            self::fail('expected UnimplementedException');
-        } catch (UnimplementedException $e) {
+            self::fail('expected InvalidRequestException');
+        } catch (InvalidRequestException $e) {
             self::assertStringContainsString('checkpoints', $e->getMessage());
         } finally {
             $client->close();
@@ -164,8 +165,8 @@ final class HandshakeNegotiatorTest extends TestCase
                 new PeerInfo('cli', '0.1'),
                 new Capabilities(anonymous: true, extra: ['required_features' => [123]]),
             );
-            self::fail('expected UnimplementedException for non-string required feature');
-        } catch (UnimplementedException $e) {
+            self::fail('expected InvalidRequestException for non-string required feature');
+        } catch (InvalidRequestException $e) {
             self::assertStringContainsString('required_features entry must be string', $e->getMessage());
         } finally {
             $client->close();
@@ -173,9 +174,10 @@ final class HandshakeNegotiatorTest extends TestCase
         }
     }
 
-    public function testMtlsAuthRouterReturnsUnimplemented(): void
+    public function testMtlsAuthRouterReturnsUnauthenticated(): void
     {
-        // AuthRouter does not register mtls scheme; mtls is reserved -> UnimplementedException.
+        // AuthRouter does not register mtls scheme; mtls is reserved ->
+        // UNAUTHENTICATED (§12: missing or invalid authentication).
         $runtime = new ARCPRuntime(
             authRouter: new AuthRouter([new NoneAuth()]),
         );
@@ -189,8 +191,8 @@ final class HandshakeNegotiatorTest extends TestCase
                 new PeerInfo('cli', '0.1'),
                 new Capabilities(anonymous: true),
             );
-            self::fail('expected UnimplementedException');
-        } catch (UnimplementedException $e) {
+            self::fail('expected UnauthenticatedException');
+        } catch (UnauthenticatedException $e) {
             self::assertStringContainsString('mtls', $e->getMessage());
         } finally {
             $client->close();

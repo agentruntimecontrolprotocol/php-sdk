@@ -4,20 +4,22 @@ declare(strict_types=1);
 
 namespace Arcp\Auth;
 
-use Arcp\Errors\UnimplementedException;
+use Arcp\Errors\UnauthenticatedException;
 use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\PeerInfo;
 
 /**
  * Routes an inbound auth block to the configured {@see AuthScheme} for
- * its `scheme`. Unknown schemes raise {@see UnimplementedException} so
- * the runtime can convert to `session.rejected`/UNIMPLEMENTED.
+ * its `scheme`. Unknown or unsupported schemes raise
+ * {@see UnauthenticatedException} so the runtime can convert to a
+ * `session.rejected`/UNAUTHENTICATED response (ARCP v1.1 §12).
  */
 final class AuthRouter
 {
     /**
-     * Schemes reserved by RFC §8.2 but not yet implemented; presenting one
-     * surfaces UNIMPLEMENTED rather than a generic unknown-scheme rejection.
+     * Schemes reserved but not yet implemented; presenting one surfaces
+     * UNAUTHENTICATED with an explanatory message rather than a generic
+     * unknown-scheme rejection.
      *
      * @var list<string>
      */
@@ -44,9 +46,8 @@ final class AuthRouter
         if (!isset($this->schemes[$auth->scheme])) {
             // mTLS and OAuth2 are reserved (RFC §8.2) but unimplemented in v0.1.
             if (\in_array($auth->scheme, self::RESERVED_SCHEMES, true)) {
-                throw new UnimplementedException(
-                    '§8.2',
-                    \sprintf('auth scheme %s deferred to v0.2', $auth->scheme),
+                throw new UnauthenticatedException(
+                    \sprintf('auth scheme %s not supported by this runtime', $auth->scheme),
                 );
             }
             return AuthResult::reject('unknown auth scheme: ' . $auth->scheme);

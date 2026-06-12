@@ -15,7 +15,7 @@ use Arcp\Auth\NoneAuth;
 use Arcp\Client\ARCPClient;
 use Arcp\Envelope\Envelope;
 use Arcp\Errors\CancelledException;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Errors\PermissionDeniedException;
 use Arcp\Messages\Execution\JobAccepted;
 use Arcp\Messages\Session\Auth;
@@ -61,13 +61,13 @@ final class CredentialLifecycleTest extends TestCase
         [$runtime, $client, , $serverFuture] = $this->runtimeClient($provisioner);
         $runtime->registerTool('boom', $this->handler(
             fn (array $arguments, JobContext $ctx, ?Cancellation $cancellation): never
-                => throw new InvalidArgumentException('bad input'),
+                => throw new InvalidRequestException('bad input'),
         ));
 
         try {
             $client->invokeTool('boom', $this->leaseArguments());
-            self::fail('expected InvalidArgumentException');
-        } catch (InvalidArgumentException) {
+            self::fail('expected InvalidRequestException');
+        } catch (InvalidRequestException) {
             self::assertSame(['cred_1'], $provisioner->revoked);
             self::assertSame([], $runtime->credentials->outstanding());
         } finally {

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Arcp\Tests\Unit;
 
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Extensions\ExtensionNamespace;
 use Arcp\Extensions\ExtensionRegistry;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -60,7 +60,7 @@ final class ExtensionsTest extends TestCase
 
     public function testEnsureValidExtensionThrows(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         ExtensionNamespace::ensureValidExtension('not.valid.v_NOPE');
     }
 
@@ -75,7 +75,7 @@ final class ExtensionsTest extends TestCase
 
     public function testRegistryRejectsInvalidExtensionAtRegistration(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         new ExtensionRegistry(['session.open']);
     }
 

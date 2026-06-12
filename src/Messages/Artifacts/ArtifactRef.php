@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Messages\Artifacts;
 
 use Arcp\Envelope\MessageType;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Ids\ArtifactId;
 
 /** RFC §16.1 — canonical pointer to an artifact. */
@@ -21,7 +21,7 @@ final readonly class ArtifactRef extends MessageType
         public ?\DateTimeImmutable $expiresAt = null,
     ) {
         if ($uri === '' || $mediaType === '') {
-            throw new InvalidArgumentException('uri/media_type missing');
+            throw new InvalidRequestException('uri/media_type missing');
         }
     }
 
@@ -54,11 +54,11 @@ final readonly class ArtifactRef extends MessageType
     #[\Override]
     public static function fromArray(array $data): static
     {
-        $id = $data['artifact_id'] ?? throw new InvalidArgumentException('artifact_id missing');
-        $uri = $data['uri'] ?? throw new InvalidArgumentException('uri missing');
-        $mt = $data['media_type'] ?? throw new InvalidArgumentException('media_type missing');
+        $id = $data['artifact_id'] ?? throw new InvalidRequestException('artifact_id missing');
+        $uri = $data['uri'] ?? throw new InvalidRequestException('uri missing');
+        $mt = $data['media_type'] ?? throw new InvalidRequestException('media_type missing');
         if (!\is_string($uri) || !\is_string($mt)) {
-            throw new InvalidArgumentException('uri/media_type must be strings');
+            throw new InvalidRequestException('uri/media_type must be strings');
         }
         $size = null;
         if (isset($data['size']) && \is_int($data['size'])) {

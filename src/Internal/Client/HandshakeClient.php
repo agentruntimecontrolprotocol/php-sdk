@@ -8,7 +8,7 @@ use Amp\Cancellation;
 use Arcp\Clock\ClockInterface;
 use Arcp\Envelope\Envelope;
 use Arcp\Errors\UnauthenticatedException;
-use Arcp\Errors\UnimplementedException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Ids\MessageId;
 use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\Capabilities;
@@ -54,7 +54,7 @@ final readonly class HandshakeClient
             throw new UnauthenticatedException($msg->error->message);
         }
         if ($msg instanceof SessionRejected) {
-            throw new UnimplementedException('§7', $msg->error->message);
+            throw new InvalidRequestException($msg->error->message);
         }
         if (!$msg instanceof SessionAccepted) {
             throw new UnauthenticatedException(

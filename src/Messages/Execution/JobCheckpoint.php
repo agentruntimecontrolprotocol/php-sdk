@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Messages\Execution;
 
 use Arcp\Envelope\MessageType;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 
 /** RFC §10 — durable checkpoint marker. v0.1: shape only; storage Phase 5. */
 final readonly class JobCheckpoint extends MessageType
@@ -16,7 +16,7 @@ final readonly class JobCheckpoint extends MessageType
         public array $state = [],
     ) {
         if ($checkpointId === '') {
-            throw new InvalidArgumentException('checkpoint_id missing');
+            throw new InvalidRequestException('checkpoint_id missing');
         }
     }
 
@@ -39,9 +39,9 @@ final readonly class JobCheckpoint extends MessageType
     #[\Override]
     public static function fromArray(array $data): static
     {
-        $id = $data['checkpoint_id'] ?? throw new InvalidArgumentException('checkpoint_id missing');
+        $id = $data['checkpoint_id'] ?? throw new InvalidRequestException('checkpoint_id missing');
         if (!\is_string($id)) {
-            throw new InvalidArgumentException('checkpoint_id must be string');
+            throw new InvalidRequestException('checkpoint_id must be string');
         }
         $state = [];
         if (isset($data['state']) && \is_array($data['state'])) {

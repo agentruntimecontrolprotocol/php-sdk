@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Messages\Streaming;
 
 use Arcp\Envelope\MessageType;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 
 /** RFC §11 — incremental stream payload. */
 final readonly class StreamChunk extends MessageType
@@ -21,7 +21,7 @@ final readonly class StreamChunk extends MessageType
         public bool $redacted = false,
     ) {
         if ($sequence < 0) {
-            throw new InvalidArgumentException('sequence must be ≥ 0');
+            throw new InvalidRequestException('sequence must be ≥ 0');
         }
     }
 
@@ -59,9 +59,9 @@ final readonly class StreamChunk extends MessageType
     #[\Override]
     public static function fromArray(array $data): static
     {
-        $seq = $data['sequence'] ?? throw new InvalidArgumentException('sequence missing');
+        $seq = $data['sequence'] ?? throw new InvalidRequestException('sequence missing');
         if (!\is_int($seq)) {
-            throw new InvalidArgumentException('sequence must be int');
+            throw new InvalidRequestException('sequence must be int');
         }
         return new self(
             sequence: $seq,

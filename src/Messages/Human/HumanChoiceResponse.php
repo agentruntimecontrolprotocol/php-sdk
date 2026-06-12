@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Messages\Human;
 
 use Arcp\Envelope\MessageType;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 
 /** RFC §12.2 — chosen option id. */
 final readonly class HumanChoiceResponse extends MessageType
@@ -16,7 +16,7 @@ final readonly class HumanChoiceResponse extends MessageType
         public ?\DateTimeImmutable $respondedAt = null,
     ) {
         if ($choiceId === '') {
-            throw new InvalidArgumentException('choice_id missing');
+            throw new InvalidRequestException('choice_id missing');
         }
     }
 
@@ -42,9 +42,9 @@ final readonly class HumanChoiceResponse extends MessageType
     #[\Override]
     public static function fromArray(array $data): static
     {
-        $id = $data['choice_id'] ?? throw new InvalidArgumentException('choice_id missing');
+        $id = $data['choice_id'] ?? throw new InvalidRequestException('choice_id missing');
         if (!\is_string($id)) {
-            throw new InvalidArgumentException('choice_id must be string');
+            throw new InvalidRequestException('choice_id must be string');
         }
         $by = null;
         if (isset($data['responded_by']) && \is_string($data['responded_by'])) {

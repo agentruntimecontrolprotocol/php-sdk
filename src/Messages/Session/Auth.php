@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Arcp\Messages\Session;
 
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 
 /**
  * Auth credential block carried by the session handshake (RFC §8.2).
@@ -22,7 +22,7 @@ final readonly class Auth
         public ?string $token = null,
     ) {
         if ($scheme === '') {
-            throw new InvalidArgumentException('auth.scheme must be non-empty');
+            throw new InvalidRequestException('auth.scheme must be non-empty');
         }
     }
 
@@ -56,14 +56,14 @@ final readonly class Auth
      */
     public static function fromArray(array $data): self
     {
-        $scheme = $data['scheme'] ?? throw new InvalidArgumentException('auth.scheme missing');
+        $scheme = $data['scheme'] ?? throw new InvalidRequestException('auth.scheme missing');
         if (!\is_string($scheme)) {
-            throw new InvalidArgumentException('auth.scheme must be string');
+            throw new InvalidRequestException('auth.scheme must be string');
         }
         $token = null;
         if (isset($data['token'])) {
             if (!\is_string($data['token'])) {
-                throw new InvalidArgumentException('auth.token must be string');
+                throw new InvalidRequestException('auth.token must be string');
             }
             $token = $data['token'];
         }

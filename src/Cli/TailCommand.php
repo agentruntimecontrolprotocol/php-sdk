@@ -10,7 +10,7 @@ use Amp\Websocket\Client\WebsocketHandshake;
 use Arcp\Client\ARCPClient;
 use Arcp\Envelope\Envelope;
 use Arcp\Envelope\MessageCatalog;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Json\EnvelopeSerializer;
 use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\Capabilities;
@@ -42,7 +42,7 @@ final class TailCommand extends Command
     {
         $rawUri = $input->getArgument('uri');
         if (!\is_string($rawUri) || $rawUri === '') {
-            throw new InvalidArgumentException('uri is required');
+            throw new InvalidRequestException('uri is required');
         }
         $uri = $rawUri;
         $connection = connect(new WebsocketHandshake($uri));

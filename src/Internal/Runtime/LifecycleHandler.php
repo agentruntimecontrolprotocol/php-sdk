@@ -12,7 +12,7 @@ use Arcp\Envelope\MessageType;
 use Arcp\Envelope\Priority;
 use Arcp\Errors\ARCPException;
 use Arcp\Errors\ErrorPayload;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Ids\JobId;
 use Arcp\Ids\MessageId;
 use Arcp\Ids\SessionId;
@@ -73,18 +73,18 @@ final readonly class LifecycleHandler
             $this->nack(
                 $session,
                 $env,
-                'UNIMPLEMENTED',
+                'INVALID_REQUEST',
                 'cancel target ' . $msg->target . ' deferred',
             );
             return;
         }
         $job = $this->runtime->jobs->tryGet(new JobId($msg->targetId));
         if (!$job instanceof Job) {
-            $this->nack($session, $env, 'NOT_FOUND', 'job not found');
+            $this->nack($session, $env, 'JOB_NOT_FOUND', 'job not found');
             return;
         }
         if ($job->state->isTerminal()) {
-            $this->nack($session, $env, 'FAILED_PRECONDITION', 'job already terminal');
+            $this->nack($session, $env, 'INVALID_REQUEST', 'job already terminal');
             return;
         }
         $job->cancellation->cancel(
@@ -100,11 +100,11 @@ final readonly class LifecycleHandler
     {
         $job = $this->runtime->jobs->tryGet(new JobId($msg->targetId));
         if (!$job instanceof Job) {
-            $this->nack($session, $env, 'NOT_FOUND', 'job not found');
+            $this->nack($session, $env, 'JOB_NOT_FOUND', 'job not found');
             return;
         }
         if ($job->state->isTerminal()) {
-            $this->nack($session, $env, 'FAILED_PRECONDITION', 'job already terminal');
+            $this->nack($session, $env, 'INVALID_REQUEST', 'job already terminal');
             return;
         }
         // Only the owning session may interrupt a job (cf. handleCancel).
@@ -153,12 +153,12 @@ final readonly class LifecycleHandler
     public function handleResume(Session $session, Envelope $env, Resume $msg): void
     {
         if ($msg->checkpointId !== null && $msg->afterMessageId === null) {
-            $this->nack($session, $env, 'UNIMPLEMENTED', 'checkpoint resume deferred (RFC §19)');
+            $this->nack($session, $env, 'INVALID_REQUEST', 'checkpoint resume deferred (RFC §19)');
             return;
         }
         $sessionId = $session->sessionId;
         if ($sessionId === null) {
-            $this->nack($session, $env, 'FAILED_PRECONDITION', 'resume requires an authenticated session');
+            $this->nack($session, $env, 'INVALID_REQUEST', 'resume requires an authenticated session');
             return;
         }
         $after = $msg->afterMessageId ?? '';
@@ -166,10 +166,10 @@ final readonly class LifecycleHandler
             foreach ($this->runtime->eventLog->replayAfterForSession($after, $sessionId) as $past) {
                 $session->transport->send($past);
             }
-        } catch (InvalidArgumentException) {
+        } catch (InvalidRequestException) {
             // Resume is a lifecycle operation, not a tool invocation; surface
             // the failure as a correlated nack like every other lifecycle path.
-            $this->nack($session, $env, 'DATA_LOSS', 'after_message_id retention expired');
+            $this->nack($session, $env, 'RESUME_WINDOW_EXPIRED', 'after_message_id retention expired');
             return;
         }
         $this->runtime->emit($session, new Ack('resumed'), ['correlation_id' => $env->id]);

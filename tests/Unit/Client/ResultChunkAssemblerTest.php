@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Tests\Unit\Client;
 
 use Arcp\Client\ResultChunkAssembler;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Messages\Execution\ResultChunk;
 use Arcp\Messages\Execution\ResultChunkEncoding;
 use PHPUnit\Framework\TestCase;
@@ -33,7 +33,7 @@ final class ResultChunkAssemblerTest extends TestCase
     {
         $a = new ResultChunkAssembler();
         $a->push(new ResultChunk('res_x', 0, 'partial'));
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         $this->expectExceptionMessage('terminal chunk');
         $a->assemble('res_x');
     }
@@ -43,7 +43,7 @@ final class ResultChunkAssemblerTest extends TestCase
         $a = new ResultChunkAssembler();
         $a->push(new ResultChunk('res_x', 0, 'a'));
         $a->push(new ResultChunk('res_x', 2, 'c', more: false));
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         $this->expectExceptionMessage('contiguous');
         $a->assemble('res_x');
     }
@@ -52,7 +52,7 @@ final class ResultChunkAssemblerTest extends TestCase
     {
         $a = new ResultChunkAssembler();
         $a->push(new ResultChunk('res_x', 0, 'hello'));
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         $a->push(new ResultChunk('res_x', 0, 'HELLO'));
     }
 
@@ -75,7 +75,7 @@ final class ResultChunkAssemblerTest extends TestCase
     public function testUnknownResultIdIsRejected(): void
     {
         $a = new ResultChunkAssembler();
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         $a->assemble('res_missing');
     }
 
@@ -96,7 +96,7 @@ final class ResultChunkAssemblerTest extends TestCase
         $a = new ResultChunkAssembler();
         $a->push(new ResultChunk('res_x', 0, 'partial'));
         $a->forget('res_x');
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         $a->assemble('res_x');
     }
 }

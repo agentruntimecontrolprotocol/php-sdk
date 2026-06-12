@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Messages\Subscriptions;
 
 use Arcp\Envelope\MessageType;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 
 /** RFC §13.1 — wraps a delivered event under `payload.event`. */
 final readonly class SubscribeEvent extends MessageType
@@ -14,7 +14,7 @@ final readonly class SubscribeEvent extends MessageType
     public function __construct(public array $event)
     {
         if ($event === []) {
-            throw new InvalidArgumentException('event must be a non-empty object');
+            throw new InvalidRequestException('event must be a non-empty object');
         }
     }
 
@@ -33,9 +33,9 @@ final readonly class SubscribeEvent extends MessageType
     #[\Override]
     public static function fromArray(array $data): static
     {
-        $ev = $data['event'] ?? throw new InvalidArgumentException('event missing');
+        $ev = $data['event'] ?? throw new InvalidRequestException('event missing');
         if (!\is_array($ev)) {
-            throw new InvalidArgumentException('event must be object');
+            throw new InvalidRequestException('event must be object');
         }
         /** @var array<string, mixed> $ev */
         return new self($ev);

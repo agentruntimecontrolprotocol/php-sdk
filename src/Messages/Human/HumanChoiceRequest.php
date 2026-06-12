@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Messages\Human;
 
 use Arcp\Envelope\MessageType;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 
 /** RFC §12.2 — multi-option picker request. */
 final readonly class HumanChoiceRequest extends MessageType
@@ -19,14 +19,14 @@ final readonly class HumanChoiceRequest extends MessageType
         public \DateTimeImmutable $expiresAt,
     ) {
         if ($prompt === '') {
-            throw new InvalidArgumentException('prompt missing');
+            throw new InvalidRequestException('prompt missing');
         }
         if ($options === []) {
-            throw new InvalidArgumentException('options must be non-empty');
+            throw new InvalidRequestException('options must be non-empty');
         }
         foreach ($options as $opt) {
             if (!isset($opt['id'], $opt['label']) || $opt['id'] === '' || $opt['label'] === '') {
-                throw new InvalidArgumentException('option needs non-empty id and label');
+                throw new InvalidRequestException('option needs non-empty id and label');
             }
         }
     }
@@ -50,11 +50,11 @@ final readonly class HumanChoiceRequest extends MessageType
     #[\Override]
     public static function fromArray(array $data): static
     {
-        $prompt = $data['prompt'] ?? throw new InvalidArgumentException('prompt missing');
-        $opts = $data['options'] ?? throw new InvalidArgumentException('options missing');
-        $exp = $data['expires_at'] ?? throw new InvalidArgumentException('expires_at missing');
+        $prompt = $data['prompt'] ?? throw new InvalidRequestException('prompt missing');
+        $opts = $data['options'] ?? throw new InvalidRequestException('options missing');
+        $exp = $data['expires_at'] ?? throw new InvalidRequestException('expires_at missing');
         if (!\is_string($prompt) || !\is_array($opts) || !\is_string($exp)) {
-            throw new InvalidArgumentException('field types wrong');
+            throw new InvalidRequestException('field types wrong');
         }
         $coerced = [];
         foreach ($opts as $opt) {
@@ -64,7 +64,7 @@ final readonly class HumanChoiceRequest extends MessageType
                 || !\is_string($opt['id'])
                 || !\is_string($opt['label'])
             ) {
-                throw new InvalidArgumentException('option must be {id: string, label: string}');
+                throw new InvalidRequestException('option must be {id: string, label: string}');
             }
             $coerced[] = ['id' => $opt['id'], 'label' => $opt['label']];
         }

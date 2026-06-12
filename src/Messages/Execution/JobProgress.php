@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Messages\Execution;
 
 use Arcp\Envelope\MessageType;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 
 /** RFC §10.1 — progress update on a running job. */
 final readonly class JobProgress extends MessageType
@@ -15,7 +15,7 @@ final readonly class JobProgress extends MessageType
         public ?string $message = null,
     ) {
         if ($percent !== null && ($percent < 0 || $percent > 100)) {
-            throw new InvalidArgumentException('percent must be 0..100');
+            throw new InvalidRequestException('percent must be 0..100');
         }
     }
 

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Messages\Subscriptions;
 
 use Arcp\Envelope\MessageType;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 
 /** RFC §13.4 — runtime terminated the subscription. */
 final readonly class SubscribeClosed extends MessageType
@@ -15,7 +15,7 @@ final readonly class SubscribeClosed extends MessageType
         public string $reason = '',
     ) {
         if ($code === '') {
-            throw new InvalidArgumentException('subscribe.closed code must be non-empty');
+            throw new InvalidRequestException('subscribe.closed code must be non-empty');
         }
     }
 
@@ -39,7 +39,7 @@ final readonly class SubscribeClosed extends MessageType
     public static function fromArray(array $data): static
     {
         if (!isset($data['code']) || !\is_string($data['code']) || $data['code'] === '') {
-            throw new InvalidArgumentException('subscribe.closed code missing or empty');
+            throw new InvalidRequestException('subscribe.closed code missing or empty');
         }
         $code = $data['code'];
         $reason = '';

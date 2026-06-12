@@ -9,7 +9,7 @@ use Arcp\Auth\BearerAuth;
 use Arcp\Auth\NoneAuth;
 use Arcp\Client\ARCPClient;
 use Arcp\Errors\UnauthenticatedException;
-use Arcp\Errors\UnimplementedException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\Capabilities;
 use Arcp\Messages\Session\PeerInfo;
@@ -112,8 +112,8 @@ final class HandshakeTest extends TestCase
                 new PeerInfo('test-cli', '0.1'),
                 new Capabilities(scheduledJobs: true, anonymous: true),
             );
-            self::fail('expected UnimplementedException');
-        } catch (UnimplementedException $e) {
+            self::fail('expected InvalidRequestException');
+        } catch (InvalidRequestException $e) {
             self::assertStringContainsString('scheduled_jobs', $e->getMessage());
         } finally {
             $client->close();

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Arcp\Tests\Unit;
 
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Messages\Control\CancelRefused;
 use Arcp\Messages\Control\CheckpointRestore;
 use Arcp\Messages\Execution\JobProgress;
@@ -26,85 +26,85 @@ final class MessageValidationTest extends TestCase
 {
     public function testCancelRefusedRequiresReason(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         new CancelRefused('');
     }
 
     public function testCancelRefusedFromArrayRejectsNonString(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         CancelRefused::fromArray(['reason' => 42]);
     }
 
     public function testCheckpointRestoreRequiresId(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         new CheckpointRestore('');
     }
 
     public function testCheckpointRestoreFromArrayRequiresId(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         CheckpointRestore::fromArray([]);
     }
 
     public function testSessionChallengeRejectsBlank(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         new SessionChallenge('');
     }
 
     public function testToolInvokeRejectsEmptyName(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         new ToolInvoke('');
     }
 
     public function testToolInvokeFromArrayRejectsBadArguments(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         ToolInvoke::fromArray(['tool' => 't', 'arguments' => 'not-an-object']);
     }
 
     public function testJobProgressRejectsOutOfRange(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         new JobProgress(101);
     }
 
     public function testHumanChoiceRequestRejectsEmptyOptions(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         new HumanChoiceRequest('p', [], new \DateTimeImmutable());
     }
 
     public function testSubscribeEventRejectsEmpty(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         new SubscribeEvent([]);
     }
 
     public function testLogEventRejectsBadLevel(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         new LogEvent('verbose', 'oh no');
     }
 
     public function testLogEventRejectsEmptyMessage(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         new LogEvent('info', '');
     }
 
     public function testMetricEventRejectsEmptyName(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         new MetricEvent('', 0, 'count');
     }
 
     public function testMetricEventRejectsEmptyUnit(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         new MetricEvent('m', 0, '');
     }
 
@@ -118,7 +118,7 @@ final class MessageValidationTest extends TestCase
 
     public function testAuthFromArrayRequiresScheme(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         Auth::fromArray([]);
     }
 
@@ -131,13 +131,13 @@ final class MessageValidationTest extends TestCase
 
     public function testPeerInfoRequiresKindAndVersion(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         new PeerInfo('', '0.1');
     }
 
     public function testPeerInfoFromArrayRejectsMissing(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         PeerInfo::fromArray(['kind' => 'cli']);
     }
 }

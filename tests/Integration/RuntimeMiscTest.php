@@ -10,7 +10,7 @@ use Arcp\Auth\AuthRouter;
 use Arcp\Auth\NoneAuth;
 use Arcp\Client\ARCPClient;
 use Arcp\Envelope\Envelope;
-use Arcp\Errors\NotFoundException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Ids\ArtifactId;
 use Arcp\Ids\LeaseId;
 use Arcp\Ids\MessageId;
@@ -159,7 +159,7 @@ final class RuntimeMiscTest extends TestCase
         $caught = null;
         try {
             $client->fetchArtifact(new ArtifactId('art_unknown'));
-        } catch (NotFoundException $e) {
+        } catch (InvalidRequestException $e) {
             $caught = $e;
         } finally {
             $client->close();

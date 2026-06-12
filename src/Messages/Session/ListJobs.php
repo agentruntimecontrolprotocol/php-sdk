@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Messages\Session;
 
 use Arcp\Envelope\MessageType;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 
 /** ARCP v1.1 §6.6 — request an inventory page of visible jobs. */
 final readonly class ListJobs extends MessageType
@@ -19,7 +19,7 @@ final readonly class ListJobs extends MessageType
         public ?string $cursor = null,
     ) {
         if ($limit < 1) {
-            throw new InvalidArgumentException('limit must be positive');
+            throw new InvalidRequestException('limit must be positive');
         }
     }
 
@@ -48,7 +48,7 @@ final readonly class ListJobs extends MessageType
         $filter = [];
         if (isset($data['filter'])) {
             if (!\is_array($data['filter'])) {
-                throw new InvalidArgumentException('filter must be object');
+                throw new InvalidRequestException('filter must be object');
             }
             /** @var array<string, mixed> $filter */
             $filter = $data['filter'];
@@ -57,7 +57,7 @@ final readonly class ListJobs extends MessageType
         $cursor = null;
         if (isset($data['cursor'])) {
             if (!\is_string($data['cursor'])) {
-                throw new InvalidArgumentException('cursor must be string');
+                throw new InvalidRequestException('cursor must be string');
             }
             $cursor = $data['cursor'];
         }

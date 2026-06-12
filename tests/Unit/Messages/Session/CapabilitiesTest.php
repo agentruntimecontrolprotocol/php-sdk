@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Arcp\Tests\Unit\Messages\Session;
 
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Messages\Session\Capabilities;
 use PHPUnit\Framework\TestCase;
 
@@ -14,7 +14,7 @@ final class CapabilitiesTest extends TestCase
     {
         // §6.4: a sub-second interval (which truncates to 0 as an int) must
         // not be silently advertised as 0s.
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         new Capabilities(heartbeatIntervalSeconds: 0);
     }
 

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Arcp\Tests\Unit\Runtime;
 
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Runtime\CostBudget;
 use PHPUnit\Framework\TestCase;
 
@@ -33,7 +33,7 @@ final class CostBudgetTest extends TestCase
 
     public function testParseRejectsBadPattern(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         CostBudget::fromPatterns(['USD']);
     }
 
@@ -56,20 +56,20 @@ final class CostBudgetTest extends TestCase
     public function testConsumeRejectsInfiniteFloat(): void
     {
         $budget = CostBudget::fromPatterns(['USD:1.00']);
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         $budget->consume('cost.usd', \INF, 'USD');
     }
 
     public function testConsumeRejectsNanFloat(): void
     {
         $budget = CostBudget::fromPatterns(['USD:1.00']);
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         $budget->consume('cost.usd', \NAN, 'USD');
     }
 
     public function testPatternRejectsOverPrecision(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         $this->expectExceptionMessage('six-place');
         CostBudget::fromPatterns(['USD:0.0000009']);
     }
@@ -85,8 +85,8 @@ final class CostBudgetTest extends TestCase
         $budget = CostBudget::fromPatterns(['USD:1.00']);
         try {
             $budget->consume('cost.refund', -1, 'USD');
-            self::fail('expected InvalidArgumentException');
-        } catch (InvalidArgumentException) {
+            self::fail('expected InvalidRequestException');
+        } catch (InvalidRequestException) {
             // §9.6: negative values are rejected and produce no decrement.
         }
         self::assertSame(['USD' => '1'], $budget->remaining());

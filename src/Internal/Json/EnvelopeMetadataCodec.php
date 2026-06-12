@@ -6,7 +6,7 @@ namespace Arcp\Internal\Json;
 
 use Arcp\Envelope\Envelope;
 use Arcp\Envelope\Priority;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Ids\Id;
 use Arcp\Ids\IdempotencyKey;
 use Arcp\Ids\JobId;
@@ -129,7 +129,7 @@ final readonly class EnvelopeMetadataCodec
         try {
             return new \DateTimeImmutable($value);
         } catch (\Throwable $e) {
-            throw new InvalidArgumentException(
+            throw new InvalidRequestException(
                 'envelope.timestamp must be RFC 3339',
                 ['timestamp' => $value],
                 null,
@@ -147,7 +147,7 @@ final readonly class EnvelopeMetadataCodec
             return Priority::Normal;
         }
         if (!\is_string($data['priority']) || Priority::tryFrom($data['priority']) === null) {
-            throw new InvalidArgumentException(
+            throw new InvalidRequestException(
                 'envelope.priority not recognized',
                 ['priority' => $data['priority']],
             );
@@ -166,7 +166,7 @@ final readonly class EnvelopeMetadataCodec
             return [];
         }
         if (!\is_array($data['extensions'])) {
-            throw new InvalidArgumentException('envelope.extensions must be object');
+            throw new InvalidRequestException('envelope.extensions must be object');
         }
         /** @var array<string, mixed> $extensions */
         $extensions = $data['extensions'];
@@ -179,13 +179,13 @@ final readonly class EnvelopeMetadataCodec
     public function requireString(array $data, string $key): string
     {
         if (!isset($data[$key])) {
-            throw new InvalidArgumentException(\sprintf('envelope.%s missing', $key));
+            throw new InvalidRequestException(\sprintf('envelope.%s missing', $key));
         }
         if (!\is_string($data[$key])) {
-            throw new InvalidArgumentException(\sprintf('envelope.%s must be a string', $key));
+            throw new InvalidRequestException(\sprintf('envelope.%s must be a string', $key));
         }
         if ($data[$key] === '') {
-            throw new InvalidArgumentException(\sprintf('envelope.%s must be non-empty', $key));
+            throw new InvalidRequestException(\sprintf('envelope.%s must be non-empty', $key));
         }
         return $data[$key];
     }
@@ -199,7 +199,7 @@ final readonly class EnvelopeMetadataCodec
             return null;
         }
         if (!\is_string($data[$key]) || $data[$key] === '') {
-            throw new InvalidArgumentException(
+            throw new InvalidRequestException(
                 \sprintf('envelope.%s must be non-empty string', $key),
             );
         }
@@ -220,7 +220,7 @@ final readonly class EnvelopeMetadataCodec
             return null;
         }
         if (!\is_string($data[$key])) {
-            throw new InvalidArgumentException(\sprintf('envelope.%s must be a string', $key));
+            throw new InvalidRequestException(\sprintf('envelope.%s must be a string', $key));
         }
         return new $idClass($data[$key]);
     }

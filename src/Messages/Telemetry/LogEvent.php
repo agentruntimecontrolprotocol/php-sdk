@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Messages\Telemetry;
 
 use Arcp\Envelope\MessageType;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 
 /** RFC §17.2 — structured log line. */
 final readonly class LogEvent extends MessageType
@@ -19,12 +19,12 @@ final readonly class LogEvent extends MessageType
         public array $attributes = [],
     ) {
         if (!\in_array($level, self::LEVELS, true)) {
-            throw new InvalidArgumentException(
+            throw new InvalidRequestException(
                 'log.level must be one of ' . implode(',', self::LEVELS),
             );
         }
         if ($message === '') {
-            throw new InvalidArgumentException('log.message must be non-empty');
+            throw new InvalidRequestException('log.message must be non-empty');
         }
     }
 
@@ -47,15 +47,15 @@ final readonly class LogEvent extends MessageType
     #[\Override]
     public static function fromArray(array $data): static
     {
-        $level = $data['level'] ?? throw new InvalidArgumentException('level missing');
-        $msg = $data['message'] ?? throw new InvalidArgumentException('message missing');
+        $level = $data['level'] ?? throw new InvalidRequestException('level missing');
+        $msg = $data['message'] ?? throw new InvalidRequestException('message missing');
         if (!\is_string($level) || !\is_string($msg)) {
-            throw new InvalidArgumentException('level/message must be strings');
+            throw new InvalidRequestException('level/message must be strings');
         }
         $attrs = [];
         if (isset($data['attributes'])) {
             if (!\is_array($data['attributes'])) {
-                throw new InvalidArgumentException('attributes must be object');
+                throw new InvalidRequestException('attributes must be object');
             }
             /** @var array<string, mixed> $attrs */
             $attrs = $data['attributes'];

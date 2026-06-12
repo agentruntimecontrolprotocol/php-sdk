@@ -4,39 +4,31 @@ declare(strict_types=1);
 
 namespace Arcp\Internal\Client;
 
-use Arcp\Errors\AbortedException;
+use Arcp\Errors\AgentNotAvailableException;
 use Arcp\Errors\AgentVersionNotAvailableException;
-use Arcp\Errors\AlreadyExistsException;
 use Arcp\Errors\ARCPException;
-use Arcp\Errors\BackpressureOverflowException;
 use Arcp\Errors\BudgetExhaustedException;
 use Arcp\Errors\CancelledException;
-use Arcp\Errors\DataLossException;
-use Arcp\Errors\DeadlineExceededException;
+use Arcp\Errors\DuplicateKeyException;
 use Arcp\Errors\ErrorCode;
 use Arcp\Errors\ErrorPayload;
-use Arcp\Errors\FailedPreconditionException;
 use Arcp\Errors\HeartbeatLostException;
-use Arcp\Errors\InternalException;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InternalErrorException;
+use Arcp\Errors\InvalidRequestException;
+use Arcp\Errors\JobNotFoundException;
 use Arcp\Errors\LeaseExpiredException;
-use Arcp\Errors\LeaseRevokedException;
 use Arcp\Errors\LeaseSubsetViolationException;
-use Arcp\Errors\NotFoundException;
-use Arcp\Errors\OutOfRangeException;
 use Arcp\Errors\PermissionDeniedException;
-use Arcp\Errors\ResourceExhaustedException;
+use Arcp\Errors\ResumeWindowExpiredException;
+use Arcp\Errors\TimeoutException;
 use Arcp\Errors\UnauthenticatedException;
-use Arcp\Errors\UnavailableException;
-use Arcp\Errors\UnimplementedException;
-use Arcp\Errors\UnknownException;
 use Arcp\Ids\JobId;
 use Arcp\Ids\LeaseId;
 
 /**
  * Maps a wire-level {@see ErrorPayload} onto the SDK's typed exception
- * hierarchy. Pulled out of {@see \Arcp\Client\ARCPClient} so the client
- * stays focused on its public command surface.
+ * hierarchy (ARCP v1.1 §12). Pulled out of {@see \Arcp\Client\ARCPClient}
+ * so the client stays focused on its public command surface.
  *
  * @internal
  */
@@ -47,28 +39,27 @@ final class ErrorMapper
         $canonical = $err->canonical();
         return match ($canonical) {
             ErrorCode::PermissionDenied => $this->permissionDenied($err),
-            ErrorCode::Unimplemented => new UnimplementedException('?', $err->message),
-            ErrorCode::DeadlineExceeded => new DeadlineExceededException($err->message),
-            ErrorCode::Cancelled => new CancelledException($err->message),
-            ErrorCode::NotFound => new NotFoundException($err->message),
-            ErrorCode::AlreadyExists => new AlreadyExistsException($err->message),
-            ErrorCode::ResourceExhausted => new ResourceExhaustedException($err->message),
-            ErrorCode::FailedPrecondition => new FailedPreconditionException($err->message),
-            ErrorCode::InvalidArgument => new InvalidArgumentException($err->message),
-            ErrorCode::Internal => new InternalException($err->message),
-            ErrorCode::Unavailable => new UnavailableException($err->message),
-            ErrorCode::DataLoss => new DataLossException($err->message),
-            ErrorCode::Unauthenticated => new UnauthenticatedException($err->message),
-            ErrorCode::Aborted => new AbortedException($err->message),
-            ErrorCode::OutOfRange => new OutOfRangeException($err->message),
-            ErrorCode::BackpressureOverflow => new BackpressureOverflowException($err->message),
             ErrorCode::LeaseSubsetViolation => $this->leaseSubsetViolation($err),
-            ErrorCode::LeaseExpired => $this->leaseExpired($err),
-            ErrorCode::LeaseRevoked => $this->leaseRevoked($err),
-            ErrorCode::HeartbeatLost => $this->heartbeatLost($err),
-            ErrorCode::BudgetExhausted => $this->budgetExhausted($err),
+            ErrorCode::JobNotFound => new JobNotFoundException($err->message),
+            ErrorCode::DuplicateKey => new DuplicateKeyException($err->message),
+            ErrorCode::AgentNotAvailable => $this->agentNotAvailable($err),
             ErrorCode::AgentVersionNotAvailable => $this->agentVersionNotAvailable($err),
-            default => new UnknownException($err->code, $err->message),
+            ErrorCode::Cancelled => new CancelledException($err->message),
+            ErrorCode::Timeout => new TimeoutException($err->message),
+            ErrorCode::ResumeWindowExpired => new ResumeWindowExpiredException($err->message),
+            ErrorCode::HeartbeatLost => $this->heartbeatLost($err),
+            ErrorCode::LeaseExpired => $this->leaseExpired($err),
+            ErrorCode::BudgetExhausted => $this->budgetExhausted($err),
+            ErrorCode::InvalidRequest => new InvalidRequestException($err->message),
+            ErrorCode::Unauthenticated => new UnauthenticatedException($err->message),
+            ErrorCode::InternalError => new InternalErrorException($err->message),
+            // §12: unrecognized / namespaced extension codes degrade to the
+            // INTERNAL_ERROR fallback, preserving the raw code in details.
+            default => new InternalErrorException(
+                $err->message,
+                ['raw_code' => $err->code],
+                $err->retryable,
+            ),
         };
     }
 
@@ -119,16 +110,6 @@ final class ErrorMapper
         );
     }
 
-    private function leaseRevoked(ErrorPayload $err): LeaseRevokedException
-    {
-        $leaseId = $err->details['lease_id'] ?? null;
-        $reason = $err->details['reason'] ?? '';
-        return new LeaseRevokedException(
-            new LeaseId(\is_string($leaseId) && $leaseId !== '' ? $leaseId : 'unknown'),
-            \is_string($reason) ? $reason : '',
-        );
-    }
-
     private function heartbeatLost(ErrorPayload $err): HeartbeatLostException
     {
         $jobId = $err->details['job_id'] ?? null;
@@ -149,6 +130,15 @@ final class ErrorMapper
         } catch (\Throwable) {
             return new \DateTimeImmutable('@0');
         }
+    }
+
+    private function agentNotAvailable(ErrorPayload $err): AgentNotAvailableException
+    {
+        $agent = $err->details['agent'] ?? '?';
+        return new AgentNotAvailableException(
+            \is_string($agent) ? $agent : '?',
+            $err->message,
+        );
     }
 
     private function agentVersionNotAvailable(ErrorPayload $err): AgentVersionNotAvailableException

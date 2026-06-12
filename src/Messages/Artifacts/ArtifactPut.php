@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Messages\Artifacts;
 
 use Arcp\Envelope\MessageType;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 
 /** RFC §16.2 — upload an artifact (inline base64 in v0.1). */
 final readonly class ArtifactPut extends MessageType
@@ -17,7 +17,7 @@ final readonly class ArtifactPut extends MessageType
         public ?string $sha256 = null,
     ) {
         if ($mediaType === '') {
-            throw new InvalidArgumentException('media_type missing');
+            throw new InvalidRequestException('media_type missing');
         }
     }
 
@@ -43,10 +43,10 @@ final readonly class ArtifactPut extends MessageType
     #[\Override]
     public static function fromArray(array $data): static
     {
-        $mt = $data['media_type'] ?? throw new InvalidArgumentException('media_type missing');
-        $body = $data['data'] ?? throw new InvalidArgumentException('data missing');
+        $mt = $data['media_type'] ?? throw new InvalidRequestException('media_type missing');
+        $body = $data['data'] ?? throw new InvalidRequestException('data missing');
         if (!\is_string($mt) || !\is_string($body)) {
-            throw new InvalidArgumentException('media_type/data must be strings');
+            throw new InvalidRequestException('media_type/data must be strings');
         }
         $ret = null;
         if (isset($data['retention_seconds']) && \is_int($data['retention_seconds'])) {

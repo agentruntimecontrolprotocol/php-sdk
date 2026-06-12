@@ -15,7 +15,7 @@ use function Amp\delay;
 use Arcp\Client\ARCPClient;
 use Arcp\Clock\SystemClock;
 use Arcp\Envelope\Envelope;
-use Arcp\Errors\FailedPreconditionException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Ids\JobId;
 use Arcp\Ids\MessageId;
 use Arcp\Messages\Control\Interrupt;
@@ -32,16 +32,16 @@ function startLongJob(ARCPClient $client): JobId
 }
 
 /**
- * Cooperative cancel. Runtime drives target to a clean checkpoint
- * inside `deadline_ms` before terminating; escalates to ABORTED on
- * timeout (RFC §10.4).
+ * Cooperative cancel (§7.4). The runtime acknowledges with
+ * `job.cancelled` and the job terminates with `job.error`
+ * (code CANCELLED, final_status "cancelled").
  */
 function cancelJob(ARCPClient $client, JobId $jobId, string $reason, int $deadlineMs): void
 {
     try {
         $client->cancelJob($jobId, $reason, $deadlineMs);
-    } catch (FailedPreconditionException $e) {
-        // Surfaced as cancel.refused → FailedPrecondition by the client.
+    } catch (InvalidRequestException $e) {
+        // Cancelling an already-terminal job nacks with INVALID_REQUEST.
         throw $e;
     }
 }

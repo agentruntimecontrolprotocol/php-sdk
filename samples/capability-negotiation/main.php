@@ -16,7 +16,7 @@ use Arcp\Client\ARCPClient;
 use Arcp\Envelope\Envelope;
 use Arcp\Errors\ARCPException;
 use Arcp\Errors\ErrorCode;
-use Arcp\Errors\UnavailableException;
+use Arcp\Errors\InternalErrorException;
 use Arcp\Ids\TraceId;
 use Arcp\Messages\Execution\ToolResult;
 use Arcp\Messages\Telemetry\MetricEvent;
@@ -37,12 +37,9 @@ const LATENCY_CEILING_MS = 800;
 
 function isRetryable(ErrorCode $code): bool
 {
-    return in_array($code, [
-        ErrorCode::ResourceExhausted,
-        ErrorCode::Unavailable,
-        ErrorCode::DeadlineExceeded,
-        ErrorCode::Aborted,
-    ], true);
+    // §12: TIMEOUT, HEARTBEAT_LOST, and INTERNAL_ERROR are the
+    // retryable-by-default codes.
+    return $code->defaultRetryable();
 }
 
 final class Profile
@@ -133,7 +130,7 @@ function invokeWithFallback(array $clients, array $chain, string $tool, array $a
             throw $exc;
         }
     }
-    throw $last ?? new UnavailableException('no peers available');
+    throw $last ?? new InternalErrorException('no peers available');
 }
 
 final class Usage

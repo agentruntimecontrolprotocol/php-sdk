@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Messages\Control;
 
 use Arcp\Envelope\MessageType;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 
 /** RFC §6.2 — placeholder; checkpoint restore is deferred to v0.2. */
 final readonly class CheckpointRestore extends MessageType
@@ -13,7 +13,7 @@ final readonly class CheckpointRestore extends MessageType
     public function __construct(public string $checkpointId)
     {
         if ($checkpointId === '') {
-            throw new InvalidArgumentException('checkpoint_id missing');
+            throw new InvalidRequestException('checkpoint_id missing');
         }
     }
 
@@ -32,9 +32,9 @@ final readonly class CheckpointRestore extends MessageType
     #[\Override]
     public static function fromArray(array $data): static
     {
-        $id = $data['checkpoint_id'] ?? throw new InvalidArgumentException('checkpoint_id missing');
+        $id = $data['checkpoint_id'] ?? throw new InvalidRequestException('checkpoint_id missing');
         if (!\is_string($id)) {
-            throw new InvalidArgumentException('checkpoint_id must be string');
+            throw new InvalidRequestException('checkpoint_id must be string');
         }
         return new self($id);
     }

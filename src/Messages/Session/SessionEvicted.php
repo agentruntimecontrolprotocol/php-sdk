@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Messages\Session;
 
 use Arcp\Envelope\MessageType;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 
 /** RFC §8.5 — runtime evicted the session (idle, revoked credentials, quota, ...). */
 final readonly class SessionEvicted extends MessageType
@@ -15,7 +15,7 @@ final readonly class SessionEvicted extends MessageType
         public ?string $code = null,
     ) {
         if ($reason === '') {
-            throw new InvalidArgumentException('reason must be non-empty');
+            throw new InvalidRequestException('reason must be non-empty');
         }
     }
 
@@ -38,14 +38,14 @@ final readonly class SessionEvicted extends MessageType
     #[\Override]
     public static function fromArray(array $data): static
     {
-        $reason = $data['reason'] ?? throw new InvalidArgumentException('reason missing');
+        $reason = $data['reason'] ?? throw new InvalidRequestException('reason missing');
         if (!\is_string($reason)) {
-            throw new InvalidArgumentException('reason must be string');
+            throw new InvalidRequestException('reason must be string');
         }
         $code = null;
         if (isset($data['code'])) {
             if (!\is_string($data['code'])) {
-                throw new InvalidArgumentException('code must be string');
+                throw new InvalidRequestException('code must be string');
             }
             $code = $data['code'];
         }

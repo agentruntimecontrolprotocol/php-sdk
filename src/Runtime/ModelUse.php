@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Arcp\Runtime;
 
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 
 /** ARCP v1.1 §9.7 model allow-list lease capability. */
 final readonly class ModelUse
@@ -14,7 +14,7 @@ final readonly class ModelUse
     {
         foreach ($patterns as $pattern) {
             if (!$this->validPattern($pattern)) {
-                throw new InvalidArgumentException('invalid model.use pattern: ' . $pattern);
+                throw new InvalidRequestException('invalid model.use pattern: ' . $pattern);
             }
         }
     }
@@ -39,7 +39,7 @@ final readonly class ModelUse
         $out = [];
         foreach ($patterns as $pattern) {
             if (!\is_string($pattern)) {
-                throw new InvalidArgumentException('model.use entries must be strings');
+                throw new InvalidRequestException('model.use entries must be strings');
             }
             $out[] = $pattern;
         }

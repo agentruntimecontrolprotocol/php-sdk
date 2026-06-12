@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Messages\Telemetry;
 
 use Arcp\Envelope\MessageType;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 
 /** RFC §17.1 — typed span event. The envelope already carries trace_id/span_id. */
 final readonly class TraceSpan extends MessageType
@@ -19,7 +19,7 @@ final readonly class TraceSpan extends MessageType
         public string $status = 'ok',
     ) {
         if ($name === '') {
-            throw new InvalidArgumentException('span name missing');
+            throw new InvalidRequestException('span name missing');
         }
     }
 
@@ -47,16 +47,16 @@ final readonly class TraceSpan extends MessageType
     #[\Override]
     public static function fromArray(array $data): static
     {
-        $name = $data['name'] ?? throw new InvalidArgumentException('name missing');
-        $start = $data['started_at'] ?? throw new InvalidArgumentException('started_at missing');
-        $end = $data['ended_at'] ?? throw new InvalidArgumentException('ended_at missing');
+        $name = $data['name'] ?? throw new InvalidRequestException('name missing');
+        $start = $data['started_at'] ?? throw new InvalidRequestException('started_at missing');
+        $end = $data['ended_at'] ?? throw new InvalidRequestException('ended_at missing');
         if (!\is_string($name) || !\is_string($start) || !\is_string($end)) {
-            throw new InvalidArgumentException('name/started_at/ended_at must be strings');
+            throw new InvalidRequestException('name/started_at/ended_at must be strings');
         }
         $attrs = [];
         if (isset($data['attributes'])) {
             if (!\is_array($data['attributes'])) {
-                throw new InvalidArgumentException('attributes must be object');
+                throw new InvalidRequestException('attributes must be object');
             }
             /** @var array<string, mixed> $attrs */
             $attrs = $data['attributes'];

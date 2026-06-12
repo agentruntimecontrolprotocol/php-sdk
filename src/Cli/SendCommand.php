@@ -9,7 +9,7 @@ use function Amp\Websocket\Client\connect;
 use Amp\Websocket\Client\WebsocketHandshake;
 use Arcp\Client\ARCPClient;
 use Arcp\Envelope\MessageCatalog;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Json\EnvelopeSerializer;
 use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\Capabilities;
@@ -48,7 +48,7 @@ final class SendCommand extends Command
         $rawTool = $input->getArgument('tool');
         $rawArgs = $input->getOption('arguments');
         if (!\is_string($rawUri) || !\is_string($rawTool)) {
-            throw new InvalidArgumentException('uri and tool are required');
+            throw new InvalidRequestException('uri and tool are required');
         }
         $uri = $rawUri;
         $tool = $rawTool;

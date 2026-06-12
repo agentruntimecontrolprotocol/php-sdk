@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Messages\Control;
 
 use Arcp\Envelope\MessageType;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 
 /** RFC §10.4 — request to cancel a job/stream/session. */
 final readonly class Cancel extends MessageType
@@ -17,10 +17,10 @@ final readonly class Cancel extends MessageType
         public ?int $deadlineMs = null,
     ) {
         if (!\in_array($target, ['job', 'stream', 'session'], true)) {
-            throw new InvalidArgumentException('cancel.target must be job|stream|session');
+            throw new InvalidRequestException('cancel.target must be job|stream|session');
         }
         if ($targetId === '') {
-            throw new InvalidArgumentException('cancel.target_id must be non-empty');
+            throw new InvalidRequestException('cancel.target_id must be non-empty');
         }
     }
 
@@ -46,10 +46,10 @@ final readonly class Cancel extends MessageType
     #[\Override]
     public static function fromArray(array $data): static
     {
-        $target = $data['target'] ?? throw new InvalidArgumentException('target missing');
-        $targetId = $data['target_id'] ?? throw new InvalidArgumentException('target_id missing');
+        $target = $data['target'] ?? throw new InvalidRequestException('target missing');
+        $targetId = $data['target_id'] ?? throw new InvalidRequestException('target_id missing');
         if (!\is_string($target) || !\is_string($targetId)) {
-            throw new InvalidArgumentException('target/target_id must be strings');
+            throw new InvalidRequestException('target/target_id must be strings');
         }
         $reason = '';
         if (isset($data['reason']) && \is_string($data['reason'])) {

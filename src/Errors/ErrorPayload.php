@@ -7,13 +7,12 @@ namespace Arcp\Errors;
 use Arcp\Ids\TraceId;
 
 /**
- * Wire-shape for an error envelope's payload (RFC §18.1).
+ * Wire-shape for an error payload (ARCP v1.1 §12): code/message/retryable/details.
  *
- * Codes are wire strings — canonical RFC names, namespaced extension
- * codes (e.g. `arcpx.acme.QUOTA_EXCEEDED`), or aliases like `RATE_LIMITED`.
- * {@see canonical()} maps aliases to their canonical code
- * (e.g. `RATE_LIMITED` → `RESOURCE_EXHAUSTED`); namespaced/extension codes
- * with no enum equivalent return `null`.
+ * Codes are wire strings — canonical §12 names or namespaced extension
+ * codes (e.g. `arcpx.acme.QUOTA_EXCEEDED`). {@see canonical()} maps a wire
+ * code to its {@see ErrorCode}; namespaced/extension codes with no enum
+ * equivalent return `null`.
  *
  * @phpstan-type ErrorDetails array<string, mixed>
  */
@@ -33,10 +32,10 @@ final readonly class ErrorPayload
         public ?TraceId $traceId = null,
     ) {
         if ($code === '') {
-            throw new InvalidArgumentException('error code must be non-empty');
+            throw new InvalidRequestException('error code must be non-empty');
         }
         if ($message === '') {
-            throw new InvalidArgumentException('error message must be non-empty');
+            throw new InvalidRequestException('error message must be non-empty');
         }
     }
 
@@ -63,10 +62,6 @@ final readonly class ErrorPayload
     /** Map the wire code to a canonical {@see ErrorCode}, when possible. */
     public function canonical(): ?ErrorCode
     {
-        // RATE_LIMITED is an alias for RESOURCE_EXHAUSTED per RFC §18.2.
-        if ($this->code === 'RATE_LIMITED') {
-            return ErrorCode::ResourceExhausted;
-        }
         return ErrorCode::tryFrom($this->code);
     }
 
@@ -133,11 +128,11 @@ final readonly class ErrorPayload
      */
     private static function requiredStrings(array $data): array
     {
-        $code = $data['code'] ?? throw new InvalidArgumentException('error.code missing');
+        $code = $data['code'] ?? throw new InvalidRequestException('error.code missing');
         $message = $data['message']
-            ?? throw new InvalidArgumentException('error.message missing');
+            ?? throw new InvalidRequestException('error.message missing');
         if (!\is_string($code) || !\is_string($message)) {
-            throw new InvalidArgumentException('error.code/message must be strings');
+            throw new InvalidRequestException('error.code/message must be strings');
         }
         return [$code, $message];
     }
@@ -149,7 +144,7 @@ final readonly class ErrorPayload
             return null;
         }
         if (!\is_bool($data['retryable'])) {
-            throw new InvalidArgumentException('error.retryable must be bool');
+            throw new InvalidRequestException('error.retryable must be bool');
         }
         return $data['retryable'];
     }
@@ -165,7 +160,7 @@ final readonly class ErrorPayload
             return [];
         }
         if (!\is_array($data['details'])) {
-            throw new InvalidArgumentException('error.details must be an object');
+            throw new InvalidRequestException('error.details must be an object');
         }
         /** @var array<string, mixed> $details */
         $details = $data['details'];
@@ -179,7 +174,7 @@ final readonly class ErrorPayload
             return null;
         }
         if (!\is_array($data['cause'])) {
-            throw new InvalidArgumentException('error.cause must be an object');
+            throw new InvalidRequestException('error.cause must be an object');
         }
         /** @var array<string, mixed> $causeData */
         $causeData = $data['cause'];

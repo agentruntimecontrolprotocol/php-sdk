@@ -7,8 +7,8 @@ namespace Arcp\Store;
 use Arcp\Clock\ClockInterface;
 use Arcp\Clock\SystemClock;
 use Arcp\Envelope\Envelope;
-use Arcp\Errors\InternalException;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InternalErrorException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Ids\IdempotencyKey;
 use Arcp\Ids\JobId;
 use Arcp\Ids\MessageId;
@@ -167,7 +167,7 @@ final readonly class EventLog
             return null;
         }
         if (!\is_string($json)) {
-            throw new InternalException('event log row has non-string payload_json');
+            throw new InternalErrorException('event log row has non-string payload_json');
         }
         return $this->serializer->decode($json);
     }
@@ -184,7 +184,7 @@ final readonly class EventLog
         $stmt = $this->prepareReplayQuery($startRowId, $limit);
         while (($json = $stmt->fetchColumn()) !== false) {
             if (!\is_string($json)) {
-                throw new InternalException('event log row has non-string payload_json');
+                throw new InternalErrorException('event log row has non-string payload_json');
             }
             yield $this->serializer->decode($json);
         }
@@ -197,7 +197,7 @@ final readonly class EventLog
      * authenticated principal).
      *
      * If `$afterMessageId` is non-empty and references an envelope that
-     * does not belong to `$sessionId`, throws `InvalidArgumentException`.
+     * does not belong to `$sessionId`, throws `InvalidRequestException`.
      *
      * @return iterable<Envelope>
      */
@@ -209,7 +209,7 @@ final readonly class EventLog
         if ($afterMessageId !== '') {
             $rowSessionId = $this->sessionIdFor($afterMessageId);
             if ($rowSessionId !== (string) $sessionId) {
-                throw new InvalidArgumentException(
+                throw new InvalidRequestException(
                     'after_message_id does not belong to the requesting session',
                     ['after_message_id' => $afterMessageId],
                 );
@@ -219,7 +219,7 @@ final readonly class EventLog
         $stmt = $this->prepareReplayQueryForSession($startRowId, (string) $sessionId, $limit);
         while (($json = $stmt->fetchColumn()) !== false) {
             if (!\is_string($json)) {
-                throw new InternalException('event log row has non-string payload_json');
+                throw new InternalErrorException('event log row has non-string payload_json');
             }
             yield $this->serializer->decode($json);
         }
@@ -232,7 +232,7 @@ final readonly class EventLog
         /** @var string|false|null $value */
         $value = $stmt->fetchColumn();
         if ($value === false) {
-            throw new InvalidArgumentException(
+            throw new InvalidRequestException(
                 'after_message_id not present in log',
                 ['after_message_id' => $messageId],
             );
@@ -271,7 +271,7 @@ final readonly class EventLog
         /** @var int|string|false $rowIdValue */
         $rowIdValue = $stmt->fetchColumn();
         if ($rowIdValue === false) {
-            throw new InvalidArgumentException(
+            throw new InvalidRequestException(
                 'after_message_id not present in log',
                 ['after_message_id' => $messageId],
             );
@@ -356,12 +356,12 @@ final readonly class EventLog
             return null;
         }
         if (!isset($row['outcome_message_id'], $row['expires_at'])) {
-            throw new InternalException('idempotency_cache row malformed');
+            throw new InternalErrorException('idempotency_cache row malformed');
         }
         $expiresStr = $row['expires_at'];
         $outcome = $row['outcome_message_id'];
         if (!\is_string($expiresStr) || !\is_string($outcome)) {
-            throw new InternalException('idempotency_cache row column types unexpected');
+            throw new InternalErrorException('idempotency_cache row column types unexpected');
         }
         $expires = new \DateTimeImmutable($expiresStr);
         if ($expires <= $this->clock->now()) {

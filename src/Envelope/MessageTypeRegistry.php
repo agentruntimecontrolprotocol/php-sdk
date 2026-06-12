@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Arcp\Envelope;
 
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 
 /**
  * Maps wire `type` strings to {@see MessageType} subclasses.
@@ -27,14 +27,14 @@ final class MessageTypeRegistry
     public function register(string $class): void
     {
         if (!is_subclass_of($class, MessageType::class)) {
-            throw new InvalidArgumentException(
+            throw new InvalidRequestException(
                 \sprintf('%s is not a MessageType subclass', $class),
                 ['class' => $class],
             );
         }
         $type = $class::typeName();
         if (isset($this->byType[$type])) {
-            throw new InvalidArgumentException(
+            throw new InvalidRequestException(
                 \sprintf(
                     'type %s already registered (existing=%s, new=%s)',
                     $type,

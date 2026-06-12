@@ -14,7 +14,7 @@ final class TransportClosedExceptionTest extends TestCase
     public function testCodeAndRetryable(): void
     {
         $e = new TransportClosedException('socket gone');
-        self::assertSame(ErrorCode::Unavailable, $e->code());
+        self::assertSame(ErrorCode::HeartbeatLost, $e->code());
         self::assertTrue($e->isRetryable());
         self::assertInstanceOf(ARCPException::class, $e);
         self::assertSame('socket gone', $e->getMessage());

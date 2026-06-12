@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Arcp\Messages\Session;
 
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 
 /**
  * Identity block for either side of a session (RFC §8.2 / §8.3).
@@ -22,10 +22,10 @@ final readonly class PeerInfo
         public ?string $trustLevel = null,
     ) {
         if ($kind === '') {
-            throw new InvalidArgumentException('peer.kind must be non-empty');
+            throw new InvalidRequestException('peer.kind must be non-empty');
         }
         if ($version === '') {
-            throw new InvalidArgumentException('peer.version must be non-empty');
+            throw new InvalidRequestException('peer.version must be non-empty');
         }
     }
 
@@ -53,30 +53,30 @@ final readonly class PeerInfo
      */
     public static function fromArray(array $data): self
     {
-        $kind = $data['kind'] ?? throw new InvalidArgumentException('peer.kind missing');
-        $version = $data['version'] ?? throw new InvalidArgumentException('peer.version missing');
+        $kind = $data['kind'] ?? throw new InvalidRequestException('peer.kind missing');
+        $version = $data['version'] ?? throw new InvalidRequestException('peer.version missing');
         if (!\is_string($kind) || !\is_string($version)) {
-            throw new InvalidArgumentException('peer.kind/version must be strings');
+            throw new InvalidRequestException('peer.kind/version must be strings');
         }
 
         $fingerprint = null;
         if (isset($data['fingerprint'])) {
             if (!\is_string($data['fingerprint'])) {
-                throw new InvalidArgumentException('peer.fingerprint must be string');
+                throw new InvalidRequestException('peer.fingerprint must be string');
             }
             $fingerprint = $data['fingerprint'];
         }
         $principal = null;
         if (isset($data['principal'])) {
             if (!\is_string($data['principal'])) {
-                throw new InvalidArgumentException('peer.principal must be string');
+                throw new InvalidRequestException('peer.principal must be string');
             }
             $principal = $data['principal'];
         }
         $trustLevel = null;
         if (isset($data['trust_level'])) {
             if (!\is_string($data['trust_level'])) {
-                throw new InvalidArgumentException('peer.trust_level must be string');
+                throw new InvalidRequestException('peer.trust_level must be string');
             }
             $trustLevel = $data['trust_level'];
         }

@@ -10,7 +10,7 @@ use Amp\ByteStream\WritableResourceStream;
 use Amp\ByteStream\WritableStream;
 use Amp\Cancellation;
 use Arcp\Envelope\Envelope;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Errors\TransportClosedException;
 use Arcp\Json\EnvelopeSerializer;
 
@@ -41,7 +41,7 @@ final class StdioTransport implements Transport
         EnvelopeSerializer $serializer,
     ): self {
         if (!\is_resource($readResource) || !\is_resource($writeResource)) {
-            throw new InvalidArgumentException('stdio transport requires open resources');
+            throw new InvalidRequestException('stdio transport requires open resources');
         }
         return new self(
             new ReadableResourceStream($readResource),

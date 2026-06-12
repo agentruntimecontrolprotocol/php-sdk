@@ -19,8 +19,9 @@ require __DIR__ . '/upstream.php';
 
 use Arcp\Clock\SystemClock;
 use Arcp\Envelope\Envelope;
-use Arcp\Errors\FailedPreconditionException;
-use Arcp\Errors\InternalException;
+
+use Arcp\Errors\InternalErrorException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Ids\JobId;
 use Arcp\Ids\MessageId;
 use Arcp\Messages\Execution\JobAccepted;
@@ -67,7 +68,7 @@ function callViaMcp(McpClientSession $mcp, string $tool, array $arguments): arra
     try {
         $result = $mcp->callTool($tool, $arguments);
     } catch (\Throwable $exc) {
-        throw new InternalException($exc->getMessage(), previous: $exc);
+        throw new InternalErrorException($exc->getMessage(), previous: $exc);
     }
 
     if (($result['isError'] ?? false) === true) {
@@ -75,9 +76,9 @@ function callViaMcp(McpClientSession $mcp, string $tool, array $arguments): arra
             static fn (array $c): string => is_string($c['text'] ?? null) ? $c['text'] : '',
             $result['content'] ?? [],
         ));
-        // MCP doesn't carry a typed error code; FAILED_PRECONDITION is
-        // the right canonical mapping for "tool ran, said no".
-        throw new FailedPreconditionException($text !== '' ? $text : 'tool error');
+        // MCP doesn't carry a typed error code; INVALID_REQUEST is the
+        // closest §12 mapping for "tool ran, said no" (non-retryable).
+        throw new InvalidRequestException($text !== '' ? $text : 'tool error');
     }
 
     return ['content' => $result['content'] ?? []];
@@ -111,7 +112,7 @@ function handleInvoke(callable $send, McpClientSession $mcp, Envelope $request):
 
     $invoke = $request->payload;
     if (!$invoke instanceof ToolInvoke) {
-        throw new InternalException('expected tool.invoke payload');
+        throw new InternalErrorException('expected tool.invoke payload');
     }
 
     try {

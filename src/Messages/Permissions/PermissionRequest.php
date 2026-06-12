@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Messages\Permissions;
 
 use Arcp\Envelope\MessageType;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 
 /** RFC §15.4 — permission challenge from runtime. */
 final readonly class PermissionRequest extends MessageType
@@ -18,7 +18,7 @@ final readonly class PermissionRequest extends MessageType
         public ?int $requestedLeaseSeconds = null,
     ) {
         if ($permission === '' || $resource === '' || $operation === '') {
-            throw new InvalidArgumentException('permission/resource/operation must be non-empty');
+            throw new InvalidRequestException('permission/resource/operation must be non-empty');
         }
     }
 
@@ -48,11 +48,11 @@ final readonly class PermissionRequest extends MessageType
     #[\Override]
     public static function fromArray(array $data): static
     {
-        $p = $data['permission'] ?? throw new InvalidArgumentException('permission missing');
-        $r = $data['resource'] ?? throw new InvalidArgumentException('resource missing');
-        $o = $data['operation'] ?? throw new InvalidArgumentException('operation missing');
+        $p = $data['permission'] ?? throw new InvalidRequestException('permission missing');
+        $r = $data['resource'] ?? throw new InvalidRequestException('resource missing');
+        $o = $data['operation'] ?? throw new InvalidRequestException('operation missing');
         if (!\is_string($p) || !\is_string($r) || !\is_string($o)) {
-            throw new InvalidArgumentException('permission/resource/operation must be strings');
+            throw new InvalidRequestException('permission/resource/operation must be strings');
         }
         $reason = '';
         if (isset($data['reason']) && \is_string($data['reason'])) {

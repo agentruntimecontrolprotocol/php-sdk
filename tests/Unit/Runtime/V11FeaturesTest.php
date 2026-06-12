@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Tests\Unit\Runtime;
 
 use Arcp\Errors\BudgetExhaustedException;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Runtime\AgentRef;
 use Arcp\Runtime\CostBudget;
 use PHPUnit\Framework\TestCase;
@@ -20,14 +20,14 @@ final class V11FeaturesTest extends TestCase
 
     public function testAgentRefRejectsInvalidGrammar(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         AgentRef::parse('Planner@bad/version');
     }
 
     public function testAgentRefRejectsUppercaseName(): void
     {
         // §7.5: name ::= [a-z0-9][a-z0-9._-]* (lowercase only).
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         new AgentRef('MyTool');
     }
 

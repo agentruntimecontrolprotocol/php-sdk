@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Arcp\Tests\Unit\Runtime;
 
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Runtime\ModelUse;
 use PHPUnit\Framework\TestCase;
 
@@ -29,7 +29,7 @@ final class ModelUseTest extends TestCase
     #[\PHPUnit\Framework\Attributes\DataProvider('bogusPatterns')]
     public function testRejectsBogusPatterns(string $pattern): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         ModelUse::fromPatterns([$pattern]);
     }
 

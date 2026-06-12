@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Messages\Execution;
 
 use Arcp\Envelope\MessageType;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 
 /** RFC §10.2 — runtime accepted the job; envelope `job_id` carries the new id. */
 final readonly class JobAccepted extends MessageType
@@ -71,12 +71,12 @@ final readonly class JobAccepted extends MessageType
             return null;
         }
         if (!\is_array($data['credentials'])) {
-            throw new InvalidArgumentException('credentials must be list');
+            throw new InvalidRequestException('credentials must be list');
         }
         $credentials = [];
         foreach ($data['credentials'] as $credential) {
             if (!\is_array($credential)) {
-                throw new InvalidArgumentException('credential entries must be objects');
+                throw new InvalidRequestException('credential entries must be objects');
             }
             /** @var array<string, mixed> $credential */
             $credentials[] = $credential;

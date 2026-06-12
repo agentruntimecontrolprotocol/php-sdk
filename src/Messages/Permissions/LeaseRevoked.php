@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Messages\Permissions;
 
 use Arcp\Envelope\MessageType;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Ids\LeaseId;
 
 /** RFC §15.5 — lease cancelled before natural expiry. */
@@ -36,7 +36,7 @@ final readonly class LeaseRevoked extends MessageType
     #[\Override]
     public static function fromArray(array $data): static
     {
-        $id = $data['lease_id'] ?? throw new InvalidArgumentException('lease_id missing');
+        $id = $data['lease_id'] ?? throw new InvalidRequestException('lease_id missing');
         $reason = '';
         if (isset($data['reason']) && \is_string($data['reason'])) {
             $reason = $data['reason'];

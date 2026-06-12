@@ -35,7 +35,7 @@ final readonly class ArtifactDispatcher
             $this->lifecycle->nack(
                 $session,
                 $env,
-                'INVALID_ARGUMENT',
+                'INVALID_REQUEST',
                 'artifact.put data must be base64',
             );
             return;
@@ -46,7 +46,7 @@ final readonly class ArtifactDispatcher
                 $this->lifecycle->nack(
                     $session,
                     $env,
-                    'INVALID_ARGUMENT',
+                    'INVALID_REQUEST',
                     'artifact.put sha256 must be 64 lowercase hex chars',
                 );
                 return;
@@ -56,7 +56,7 @@ final readonly class ArtifactDispatcher
                 $this->lifecycle->nack(
                     $session,
                     $env,
-                    'INVALID_ARGUMENT',
+                    'INVALID_REQUEST',
                     'artifact.put sha256 does not match payload',
                 );
                 return;

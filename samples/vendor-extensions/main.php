@@ -13,7 +13,7 @@ declare(strict_types=1);
 require __DIR__ . '/../../vendor/autoload.php';
 
 use Arcp\Client\ARCPClient;
-use Arcp\Errors\UnimplementedException;
+use Arcp\Errors\InvalidRequestException;
 
 const EXT_TUNE = 'arcpx.sdr.tune.v1';
 const EXT_GAIN = 'arcpx.sdr.gain.v1';
@@ -33,7 +33,7 @@ function main(): void
     $advertised = $caps !== null ? $caps->extensions : [];
     $missing = array_diff(ALL_EXTENSIONS, $advertised);
     if ($missing !== []) {
-        throw new UnimplementedException('§21.2', 'runtime missing SDR extensions: ' . implode(',', $missing));
+        throw new InvalidRequestException('runtime missing SDR extensions: ' . implode(',', $missing));
     }
 
     $handle = bin2hex(random_bytes(4));

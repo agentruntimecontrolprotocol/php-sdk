@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Messages\Session;
 
 use Arcp\Envelope\MessageType;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Ids\SessionId;
 
 /** RFC §8.3 — session established successfully. */
@@ -46,10 +46,10 @@ final readonly class SessionAccepted extends MessageType
     #[\Override]
     public static function fromArray(array $data): static
     {
-        $sid = $data['session_id'] ?? throw new InvalidArgumentException('session_id missing');
+        $sid = $data['session_id'] ?? throw new InvalidRequestException('session_id missing');
         $caps = $data['capabilities'] ?? [];
         if (!\is_array($caps)) {
-            throw new InvalidArgumentException('capabilities must be object');
+            throw new InvalidRequestException('capabilities must be object');
         }
         /** @var array<string, mixed> $caps */
         return new self(
@@ -67,7 +67,7 @@ final readonly class SessionAccepted extends MessageType
             return null;
         }
         if (!\is_array($data['runtime'])) {
-            throw new InvalidArgumentException('runtime must be object');
+            throw new InvalidRequestException('runtime must be object');
         }
         /** @var array<string, mixed> $runtimeData */
         $runtimeData = $data['runtime'];
@@ -81,11 +81,11 @@ final readonly class SessionAccepted extends MessageType
             return null;
         }
         if (!\is_array($data['lease']) || !isset($data['lease']['expires_at'])) {
-            throw new InvalidArgumentException('lease.expires_at missing');
+            throw new InvalidRequestException('lease.expires_at missing');
         }
         $expStr = $data['lease']['expires_at'];
         if (!\is_string($expStr)) {
-            throw new InvalidArgumentException('lease.expires_at must be string');
+            throw new InvalidRequestException('lease.expires_at must be string');
         }
         return new \DateTimeImmutable($expStr);
     }

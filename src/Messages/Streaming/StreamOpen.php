@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Messages\Streaming;
 
 use Arcp\Envelope\MessageType;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 
 /** RFC §11.1 — declare a new stream. */
 final readonly class StreamOpen extends MessageType
@@ -39,9 +39,9 @@ final readonly class StreamOpen extends MessageType
     #[\Override]
     public static function fromArray(array $data): static
     {
-        $kind = $data['kind'] ?? throw new InvalidArgumentException('kind missing');
+        $kind = $data['kind'] ?? throw new InvalidRequestException('kind missing');
         if (!\is_string($kind)) {
-            throw new InvalidArgumentException('kind must be string');
+            throw new InvalidRequestException('kind must be string');
         }
         $contentType = null;
         if (isset($data['content_type']) && \is_string($data['content_type'])) {

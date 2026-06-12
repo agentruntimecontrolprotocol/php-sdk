@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Messages\Control;
 
 use Arcp\Envelope\MessageType;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 
 /** RFC §10.5 — pause a running job and request human guidance. */
 final readonly class Interrupt extends MessageType
@@ -16,10 +16,10 @@ final readonly class Interrupt extends MessageType
         public string $prompt = '',
     ) {
         if ($target === '') {
-            throw new InvalidArgumentException('interrupt.target missing');
+            throw new InvalidRequestException('interrupt.target missing');
         }
         if ($targetId === '') {
-            throw new InvalidArgumentException('interrupt.target_id missing');
+            throw new InvalidRequestException('interrupt.target_id missing');
         }
     }
 
@@ -42,10 +42,10 @@ final readonly class Interrupt extends MessageType
     #[\Override]
     public static function fromArray(array $data): static
     {
-        $target = $data['target'] ?? throw new InvalidArgumentException('target missing');
-        $tid = $data['target_id'] ?? throw new InvalidArgumentException('target_id missing');
+        $target = $data['target'] ?? throw new InvalidRequestException('target missing');
+        $tid = $data['target_id'] ?? throw new InvalidRequestException('target_id missing');
         if (!\is_string($target) || !\is_string($tid)) {
-            throw new InvalidArgumentException('target/target_id must be strings');
+            throw new InvalidRequestException('target/target_id must be strings');
         }
         $prompt = '';
         if (isset($data['prompt']) && \is_string($data['prompt'])) {

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Messages\Telemetry;
 
 use Arcp\Envelope\MessageType;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 
 /**
  * `event.emit` — generic typed event envelope (RFC §6.2).
@@ -25,7 +25,7 @@ final readonly class EventEmit extends MessageType
         public array $attributes = [],
     ) {
         if ($eventType === '') {
-            throw new InvalidArgumentException('event.emit type must be non-empty');
+            throw new InvalidRequestException('event.emit type must be non-empty');
         }
     }
 
@@ -39,14 +39,14 @@ final readonly class EventEmit extends MessageType
     public static function fromArray(array $data): static
     {
         $eventType = $data['type']
-            ?? throw new InvalidArgumentException('event.emit payload.type missing');
+            ?? throw new InvalidRequestException('event.emit payload.type missing');
         if (!\is_string($eventType)) {
-            throw new InvalidArgumentException('event.emit payload.type must be string');
+            throw new InvalidRequestException('event.emit payload.type must be string');
         }
         $attributes = [];
         if (isset($data['attributes'])) {
             if (!\is_array($data['attributes'])) {
-                throw new InvalidArgumentException('event.emit payload.attributes must be object');
+                throw new InvalidRequestException('event.emit payload.attributes must be object');
             }
             /** @var EventBody $attributes */
             $attributes = $data['attributes'];

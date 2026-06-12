@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Messages\Subscriptions;
 
 use Arcp\Envelope\MessageType;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 
 /** RFC §13.1 — open a subscription. */
 final readonly class Subscribe extends MessageType
@@ -41,7 +41,7 @@ final readonly class Subscribe extends MessageType
     {
         $filter = $data['filter'] ?? [];
         if (!\is_array($filter)) {
-            throw new InvalidArgumentException('filter must be object');
+            throw new InvalidRequestException('filter must be object');
         }
         $since = null;
         if (
@@ -51,7 +51,7 @@ final readonly class Subscribe extends MessageType
         ) {
             $sm = $data['since']['after_message_id'];
             if (!\is_string($sm)) {
-                throw new InvalidArgumentException('since.after_message_id must be string');
+                throw new InvalidRequestException('since.after_message_id must be string');
             }
             $since = $sm;
         }

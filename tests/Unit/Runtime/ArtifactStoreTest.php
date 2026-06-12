@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Tests\Unit\Runtime;
 
 use Arcp\Clock\FakeClock;
-use Arcp\Errors\NotFoundException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Ids\SessionId;
 use Arcp\Runtime\ArtifactBlob;
 use Arcp\Runtime\ArtifactStore;
@@ -37,12 +37,12 @@ final class ArtifactStoreTest extends TestCase
         $clock->advance(20);
         try {
             $store->ref($ref->artifactId, $session);
-            self::fail('expected NotFoundException for expired artifact');
-        } catch (NotFoundException) {
+            self::fail('expected InvalidRequestException for expired artifact');
+        } catch (InvalidRequestException) {
             // ref() must agree with fetch() and drop the expired row (#79).
         }
         // The expired row is gone, so a subsequent lookup is also a miss.
-        $this->expectException(NotFoundException::class);
+        $this->expectException(InvalidRequestException::class);
         $store->ref($ref->artifactId, $session);
     }
 }

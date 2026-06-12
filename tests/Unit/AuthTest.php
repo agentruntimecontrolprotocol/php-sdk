@@ -8,8 +8,8 @@ use Arcp\Auth\AuthRouter;
 use Arcp\Auth\BearerAuth;
 use Arcp\Auth\JwtAuth;
 use Arcp\Auth\NoneAuth;
-use Arcp\Errors\InvalidArgumentException;
-use Arcp\Errors\UnimplementedException;
+use Arcp\Errors\InvalidRequestException;
+use Arcp\Errors\UnauthenticatedException;
 use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\PeerInfo;
 use Firebase\JWT\JWT;
@@ -149,10 +149,10 @@ final class AuthTest extends TestCase
         self::assertTrue($r->accepted);
     }
 
-    public function testRouterRaisesUnimplementedForReservedSchemes(): void
+    public function testRouterRaisesUnauthenticatedForReservedSchemes(): void
     {
         $router = new AuthRouter([new NoneAuth()]);
-        $this->expectException(UnimplementedException::class);
+        $this->expectException(UnauthenticatedException::class);
         $router->verify(new Auth('mtls'), new PeerInfo('c', '0'));
     }
 
@@ -180,7 +180,7 @@ final class AuthTest extends TestCase
 
     public function testAuthRequiresScheme(): void
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(InvalidRequestException::class);
         new Auth('');
     }
 }

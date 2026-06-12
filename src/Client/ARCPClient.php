@@ -15,9 +15,8 @@ use Arcp\Clock\SystemClock;
 use Arcp\Envelope\Envelope;
 use Arcp\Envelope\MessageCatalog;
 use Arcp\Envelope\MessageTypeRegistry;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 use Arcp\Errors\TransportClosedException;
-use Arcp\Errors\UnimplementedException;
 use Arcp\Ids\ArtifactId;
 use Arcp\Ids\IdempotencyKey;
 use Arcp\Ids\JobId;
@@ -146,7 +145,7 @@ final class ARCPClient
      * Send `session.open`, await `session.accepted`, and start the read-loop.
      *
      * @throws \Arcp\Errors\UnauthenticatedException when the runtime rejects credentials.
-     * @throws \Arcp\Errors\UnimplementedException for capability mismatches.
+     * @throws \Arcp\Errors\InvalidRequestException for capability mismatches.
      * @throws \Arcp\Errors\ARCPExceptionInterface for other handshake errors.
      * @throws \Arcp\Errors\TransportClosedException if the transport drops.
      *
@@ -180,11 +179,11 @@ final class ARCPClient
      *
      * @throws \Arcp\Errors\ARCPExceptionInterface mapped from `tool.error`
      *                                             or correlated `nack` (e.g. `PermissionDeniedException`,
-     *                                             `BudgetExhaustedException`, `NotFoundException`).
-     * @throws \Arcp\Errors\DeadlineExceededException when `deadlineSeconds`
+     *                                             `BudgetExhaustedException`, `JobNotFoundException`).
+     * @throws \Arcp\Errors\TimeoutException when `deadlineSeconds`
      *                                                elapses before a terminal response arrives.
      * @throws \Arcp\Errors\CancelledException when `$cancellation` fires.
-     * @throws InvalidArgumentException for unexpected response shapes.
+     * @throws InvalidRequestException for unexpected response shapes.
      *
      * @size-check-suppress public BC; tool.invoke options are RFC §10 wire fields.
      */
@@ -214,7 +213,7 @@ final class ARCPClient
             throw $this->errorMapper->raise($response->error);
         }
         if (!$response instanceof ToolResult) {
-            throw new InvalidArgumentException('unexpected terminal: ' . $response::class);
+            throw new InvalidRequestException('unexpected terminal: ' . $response::class);
         }
         return $response;
     }
@@ -228,7 +227,7 @@ final class ARCPClient
      * @throws \Arcp\Errors\PermissionDeniedException when the filter
      *                                                crosses session-scope boundaries.
      * @throws \Arcp\Errors\ARCPExceptionInterface for other runtime errors.
-     * @throws InvalidArgumentException for unexpected response shapes.
+     * @throws InvalidRequestException for unexpected response shapes.
      *
      * @size-check-suppress public BC; subscribe is the RFC §13 entry-point.
      */
@@ -251,7 +250,7 @@ final class ARCPClient
             throw $this->errorMapper->raise($response->error);
         }
         if (!$response instanceof SubscribeAccepted) {
-            throw new InvalidArgumentException('expected subscribe.accepted');
+            throw new InvalidRequestException('expected subscribe.accepted');
         }
         $this->router->registerSubscriber($response->subscriptionId, $onEvent);
         return $response->subscriptionId;
@@ -277,7 +276,7 @@ final class ARCPClient
      *
      * @throws \Arcp\Errors\ARCPExceptionInterface for runtime errors mapped
      *                                             from a correlated `nack`.
-     * @throws InvalidArgumentException for unexpected response shapes.
+     * @throws InvalidRequestException for unexpected response shapes.
      */
     public function listJobs(
         array $filter = [],
@@ -298,7 +297,7 @@ final class ARCPClient
             throw $this->errorMapper->raise($response->error);
         }
         if (!$response instanceof Jobs) {
-            throw new InvalidArgumentException('expected session.jobs');
+            throw new InvalidRequestException('expected session.jobs');
         }
         return $response;
     }
@@ -322,7 +321,7 @@ final class ARCPClient
      *
      * @throws \Arcp\Errors\ARCPExceptionInterface when the runtime
      *                                             returns a Nack instead of a Pong.
-     * @throws InvalidArgumentException for an unexpected response type.
+     * @throws InvalidRequestException for an unexpected response type.
      */
     public function ping(?string $nonce = null, float $deadlineSeconds = 5.0): Pong
     {
@@ -339,7 +338,7 @@ final class ARCPClient
             throw $this->errorMapper->raise($resp->error);
         }
         if (!$resp instanceof Pong) {
-            throw new InvalidArgumentException('expected pong as ping response');
+            throw new InvalidRequestException('expected pong as ping response');
         }
         return $resp;
     }
@@ -351,7 +350,7 @@ final class ARCPClient
      *                            When supplied, the runtime rejects the upload if the digest does
      *                            not match the decoded payload.
      *
-     * @throws \Arcp\Errors\InvalidArgumentException on digest mismatch or
+     * @throws \Arcp\Errors\InvalidRequestException on digest mismatch or
      *                                               malformed payload.
      * @throws \Arcp\Errors\ARCPExceptionInterface on other runtime errors.
      */
@@ -374,7 +373,7 @@ final class ARCPClient
             throw $this->errorMapper->raise($resp->error);
         }
         if (!$resp instanceof ArtifactRef) {
-            throw new InvalidArgumentException('expected artifact.ref as put response');
+            throw new InvalidRequestException('expected artifact.ref as put response');
         }
         return $resp;
     }
@@ -383,10 +382,10 @@ final class ARCPClient
      * Fetch the bytes of an artifact owned by this session.
      *
      * @throws \Arcp\Errors\PermissionDeniedException for cross-session ids.
-     * @throws \Arcp\Errors\NotFoundException if the artifact is unknown
-     *                                        or has expired.
+     * @throws \Arcp\Errors\InvalidRequestException if the artifact is
+     *                                              unknown or has expired.
      * @throws \Arcp\Errors\ARCPExceptionInterface for other runtime errors.
-     * @throws InvalidArgumentException for malformed payload or response.
+     * @throws InvalidRequestException for malformed payload or response.
      */
     public function fetchArtifact(ArtifactId $artifactId): string
     {
@@ -403,12 +402,12 @@ final class ARCPClient
             throw $this->errorMapper->raise($resp->error);
         }
         if (!$resp instanceof ArtifactPut) {
-            throw new InvalidArgumentException('expected artifact.put as fetch response');
+            throw new InvalidRequestException('expected artifact.put as fetch response');
         }
         $bytes = base64_decode($resp->data, strict: true);
         return $bytes !== false
             ? $bytes
-            : throw new InvalidArgumentException('artifact data not base64');
+            : throw new InvalidRequestException('artifact data not base64');
     }
 
     /**
@@ -434,7 +433,7 @@ final class ARCPClient
             throw $this->errorMapper->raise($resp->error);
         }
         if (!$resp instanceof Ack) {
-            throw new InvalidArgumentException('expected ack as artifact.release response');
+            throw new InvalidRequestException('expected ack as artifact.release response');
         }
         return $resp->note === 'released';
     }
@@ -494,7 +493,7 @@ final class ARCPClient
         } catch (TransportClosedException $e) {
             $this->logger->warning('client read-loop ended', ['error' => $e->getMessage()]);
             return false;
-        } catch (InvalidArgumentException | UnimplementedException $e) {
+        } catch (InvalidRequestException $e) {
             $this->logger->warning('client dropped undecodable frame', ['error' => $e->getMessage()]);
             return true;
         }

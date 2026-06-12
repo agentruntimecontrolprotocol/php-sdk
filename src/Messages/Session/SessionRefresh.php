@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Arcp\Messages\Session;
 
 use Arcp\Envelope\MessageType;
-use Arcp\Errors\InvalidArgumentException;
+use Arcp\Errors\InvalidRequestException;
 
 /** RFC §8.4 — runtime requests fresh credentials. */
 final readonly class SessionRefresh extends MessageType
@@ -35,14 +35,14 @@ final readonly class SessionRefresh extends MessageType
     #[\Override]
     public static function fromArray(array $data): static
     {
-        $deadline = $data['deadline'] ?? throw new InvalidArgumentException('deadline missing');
+        $deadline = $data['deadline'] ?? throw new InvalidRequestException('deadline missing');
         if (!\is_string($deadline)) {
-            throw new InvalidArgumentException('deadline must be string');
+            throw new InvalidRequestException('deadline must be string');
         }
         $reason = null;
         if (isset($data['reason'])) {
             if (!\is_string($data['reason'])) {
-                throw new InvalidArgumentException('reason must be string');
+                throw new InvalidRequestException('reason must be string');
             }
             $reason = $data['reason'];
         }
