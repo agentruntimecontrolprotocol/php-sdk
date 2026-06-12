@@ -22,8 +22,10 @@ interface Transport
      *
      * @throws \Arcp\Errors\TransportClosedException when the transport is
      *                                               no longer writable.
-     * @throws \Amp\CancelledException when `$cancellation` fires before
-     *                                 the write completes.
+     *
+     * Implementations MAY honor `$cancellation` and throw
+     * `\Amp\CancelledException` if it fires before the write completes; the
+     * bundled transports complete writes synchronously and do not.
      */
     public function send(Envelope $env, ?Cancellation $cancellation = null): void;
 

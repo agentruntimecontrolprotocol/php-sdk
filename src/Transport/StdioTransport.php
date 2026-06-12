@@ -96,9 +96,9 @@ final class StdioTransport implements Transport
 
     /**
      * Decode and return any unterminated frame still in the buffer at EOF.
-     * A strict-NDJSON peer that closes its stream without a final newline
-     * would otherwise lose its last envelope (typically tool.result or
-     * session.close).
+     * Tolerate non-conforming peers that close without a trailing newline;
+     * their last envelope (typically tool.result or session.close) would
+     * otherwise be lost.
      */
     private function drainResidualBuffer(): ?Envelope
     {

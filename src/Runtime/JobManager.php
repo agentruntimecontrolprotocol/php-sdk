@@ -15,8 +15,9 @@ use Arcp\Messages\Permissions\LeaseGranted;
 
 /**
  * Tracks in-flight jobs and drives the state machine (RFC §10.2). Each
- * job runs in its own fiber via {@see async()}; cancellation is
- * cooperative through the per-job {@see DeferredCancellation}.
+ * job runs in its own fiber spawned by
+ * {@see \Arcp\Internal\Runtime\ToolInvocationHandler} via `Amp\async()`;
+ * cancellation is cooperative through the per-job {@see DeferredCancellation}.
  */
 final class JobManager
 {

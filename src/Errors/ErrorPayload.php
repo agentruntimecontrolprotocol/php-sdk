@@ -11,8 +11,9 @@ use Arcp\Ids\TraceId;
  *
  * Codes are wire strings — canonical RFC names, namespaced extension
  * codes (e.g. `arcpx.acme.QUOTA_EXCEEDED`), or aliases like `RATE_LIMITED`.
- * Use {@see canonical()} to map to the {@see ErrorCode} enum where one
- * exists; non-canonical codes return `null`.
+ * {@see canonical()} maps aliases to their canonical code
+ * (e.g. `RATE_LIMITED` → `RESOURCE_EXHAUSTED`); namespaced/extension codes
+ * with no enum equivalent return `null`.
  *
  * @phpstan-type ErrorDetails array<string, mixed>
  */

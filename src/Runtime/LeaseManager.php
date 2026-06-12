@@ -96,6 +96,12 @@ final class LeaseManager
         return $lease;
     }
 
+    /**
+     * Replace a lease's `expires_at` with `$newExpiresAt`, preserving the
+     * existing `modelUse` and `costBudget` (including any already-consumed
+     * budget) verbatim. Consumers that need fresh counters must register a
+     * new lease rather than extend an existing one.
+     */
     public function extend(LeaseId $id, \DateTimeImmutable $newExpiresAt): LeaseGranted
     {
         $lease = $this->get($id);

@@ -9,9 +9,10 @@ namespace Arcp\Errors;
  *
  * Implementations MUST use these codes when applicable; deployment-specific
  * codes MUST be namespaced (e.g. `arcpx.acme.QUOTA_EXCEEDED`) and travel
- * over the wire as their literal string. The {@see ErrorCode::tryFromWire()}
- * factory accepts arbitrary strings so peers can carry namespaced codes
- * even though the enum only covers the canonical set.
+ * over the wire as their literal string. Use {@see ErrorCode::tryFrom()} for
+ * an exact enum match, or {@see \Arcp\Errors\ErrorPayload::canonical()} which
+ * also resolves aliases (e.g. `RATE_LIMITED` → `RESOURCE_EXHAUSTED`) and
+ * returns null for namespaced/extension codes the enum does not cover.
  */
 enum ErrorCode: string
 {

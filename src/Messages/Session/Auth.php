@@ -7,11 +7,13 @@ namespace Arcp\Messages\Session;
 use Arcp\Errors\InvalidArgumentException;
 
 /**
- * Auth credential block carried by `session.open` (RFC §8.2).
+ * Auth credential block carried by the session handshake (RFC §8.2).
  *
- * Schemes recognized in v0.1: `bearer`, `signed_jwt`, `none`.
- * `mtls` and `oauth2` are accepted on the wire but the runtime will
- * reject them with `UNIMPLEMENTED` until v0.2.
+ * This DTO accepts any non-empty scheme string; it does not enforce an
+ * allow-list. The runtime decides which schemes are honored via its
+ * configured {@see \Arcp\Auth\AuthRouter} (e.g. `bearer`, `signed_jwt`,
+ * `none`), and rejects reserved-but-unimplemented schemes such as `mtls`
+ * and `oauth2` with `UNIMPLEMENTED`.
  */
 final readonly class Auth
 {

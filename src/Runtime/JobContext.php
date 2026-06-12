@@ -193,15 +193,16 @@ final class JobContext
     }
 
     /**
-     * Ask the human a free-form question and return the validated value.
-     * RFC §12.1 — runtime moves the job to `blocked` while waiting.
+     * Ask the human a free-form question and return the validated value
+     * (RFC §12.1). Blocks the calling fiber until a response, the deadline,
+     * or cancellation; it does not mutate the job's tracked state.
      *
      * @param array<string, mixed> $responseSchema
      * @param array<string, mixed>|null $default
      *
      * @throws \Arcp\Errors\DeadlineExceededException when `$expiresAt`
      *                                                elapses without a response and no `$default` is provided.
-     * @throws \Arcp\Errors\CancelledException when `$cancellation` fires.
+     * @throws \Amp\CancelledException when `$cancellation` fires.
      *
      * @size-check-suppress public BC; mirrors RFC §12.1 human.input.request.
      */
@@ -244,7 +245,7 @@ final class JobContext
      *
      * @throws \Arcp\Errors\DeadlineExceededException when `$expiresAt`
      *                                                elapses before a choice arrives.
-     * @throws \Arcp\Errors\CancelledException when `$cancellation` fires.
+     * @throws \Amp\CancelledException when `$cancellation` fires.
      *
      * @size-check-suppress public BC; mirrors RFC §12.1 human.choice.request.
      */
@@ -274,7 +275,7 @@ final class JobContext
      *                                                denies the permission request.
      * @throws \Arcp\Errors\DeadlineExceededException when the request
      *                                                times out before any decision arrives.
-     * @throws \Arcp\Errors\CancelledException when `$cancellation` fires.
+     * @throws \Amp\CancelledException when `$cancellation` fires.
      *
      * @size-check-suppress public BC; protocol-level permission request fields.
      */
@@ -365,9 +366,10 @@ final class JobContext
     }
 
     /**
-     * Emit `job.heartbeat` (RFC §10.3). The runtime expects callers to
-     * heartbeat at least every `heartbeat_interval_seconds`; the deadline
-     * defaults to twice the interval so a single drop is forgiven.
+     * Emit a `job.heartbeat` event (RFC §10.3) carrying a monotonically
+     * increasing sequence, the caller-supplied `$deadlineMs` liveness hint,
+     * and the reported `$state`. This method does not itself enforce any
+     * interval; it is a no-op if the job is no longer tracked.
      */
     public function heartbeat(int $deadlineMs = 60000, string $state = 'running'): void
     {

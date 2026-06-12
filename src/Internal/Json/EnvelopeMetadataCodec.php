@@ -19,9 +19,8 @@ use Arcp\Ids\TraceId;
 
 /**
  * Pure functions for shuffling envelope metadata between {@see Envelope}
- * instances and their RFC §6.1 array shape. Extracted from
- * {@see \Arcp\Json\EnvelopeSerializer} to keep that class under the
- * 300-line hard limit; carries no state of its own.
+ * instances and their RFC §6.1 array shape. Extracted so the envelope
+ * serializer stays focused on payload dispatch; carries no state of its own.
  *
  * @internal
  */
