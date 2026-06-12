@@ -6,10 +6,10 @@ declare(strict_types=1);
 /*
  * arcp — CLI entry point (RFC §22 transports + Phase 7 commands).
  *
- *  arcp serve  ws://host:port    Run an empty runtime accepting connections.
- *  arcp tail   <session-id>      Subscribe to all events from a session.
- *  arcp send   <type> --payload  Send a single envelope and print the reply.
- *  arcp replay <after-id>        Replay an event log file from a message id.
+ *  arcp serve  --host H --port P            Run a runtime accepting WebSocket connections.
+ *  arcp tail   <ws-uri>                     Subscribe to a runtime and print every envelope.
+ *  arcp send   <ws-uri> <tool> --arguments '<json>'  Invoke a tool and print the reply.
+ *  arcp replay <db-path> --after <message-id>         Replay an event log database.
  *
  * Production deployments should subclass these commands with real auth
  * configuration; the defaults assume `none` (anonymous) for development.
