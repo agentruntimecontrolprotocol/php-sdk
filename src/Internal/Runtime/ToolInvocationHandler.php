@@ -190,7 +190,9 @@ final readonly class ToolInvocationHandler
         } catch (ARCPException $e) {
             $this->failJob($spec, ErrorPayload::fromException($e));
         } catch (\Throwable $e) {
-            $this->failJob($spec, new ErrorPayload('INTERNAL', $e->getMessage()));
+            // §12: INTERNAL is always retryable — flag it explicitly so the
+            // wire shape is correct and the idempotency key is not consumed.
+            $this->failJob($spec, new ErrorPayload('INTERNAL', $e->getMessage(), true));
         }
     }
 
@@ -258,10 +260,13 @@ final readonly class ToolInvocationHandler
         ]);
         $this->credentials->revoke($job);
         // Retryable failures intentionally do not consume the idempotency
-        // key — the client is expected to retry. Non-retryable failures
-        // (including the default `null` case) are part of the recorded
-        // outcome and must replay identically on duplicate submission.
-        if ($payload->retryable !== true) {
+        // key — the client is expected to retry. When `retryable` is unset
+        // we fall back to the canonical default for the code (§12), so a
+        // crash mapped to a retryable code (e.g. INTERNAL) is not recorded
+        // as the permanent idempotent outcome.
+        $effectiveRetryable = $payload->retryable
+            ?? ($payload->canonical()?->defaultRetryable() ?? false);
+        if (!$effectiveRetryable) {
             $this->rememberIdempotent($session, $env, (string) $outcomeId);
         }
     }
