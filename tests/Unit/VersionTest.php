@@ -16,7 +16,7 @@ final class VersionTest extends TestCase
 
     public function testImplKindIsStable(): void
     {
-        self::assertSame('arcp-php', Version::IMPL_KIND);
+        self::assertSame('arcp-php', Version::IMPL_NAME);
     }
 
     public function testImplVersionIsSemverLike(): void

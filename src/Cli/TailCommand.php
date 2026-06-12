@@ -57,9 +57,9 @@ final class TailCommand extends Command
 
         $client = new ARCPClient($transport);
         $client->open(
-            Auth::none(),
+            Auth::anonymous(),
             new PeerInfo('arcp-tail', Version::IMPL_VERSION),
-            new Capabilities(subscriptions: true, anonymous: true, features: ['subscribe']),
+            new Capabilities(features: ['subscribe']),
         );
 
         $rawJobId = $input->getArgument('job-id');

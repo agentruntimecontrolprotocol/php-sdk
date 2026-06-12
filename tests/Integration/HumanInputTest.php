@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Arcp\Tests\Integration;
 
 use Amp\Cancellation;
+use Arcp\Auth\AnonymousAuth;
 use Arcp\Auth\AuthRouter;
-use Arcp\Auth\NoneAuth;
 use Arcp\Client\ARCPClient;
 use Arcp\Client\Handlers\CallbackHumanInputHandler;
 use Arcp\Messages\Human\HumanChoiceRequest;
@@ -26,7 +26,7 @@ final class HumanInputTest extends TestCase
 {
     public function testHumanInputRoundTrips(): void
     {
-        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
+        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new AnonymousAuth()]));
         $runtime->registerTool('ask', new class () implements ToolHandler {
             #[\Override]
             public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
@@ -52,7 +52,7 @@ final class HumanInputTest extends TestCase
                 onChoice: fn (HumanChoiceRequest $r): HumanChoiceResponse => new HumanChoiceResponse('first'),
             ),
         );
-        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(humanInput: true, anonymous: true));
+        $client->open(Auth::anonymous(), new PeerInfo('cli', '0.1'), new Capabilities());
         $result = $client->invokeTool('ask');
         self::assertSame(['chosen' => ['branch' => 'fix/jwt']], $result->result);
 
@@ -62,7 +62,7 @@ final class HumanInputTest extends TestCase
 
     public function testHumanChoiceRoundTrips(): void
     {
-        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
+        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new AnonymousAuth()]));
         $runtime->registerTool('pick', new class () implements ToolHandler {
             #[\Override]
             public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
@@ -84,7 +84,7 @@ final class HumanInputTest extends TestCase
                 onChoice: fn (HumanChoiceRequest $r): HumanChoiceResponse => new HumanChoiceResponse('b', 'cli', new \DateTimeImmutable()),
             ),
         );
-        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(humanInput: true, anonymous: true));
+        $client->open(Auth::anonymous(), new PeerInfo('cli', '0.1'), new Capabilities());
         $result = $client->invokeTool('pick');
         self::assertSame(['chosen' => 'b'], $result->result);
 
@@ -96,7 +96,7 @@ final class HumanInputTest extends TestCase
     {
         // No human input handler on the client — request will time out;
         // runtime synthesizes a default response.
-        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
+        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new AnonymousAuth()]));
         $runtime->registerTool('ask', new class () implements ToolHandler {
             #[\Override]
             public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
@@ -113,7 +113,7 @@ final class HumanInputTest extends TestCase
         [$serverT, $clientT] = MemoryTransport::pair();
         $serverFuture = $runtime->serveAsync($serverT);
         $client = new ARCPClient($clientT);  // no handler
-        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(anonymous: true));
+        $client->open(Auth::anonymous(), new PeerInfo('cli', '0.1'), new Capabilities());
 
         $result = $client->invokeTool('ask', deadlineSeconds: 5.0);
         self::assertSame(['chosen' => ['used' => 'fallback']], $result->result);

@@ -19,8 +19,8 @@ use Amp\Websocket\Server\Rfc6455Acceptor;
 use Amp\Websocket\Server\Websocket;
 use Amp\Websocket\Server\WebsocketClientHandler;
 use Amp\Websocket\WebsocketClient;
+use Arcp\Auth\AnonymousAuth;
 use Arcp\Auth\AuthRouter;
-use Arcp\Auth\NoneAuth;
 use Arcp\Client\ARCPClient;
 use Arcp\Client\Handlers\CallbackHumanInputHandler;
 use Arcp\Json\EnvelopeSerializer;
@@ -128,7 +128,7 @@ final class RelayScenarioTest extends TestCase
 
     private static function buildRuntime(): ARCPRuntime
     {
-        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
+        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new AnonymousAuth()]));
         $runtime->registerTool('handle_failed_tests', new class () implements ToolHandler {
             #[\Override]
             public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
@@ -162,7 +162,7 @@ final class RelayScenarioTest extends TestCase
             onChoice: fn (HumanChoiceRequest $r): HumanChoiceResponse => new HumanChoiceResponse('fix', 'relay:slack', new \DateTimeImmutable()),
         );
         $client = new ARCPClient($clientT, humanInputHandler: $relay);
-        $client->open(Auth::none(), new PeerInfo('e2e', '0.1'), new Capabilities(humanInput: true, anonymous: true));
+        $client->open(Auth::anonymous(), new PeerInfo('e2e', '0.1'), new Capabilities());
 
         $result = $client->invokeTool('handle_failed_tests');
         self::assertIsArray($result->result);

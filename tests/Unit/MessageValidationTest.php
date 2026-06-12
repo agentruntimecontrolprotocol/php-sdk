@@ -152,7 +152,7 @@ final class MessageValidationTest extends TestCase
         self::assertEquals($p, $back);
     }
 
-    public function testPeerInfoRequiresKindAndVersion(): void
+    public function testPeerInfoRequiresNameAndVersion(): void
     {
         $this->expectException(InvalidRequestException::class);
         new PeerInfo('', '0.1');
@@ -161,6 +161,6 @@ final class MessageValidationTest extends TestCase
     public function testPeerInfoFromArrayRejectsMissing(): void
     {
         $this->expectException(InvalidRequestException::class);
-        PeerInfo::fromArray(['kind' => 'cli']);
+        PeerInfo::fromArray(['name' => 'cli']);
     }
 }

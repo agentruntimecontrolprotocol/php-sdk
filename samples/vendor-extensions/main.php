@@ -28,9 +28,14 @@ function main(): void
     $client = elided();
 
     // If the runtime didn't advertise our required extension set,
-    // refuse the session — RFC §7 / §21.2.
+    // refuse the session — extension namespaces ride as a
+    // vendor-namespaced capability key (§6.2 `extra` passthrough).
     $caps = $client->session->capabilities;
-    $advertised = $caps !== null ? $caps->extensions : [];
+    $advertisedRaw = $caps !== null ? ($caps->extra['arcpx.extensions.v1'] ?? []) : [];
+    $advertised = array_values(array_filter(
+        is_array($advertisedRaw) ? $advertisedRaw : [],
+        static fn (mixed $ext): bool => is_string($ext),
+    ));
     $missing = array_diff(ALL_EXTENSIONS, $advertised);
     if ($missing !== []) {
         throw new InvalidRequestException('runtime missing SDR extensions: ' . implode(',', $missing));

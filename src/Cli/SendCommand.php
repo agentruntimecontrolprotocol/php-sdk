@@ -62,9 +62,9 @@ final class SendCommand extends Command
 
         $client = new ARCPClient($transport);
         $client->open(
-            Auth::none(),
+            Auth::anonymous(),
             new PeerInfo('arcp-send', Version::IMPL_VERSION),
-            new Capabilities(anonymous: true),
+            new Capabilities(),
         );
 
         $result = $client->invokeTool($tool, $args);

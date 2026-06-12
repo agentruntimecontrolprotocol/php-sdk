@@ -5,10 +5,9 @@ declare(strict_types=1);
 namespace Arcp\Tests\Unit\Internal\Runtime;
 
 use Amp\Cancellation;
+use Arcp\Auth\AnonymousAuth;
 use Arcp\Auth\AuthRouter;
-use Arcp\Auth\NoneAuth;
 use Arcp\Client\ARCPClient;
-use Arcp\Errors\InvalidRequestException;
 use Arcp\Errors\UnauthenticatedException;
 use Arcp\Ids\IdempotencyKey;
 use Arcp\Messages\Session\Auth;
@@ -22,53 +21,49 @@ use PHPUnit\Framework\TestCase;
 
 final class HandshakeNegotiatorTest extends TestCase
 {
-    public function testAgentHandoffCapabilityMismatchRejected(): void
+    public function testUnbackedFeatureIsIntersectedAway(): void
     {
+        // §6.2: the effective feature set is the intersection of hello and
+        // welcome features. Requesting a feature the runtime does not back
+        // is not an error; it is simply absent from the welcome.
         $runtime = new ARCPRuntime();
         [$serverT, $clientT] = MemoryTransport::pair();
         $serverFuture = $runtime->serveAsync($serverT);
 
         $client = new ARCPClient($clientT);
-        try {
-            $client->open(
-                Auth::none(),
-                new PeerInfo('cli', '0.1'),
-                new Capabilities(agentHandoff: true, anonymous: true),
-            );
-            self::fail('expected InvalidRequestException');
-        } catch (InvalidRequestException $e) {
-            self::assertStringContainsString('agent_handoff', $e->getMessage());
-        } finally {
-            $client->close();
-            $serverFuture->await();
-        }
+        $accepted = $client->open(
+            Auth::anonymous(),
+            new PeerInfo('cli', '0.1'),
+            new Capabilities(features: ['heartbeat', 'checkpoints', 'agent_handoff']),
+        );
+        self::assertSame(['heartbeat'], $accepted->capabilities->features);
+
+        $client->close();
+        $serverFuture->await();
     }
 
-    public function testCheckpointsCapabilityMismatchRejected(): void
+    public function testEncodingsIntersected(): void
     {
         $runtime = new ARCPRuntime();
         [$serverT, $clientT] = MemoryTransport::pair();
         $serverFuture = $runtime->serveAsync($serverT);
 
         $client = new ARCPClient($clientT);
-        try {
-            $client->open(
-                Auth::none(),
-                new PeerInfo('cli', '0.1'),
-                new Capabilities(checkpoints: true, anonymous: true),
-            );
-            self::fail('expected InvalidRequestException');
-        } catch (InvalidRequestException $e) {
-            self::assertStringContainsString('checkpoints', $e->getMessage());
-        } finally {
-            $client->close();
-            $serverFuture->await();
-        }
+        $accepted = $client->open(
+            Auth::anonymous(),
+            new PeerInfo('cli', '0.1'),
+            new Capabilities(encodings: ['json', 'cbor']),
+        );
+        self::assertSame(['json'], $accepted->capabilities->encodings);
+
+        $client->close();
+        $serverFuture->await();
     }
 
-    public function testNoAuthRouterNonAnonymousIsUnauthenticated(): void
+    public function testNoAuthRouterBearerIsUnauthenticated(): void
     {
-        // No auth router; non-anonymous request with `none` scheme.
+        // No auth router: there is nothing to verify a bearer token
+        // against, so bearer hellos are rejected UNAUTHENTICATED (§6.1).
         $runtime = new ARCPRuntime();
         [$serverT, $clientT] = MemoryTransport::pair();
         $serverFuture = $runtime->serveAsync($serverT);
@@ -76,9 +71,9 @@ final class HandshakeNegotiatorTest extends TestCase
         $client = new ARCPClient($clientT);
         try {
             $client->open(
-                Auth::none(),
+                Auth::bearer('tok'),
                 new PeerInfo('cli', '0.1'),
-                new Capabilities(), // anonymous=false
+                new Capabilities(),
             );
             self::fail('expected UnauthenticatedException');
         } catch (UnauthenticatedException $e) {
@@ -89,18 +84,18 @@ final class HandshakeNegotiatorTest extends TestCase
         }
     }
 
-    public function testNoAuthRouterAnonymousNoneIsAccepted(): void
+    public function testNoAuthRouterAnonymousIsAccepted(): void
     {
-        // No auth router but client asks for anonymous + none scheme.
+        // No auth router but client uses the anonymous scheme.
         $runtime = new ARCPRuntime();
         [$serverT, $clientT] = MemoryTransport::pair();
         $serverFuture = $runtime->serveAsync($serverT);
 
         $client = new ARCPClient($clientT);
         $accepted = $client->open(
-            Auth::none(),
+            Auth::anonymous(),
             new PeerInfo('cli', '0.1', principal: 'p'),
-            new Capabilities(anonymous: true),
+            new Capabilities(),
         );
         self::assertNotEmpty((string) $accepted->sessionId);
 
@@ -135,8 +130,8 @@ final class HandshakeNegotiatorTest extends TestCase
         $futureB = $runtime->serveAsync($serverTB);
         $clientA = new ARCPClient($clientTA);
         $clientB = new ARCPClient($clientTB);
-        $clientA->open(Auth::none(), new PeerInfo('cli', '0.1', principal: 'alice'), new Capabilities(anonymous: true));
-        $clientB->open(Auth::none(), new PeerInfo('cli', '0.1', principal: 'alice'), new Capabilities(anonymous: true));
+        $clientA->open(Auth::anonymous(), new PeerInfo('cli', '0.1', principal: 'alice'), new Capabilities());
+        $clientB->open(Auth::anonymous(), new PeerInfo('cli', '0.1', principal: 'alice'), new Capabilities());
 
         $key = new IdempotencyKey('shared-key');
         $first = $clientA->invokeTool('once', [], idempotencyKey: $key);
@@ -151,34 +146,12 @@ final class HandshakeNegotiatorTest extends TestCase
         $futureB->await();
     }
 
-    public function testNonStringRequiredFeatureIsRejected(): void
-    {
-        $runtime = new ARCPRuntime();
-        [$serverT, $clientT] = MemoryTransport::pair();
-        $serverFuture = $runtime->serveAsync($serverT);
-
-        $client = new ARCPClient($clientT);
-        try {
-            $client->open(
-                Auth::none(),
-                new PeerInfo('cli', '0.1'),
-                new Capabilities(anonymous: true, extra: ['required_features' => [123]]),
-            );
-            self::fail('expected InvalidRequestException for non-string required feature');
-        } catch (InvalidRequestException $e) {
-            self::assertStringContainsString('required_features entry must be string', $e->getMessage());
-        } finally {
-            $client->close();
-            $serverFuture->await();
-        }
-    }
-
     public function testMtlsAuthRouterReturnsUnauthenticated(): void
     {
-        // AuthRouter does not register mtls scheme; mtls is reserved ->
-        // UNAUTHENTICATED (§12: missing or invalid authentication).
+        // §6.1 defines bearer (plus the SDK's anonymous extension);
+        // any other scheme -> UNAUTHENTICATED (§12).
         $runtime = new ARCPRuntime(
-            authRouter: new AuthRouter([new NoneAuth()]),
+            authRouter: new AuthRouter([new AnonymousAuth()]),
         );
         [$serverT, $clientT] = MemoryTransport::pair();
         $serverFuture = $runtime->serveAsync($serverT);
@@ -188,7 +161,7 @@ final class HandshakeNegotiatorTest extends TestCase
             $client->open(
                 new Auth('mtls'),
                 new PeerInfo('cli', '0.1'),
-                new Capabilities(anonymous: true),
+                new Capabilities(),
             );
             self::fail('expected UnauthenticatedException');
         } catch (UnauthenticatedException $e) {

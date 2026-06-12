@@ -6,8 +6,8 @@ namespace Arcp\Tests\Unit\Runtime;
 
 use Amp\Cancellation;
 use Amp\Future;
+use Arcp\Auth\AnonymousAuth;
 use Arcp\Auth\AuthRouter;
-use Arcp\Auth\NoneAuth;
 use Arcp\Client\ARCPClient;
 use Arcp\Messages\Artifacts\ArtifactRef;
 use Arcp\Messages\Session\Auth;
@@ -25,11 +25,11 @@ final class JobContextTest extends TestCase
     /** @return array{0: ARCPRuntime, 1: ARCPClient, 2: Future<mixed>} */
     private function pair(): array
     {
-        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
+        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new AnonymousAuth()]));
         [$serverT, $clientT] = MemoryTransport::pair();
         $serverFuture = $runtime->serveAsync($serverT);
         $client = new ARCPClient($clientT);
-        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(streaming: true, anonymous: true));
+        $client->open(Auth::anonymous(), new PeerInfo('cli', '0.1'), new Capabilities());
         return [$runtime, $client, $serverFuture];
     }
 

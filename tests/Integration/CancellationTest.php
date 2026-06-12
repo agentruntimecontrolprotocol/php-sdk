@@ -12,8 +12,8 @@ use Amp\DeferredFuture;
 use function Amp\delay;
 
 use Amp\NullCancellation;
+use Arcp\Auth\AnonymousAuth;
 use Arcp\Auth\AuthRouter;
-use Arcp\Auth\NoneAuth;
 use Arcp\Client\ARCPClient;
 use Arcp\Ids\JobId;
 use Arcp\Messages\Execution\JobResult;
@@ -32,7 +32,7 @@ final class CancellationTest extends TestCase
     {
         /** @var DeferredFuture<JobId> $started */
         $started = new DeferredFuture();
-        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
+        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new AnonymousAuth()]));
         $runtime->registerTool('block', new readonly class ($started) implements ToolHandler {
             /** @param DeferredFuture<JobId> $started */
             public function __construct(private DeferredFuture $started)
@@ -57,7 +57,7 @@ final class CancellationTest extends TestCase
         [$serverT, $clientT] = MemoryTransport::pair();
         $serverFuture = $runtime->serveAsync($serverT);
         $client = new ARCPClient($clientT);
-        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(anonymous: true));
+        $client->open(Auth::anonymous(), new PeerInfo('cli', '0.1'), new Capabilities());
 
         // Issue the tool invocation in a background fiber so we can cancel.
         $invocation = async(fn (): JobResult => $client->invokeTool('block'));

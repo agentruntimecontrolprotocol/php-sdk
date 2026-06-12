@@ -7,16 +7,23 @@ namespace Arcp\Messages\Session;
 use Arcp\Errors\InvalidRequestException;
 
 /**
- * Auth credential block carried by the session handshake (RFC §8.2).
+ * Auth credential block carried by `session.hello` (ARCP v1.1 §6.1).
  *
- * This DTO accepts any non-empty scheme string; it does not enforce an
- * allow-list. The runtime decides which schemes are honored via its
- * configured {@see \Arcp\Auth\AuthRouter} (e.g. `bearer`, `signed_jwt`,
- * `none`), and rejects reserved-but-unimplemented schemes such as `mtls`
- * and `oauth2` with `UNIMPLEMENTED`.
+ * §6.1 defines bearer-token authentication; this SDK additionally
+ * supports the `anonymous` scheme for development deployments without
+ * an auth router. Any other scheme is rejected by the runtime with
+ * `UNAUTHENTICATED` (§12). The DTO itself stays permissive so a
+ * malformed hello can be answered with the correct error code rather
+ * than failing decode.
  */
 final readonly class Auth
 {
+    /** Wire value of the §6.1 bearer-token scheme. */
+    public const string BEARER = 'bearer';
+
+    /** Wire value of the unauthenticated development scheme. */
+    public const string ANONYMOUS = 'anonymous';
+
     public function __construct(
         public string $scheme,
         public ?string $token = null,
@@ -28,17 +35,12 @@ final readonly class Auth
 
     public static function bearer(string $token): self
     {
-        return new self('bearer', $token);
+        return new self(self::BEARER, $token);
     }
 
-    public static function signedJwt(string $token): self
+    public static function anonymous(): self
     {
-        return new self('signed_jwt', $token);
-    }
-
-    public static function none(): self
-    {
-        return new self('none');
+        return new self(self::ANONYMOUS);
     }
 
     /** @return array<string, mixed> */

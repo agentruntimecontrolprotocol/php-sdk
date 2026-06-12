@@ -12,9 +12,11 @@ use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
 /**
- * `signed_jwt` verification (RFC §8.2). The runtime supplies the trust
- * material (HMAC secret or asymmetric public key); we verify `aud` and
- * extract `sub` as the principal.
+ * Bearer-token verification for JWT-shaped tokens (ARCP v1.1 §6.1).
+ * The bearer token presented in `session.hello.payload.auth.token` is
+ * decoded as a JWT; the runtime supplies the trust material (HMAC
+ * secret or asymmetric public key); we verify `aud` and extract `sub`
+ * as the principal.
  */
 final readonly class JwtAuth implements AuthScheme
 {
@@ -31,13 +33,13 @@ final readonly class JwtAuth implements AuthScheme
     #[\Override]
     public function name(): string
     {
-        return 'signed_jwt';
+        return Auth::BEARER;
     }
 
     #[\Override]
     public function verify(Auth $auth, PeerInfo $client): AuthResult
     {
-        if ($auth->scheme !== 'signed_jwt') {
+        if ($auth->scheme !== Auth::BEARER) {
             return AuthResult::reject('scheme mismatch');
         }
         if ($auth->token === null || $auth->token === '') {

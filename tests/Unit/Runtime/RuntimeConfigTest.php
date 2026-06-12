@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Arcp\Tests\Unit\Runtime;
 
+use Arcp\Auth\AnonymousAuth;
 use Arcp\Auth\AuthRouter;
-use Arcp\Auth\NoneAuth;
 use Arcp\Clock\SystemClock;
 use Arcp\Envelope\MessageCatalog;
 use Arcp\Extensions\ExtensionRegistry;
@@ -38,14 +38,14 @@ final class RuntimeConfigTest extends TestCase
             clock: new SystemClock(),
             logger: new NullLogger(),
             capabilities: new Capabilities(),
-            authRouter: new AuthRouter([new NoneAuth()]),
+            authRouter: new AuthRouter([new AnonymousAuth()]),
             extensions: new ExtensionRegistry(),
             runtimeIdentity: new PeerInfo('test-runtime', '0.0.1'),
         );
 
         $runtime = ARCPRuntime::withConfig($config);
         self::assertNotNull($runtime->runtimeIdentity);
-        self::assertSame('test-runtime', $runtime->runtimeIdentity->kind);
+        self::assertSame('test-runtime', $runtime->runtimeIdentity->name);
     }
 
     public function testResolveToolThrowsForAmbiguousUnversionedName(): void

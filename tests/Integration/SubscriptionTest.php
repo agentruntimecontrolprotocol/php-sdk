@@ -12,8 +12,8 @@ use Amp\DeferredFuture;
 use function Amp\delay;
 
 use Amp\Future;
+use Arcp\Auth\AnonymousAuth;
 use Arcp\Auth\AuthRouter;
-use Arcp\Auth\NoneAuth;
 use Arcp\Client\ARCPClient;
 use Arcp\Envelope\Envelope;
 use Arcp\Ids\JobId;
@@ -31,7 +31,7 @@ final class SubscriptionTest extends TestCase
 {
     private function runtime(): ARCPRuntime
     {
-        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
+        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new AnonymousAuth()]));
         $runtime->registerTool('emit_progress', new class () implements ToolHandler {
             #[\Override]
             public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
@@ -53,9 +53,9 @@ final class SubscriptionTest extends TestCase
         $serverFuture = $runtime->serveAsync($serverT);
         $client = new ARCPClient($clientT);
         $client->open(
-            Auth::none(),
+            Auth::anonymous(),
             new PeerInfo($name, '0.1'),
-            new Capabilities(subscriptions: true, anonymous: true, features: ['subscribe']),
+            new Capabilities(features: ['subscribe']),
         );
         return [$client, $serverFuture];
     }

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Arcp\Tests\Integration;
 
+use Arcp\Auth\AnonymousAuth;
 use Arcp\Auth\AuthRouter;
-use Arcp\Auth\NoneAuth;
 use Arcp\Client\ARCPClient;
 use Arcp\Clock\FakeClock;
 use Arcp\Errors\PermissionDeniedException;
@@ -20,11 +20,11 @@ final class ArtifactTest extends TestCase
 {
     public function testPutFetchReleaseRoundTrip(): void
     {
-        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
+        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new AnonymousAuth()]));
         [$serverT, $clientT] = MemoryTransport::pair();
         $serverFuture = $runtime->serveAsync($serverT);
         $client = new ARCPClient($clientT);
-        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(artifacts: true, anonymous: true));
+        $client->open(Auth::anonymous(), new PeerInfo('cli', '0.1'), new Capabilities());
 
         $bytes = "hello-world\nthis is some content";
         $ref = $client->putArtifact('text/plain', $bytes);
@@ -40,11 +40,11 @@ final class ArtifactTest extends TestCase
 
     public function testPutWithMatchingSha256Succeeds(): void
     {
-        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
+        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new AnonymousAuth()]));
         [$serverT, $clientT] = MemoryTransport::pair();
         $serverFuture = $runtime->serveAsync($serverT);
         $client = new ARCPClient($clientT);
-        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(artifacts: true, anonymous: true));
+        $client->open(Auth::anonymous(), new PeerInfo('cli', '0.1'), new Capabilities());
 
         $bytes = 'verified-content';
         $digest = hash('sha256', $bytes);
@@ -57,11 +57,11 @@ final class ArtifactTest extends TestCase
 
     public function testPutWithMismatchedSha256IsRejected(): void
     {
-        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
+        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new AnonymousAuth()]));
         [$serverT, $clientT] = MemoryTransport::pair();
         $serverFuture = $runtime->serveAsync($serverT);
         $client = new ARCPClient($clientT);
-        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(artifacts: true, anonymous: true));
+        $client->open(Auth::anonymous(), new PeerInfo('cli', '0.1'), new Capabilities());
 
         $caught = null;
         try {
@@ -83,11 +83,11 @@ final class ArtifactTest extends TestCase
 
     public function testPutWithMalformedSha256IsRejected(): void
     {
-        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
+        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new AnonymousAuth()]));
         [$serverT, $clientT] = MemoryTransport::pair();
         $serverFuture = $runtime->serveAsync($serverT);
         $client = new ARCPClient($clientT);
-        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(artifacts: true, anonymous: true));
+        $client->open(Auth::anonymous(), new PeerInfo('cli', '0.1'), new Capabilities());
 
         $caught = null;
         try {
@@ -103,15 +103,15 @@ final class ArtifactTest extends TestCase
 
     public function testCrossSessionFetchIsDenied(): void
     {
-        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
+        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new AnonymousAuth()]));
         [$serverTA, $clientTA] = MemoryTransport::pair();
         [$serverTB, $clientTB] = MemoryTransport::pair();
         $serverFutureA = $runtime->serveAsync($serverTA);
         $serverFutureB = $runtime->serveAsync($serverTB);
         $clientA = new ARCPClient($clientTA);
         $clientB = new ARCPClient($clientTB);
-        $clientA->open(Auth::none(), new PeerInfo('cli-a', '0.1'), new Capabilities(artifacts: true, anonymous: true));
-        $clientB->open(Auth::none(), new PeerInfo('cli-b', '0.1'), new Capabilities(artifacts: true, anonymous: true));
+        $clientA->open(Auth::anonymous(), new PeerInfo('cli-a', '0.1'), new Capabilities());
+        $clientB->open(Auth::anonymous(), new PeerInfo('cli-b', '0.1'), new Capabilities());
 
         $ref = $clientA->putArtifact('text/plain', 'secret');
 
@@ -131,15 +131,15 @@ final class ArtifactTest extends TestCase
 
     public function testCrossSessionReleaseIsDenied(): void
     {
-        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
+        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new AnonymousAuth()]));
         [$serverTA, $clientTA] = MemoryTransport::pair();
         [$serverTB, $clientTB] = MemoryTransport::pair();
         $serverFutureA = $runtime->serveAsync($serverTA);
         $serverFutureB = $runtime->serveAsync($serverTB);
         $clientA = new ARCPClient($clientTA);
         $clientB = new ARCPClient($clientTB);
-        $clientA->open(Auth::none(), new PeerInfo('cli-a', '0.1'), new Capabilities(artifacts: true, anonymous: true));
-        $clientB->open(Auth::none(), new PeerInfo('cli-b', '0.1'), new Capabilities(artifacts: true, anonymous: true));
+        $clientA->open(Auth::anonymous(), new PeerInfo('cli-a', '0.1'), new Capabilities());
+        $clientB->open(Auth::anonymous(), new PeerInfo('cli-b', '0.1'), new Capabilities());
 
         $ref = $clientA->putArtifact('text/plain', 'secret');
         self::assertSame(1, $runtime->artifacts->count());
@@ -165,12 +165,12 @@ final class ArtifactTest extends TestCase
         $clock = new FakeClock(new \DateTimeImmutable('2026-05-09T12:00:00Z'));
         $runtime = new ARCPRuntime(
             clock: $clock,
-            authRouter: new AuthRouter([new NoneAuth()]),
+            authRouter: new AuthRouter([new AnonymousAuth()]),
         );
         [$serverT, $clientT] = MemoryTransport::pair();
         $serverFuture = $runtime->serveAsync($serverT);
         $client = new ARCPClient($clientT, clock: $clock);
-        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(artifacts: true, anonymous: true));
+        $client->open(Auth::anonymous(), new PeerInfo('cli', '0.1'), new Capabilities());
 
         $client->putArtifact('text/plain', 'short-lived', retentionSeconds: 60);
         self::assertSame(1, $runtime->artifacts->count());

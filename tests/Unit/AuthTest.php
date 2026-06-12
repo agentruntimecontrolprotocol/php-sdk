@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Arcp\Tests\Unit;
 
+use Arcp\Auth\AnonymousAuth;
 use Arcp\Auth\AuthRouter;
 use Arcp\Auth\BearerAuth;
 use Arcp\Auth\JwtAuth;
-use Arcp\Auth\NoneAuth;
 use Arcp\Errors\InvalidRequestException;
 use Arcp\Errors\UnauthenticatedException;
 use Arcp\Messages\Session\Auth;
@@ -44,7 +44,7 @@ final class AuthTest extends TestCase
     public function testBearerRejectsWrongScheme(): void
     {
         $scheme = new BearerAuth(['t1' => 'alice']);
-        $result = $scheme->verify(Auth::none(), new PeerInfo('c', '0'));
+        $result = $scheme->verify(Auth::anonymous(), new PeerInfo('c', '0'));
         self::assertFalse($result->accepted);
     }
 
@@ -59,25 +59,25 @@ final class AuthTest extends TestCase
         self::assertSame('alice', $result->principal);
     }
 
-    public function testNoneAccepts(): void
+    public function testAnonymousAccepts(): void
     {
-        $scheme = new NoneAuth('public');
-        $result = $scheme->verify(Auth::none(), new PeerInfo('c', '0'));
+        $scheme = new AnonymousAuth('public');
+        $result = $scheme->verify(Auth::anonymous(), new PeerInfo('c', '0'));
         self::assertTrue($result->accepted);
         self::assertSame('public', $result->principal);
     }
 
-    public function testNoneIgnoresPeerSuppliedPrincipal(): void
+    public function testAnonymousIgnoresPeerSuppliedPrincipal(): void
     {
-        $scheme = new NoneAuth('public');
-        $result = $scheme->verify(Auth::none(), new PeerInfo('c', '0', principal: 'someone@x'));
+        $scheme = new AnonymousAuth('public');
+        $result = $scheme->verify(Auth::anonymous(), new PeerInfo('c', '0', principal: 'someone@x'));
         // The peer-supplied principal must not be trusted (#67).
         self::assertSame('public', $result->principal);
     }
 
-    public function testNoneRejectsWrongScheme(): void
+    public function testAnonymousRejectsWrongScheme(): void
     {
-        $scheme = new NoneAuth();
+        $scheme = new AnonymousAuth();
         $result = $scheme->verify(Auth::bearer('t'), new PeerInfo('c', '0'));
         self::assertFalse($result->accepted);
     }
@@ -94,7 +94,7 @@ final class AuthTest extends TestCase
         ], $secret, 'HS256');
 
         $scheme = new JwtAuth(new Key($secret, 'HS256'), 'arcp-runtime');
-        $result = $scheme->verify(Auth::signedJwt($token), new PeerInfo('c', '0'));
+        $result = $scheme->verify(Auth::bearer($token), new PeerInfo('c', '0'));
         self::assertTrue($result->accepted);
         self::assertSame('alice@example.com', $result->principal);
     }
@@ -110,7 +110,7 @@ final class AuthTest extends TestCase
         ], $secret, 'HS256');
 
         $scheme = new JwtAuth(new Key($secret, 'HS256'), 'arcp-runtime');
-        $result = $scheme->verify(Auth::signedJwt($token), new PeerInfo('c', '0'));
+        $result = $scheme->verify(Auth::bearer($token), new PeerInfo('c', '0'));
         self::assertFalse($result->accepted);
     }
 
@@ -127,40 +127,35 @@ final class AuthTest extends TestCase
             new Key('correct-secret-needs-to-be-at-least-32-bytes-long!', 'HS256'),
             'arcp-runtime',
         );
-        $result = $scheme->verify(Auth::signedJwt($token), new PeerInfo('c', '0'));
+        $result = $scheme->verify(Auth::bearer($token), new PeerInfo('c', '0'));
         self::assertFalse($result->accepted);
     }
 
     public function testJwtRejectsMissingToken(): void
     {
         $scheme = new JwtAuth(new Key('s', 'HS256'), 'aud');
-        $result = $scheme->verify(new Auth('signed_jwt'), new PeerInfo('c', '0'));
+        $result = $scheme->verify(new Auth('bearer'), new PeerInfo('c', '0'));
         self::assertFalse($result->accepted);
     }
 
     public function testRouterDispatchesToScheme(): void
     {
-        $router = new AuthRouter([new BearerAuth(['t' => 'alice']), new NoneAuth('pub')]);
+        $router = new AuthRouter([new BearerAuth(['t' => 'alice']), new AnonymousAuth('pub')]);
         self::assertTrue($router->supports('bearer'));
-        self::assertTrue($router->supports('none'));
+        self::assertTrue($router->supports('anonymous'));
         self::assertFalse($router->supports('mtls'));
 
         $r = $router->verify(Auth::bearer('t'), new PeerInfo('c', '0'));
         self::assertTrue($r->accepted);
     }
 
-    public function testRouterRaisesUnauthenticatedForReservedSchemes(): void
+    public function testRouterRaisesUnauthenticatedForUnregisteredScheme(): void
     {
-        $router = new AuthRouter([new NoneAuth()]);
+        // §6.1/§12: schemes outside {bearer, anonymous} (or without a
+        // registered handler) are UNAUTHENTICATED.
+        $router = new AuthRouter([new AnonymousAuth()]);
         $this->expectException(UnauthenticatedException::class);
         $router->verify(new Auth('mtls'), new PeerInfo('c', '0'));
-    }
-
-    public function testRouterRejectsUnknownNonReservedScheme(): void
-    {
-        $router = new AuthRouter([new NoneAuth()]);
-        $r = $router->verify(new Auth('made-up'), new PeerInfo('c', '0'));
-        self::assertFalse($r->accepted);
     }
 
     public function testAuthRoundTrip(): void
@@ -169,13 +164,9 @@ final class AuthTest extends TestCase
         $back = Auth::fromArray($a->toArray());
         self::assertEquals($a, $back);
 
-        $n = Auth::none();
+        $n = Auth::anonymous();
         $nBack = Auth::fromArray($n->toArray());
         self::assertEquals($n, $nBack);
-
-        $j = Auth::signedJwt('jwt-token');
-        $jBack = Auth::fromArray($j->toArray());
-        self::assertEquals($j, $jBack);
     }
 
     public function testAuthRequiresScheme(): void

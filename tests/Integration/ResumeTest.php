@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Arcp\Tests\Integration;
 
+use Arcp\Auth\AnonymousAuth;
 use Arcp\Auth\AuthRouter;
-use Arcp\Auth\NoneAuth;
 use Arcp\Client\ARCPClient;
 use Arcp\Envelope\Envelope;
 use Arcp\Envelope\MessageCatalog;
@@ -127,7 +127,7 @@ final class ResumeTest extends TestCase
     public function testResumeOnlyReplaysCallingSessionEnvelopes(): void
     {
         $runtime = new ARCPRuntime(
-            authRouter: new AuthRouter([new NoneAuth('public')]),
+            authRouter: new AuthRouter([new AnonymousAuth('public')]),
         );
         [$serverTA, $clientTA] = MemoryTransport::pair();
         [$serverTB, $clientTB] = MemoryTransport::pair();
@@ -136,8 +136,8 @@ final class ResumeTest extends TestCase
 
         $clientA = new ARCPClient($clientTA);
         $clientB = new ARCPClient($clientTB);
-        $clientA->open(Auth::none(), new PeerInfo('cli-a', '0.1'), new Capabilities(anonymous: true));
-        $clientB->open(Auth::none(), new PeerInfo('cli-b', '0.1'), new Capabilities(anonymous: true));
+        $clientA->open(Auth::anonymous(), new PeerInfo('cli-a', '0.1'), new Capabilities());
+        $clientB->open(Auth::anonymous(), new PeerInfo('cli-b', '0.1'), new Capabilities());
 
         // Both sessions push some events that get recorded in the event log.
         $clientA->ping();

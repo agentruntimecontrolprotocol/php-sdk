@@ -12,8 +12,8 @@ use Amp\Websocket\Server\Rfc6455Acceptor;
 use Amp\Websocket\Server\Websocket;
 use Amp\Websocket\Server\WebsocketClientHandler;
 use Amp\Websocket\WebsocketClient;
+use Arcp\Auth\AnonymousAuth;
 use Arcp\Auth\AuthRouter;
-use Arcp\Auth\NoneAuth;
 use Arcp\Json\EnvelopeSerializer;
 use Arcp\Runtime\ARCPRuntime;
 use Arcp\Transport\WebSocketTransport;
@@ -40,7 +40,7 @@ final class ServeCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         [$host, $port] = $this->parseListenOptions($input);
-        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
+        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new AnonymousAuth()]));
         $this->startWebSocketServer($runtime, $host, $port);
         $output->writeln(\sprintf('<info>arcp listening on ws://%s:%d/</info>', $host, $port));
 

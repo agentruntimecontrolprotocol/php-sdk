@@ -16,7 +16,7 @@ use Arcp\Messages\Session\PeerInfo;
  */
 interface AuthScheme
 {
-    /** Wire scheme name (`bearer`, `signed_jwt`, `none`, ...). */
+    /** Wire scheme name (`bearer` or `anonymous`, §6.1). */
     public function name(): string;
 
     public function verify(Auth $auth, PeerInfo $client): AuthResult;

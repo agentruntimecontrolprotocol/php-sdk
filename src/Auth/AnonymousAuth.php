@@ -8,10 +8,10 @@ use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\PeerInfo;
 
 /**
- * `none` scheme (RFC §8.2). Only valid if the client requested
- * `capabilities.anonymous: true` AND the runtime advertises it.
+ * `anonymous` scheme (ARCP v1.1 §6.1 extension). Accepts the session
+ * without credential material; intended for development deployments.
  */
-final readonly class NoneAuth implements AuthScheme
+final readonly class AnonymousAuth implements AuthScheme
 {
     public function __construct(private string $defaultPrincipal = 'anonymous')
     {
@@ -20,13 +20,13 @@ final readonly class NoneAuth implements AuthScheme
     #[\Override]
     public function name(): string
     {
-        return 'none';
+        return Auth::ANONYMOUS;
     }
 
     #[\Override]
     public function verify(Auth $auth, PeerInfo $client): AuthResult
     {
-        if ($auth->scheme !== 'none') {
+        if ($auth->scheme !== Auth::ANONYMOUS) {
             return AuthResult::reject('scheme mismatch');
         }
         // Always use the configured default principal; do not trust the

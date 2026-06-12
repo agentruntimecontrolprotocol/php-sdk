@@ -111,7 +111,7 @@ final class MessageCatalogRoundTripTest extends TestCase
         yield 'session.hello' => [new SessionHello(
             Auth::bearer('t'),
             new PeerInfo('cli', '0.1', principal: 'p'),
-            new Capabilities(streaming: true),
+            new Capabilities(),
         )];
         yield 'session.challenge' => [new SessionChallenge('chal-token-123')];
         yield 'session.authenticate' => [new SessionAuthenticate(Auth::bearer('t'))];

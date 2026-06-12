@@ -8,7 +8,7 @@ use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\PeerInfo;
 
 /**
- * Opaque bearer-token verification (RFC §8.2). The runtime keeps a token
+ * Opaque bearer-token verification (ARCP v1.1 §6.1). The runtime keeps a token
  * → principal mapping; presence of the token grants the principal.
  */
 final readonly class BearerAuth implements AuthScheme

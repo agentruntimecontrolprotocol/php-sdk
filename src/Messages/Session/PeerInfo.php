@@ -7,22 +7,25 @@ namespace Arcp\Messages\Session;
 use Arcp\Errors\InvalidRequestException;
 
 /**
- * Identity block for either side of a session (RFC §8.2 / §8.3).
+ * Identity block for either side of a session (ARCP v1.1 §6.2).
  *
- * Both client (`client`) and runtime (`runtime`) blocks share this shape;
- * the runtime block additionally carries `trust_level`.
+ * Both client (`client`) and runtime (`runtime`) blocks share this
+ * `{name, version}` shape. The optional fields are SDK extensions: the
+ * runtime block may carry `trust_level`, and deployments may attach a
+ * `fingerprint`. Nothing security-relevant may trust the self-asserted
+ * `principal`; authentication is the §6.1 auth block's job.
  */
 final readonly class PeerInfo
 {
     public function __construct(
-        public string $kind,
+        public string $name,
         public string $version,
         public ?string $fingerprint = null,
         public ?string $principal = null,
         public ?string $trustLevel = null,
     ) {
-        if ($kind === '') {
-            throw new InvalidRequestException('peer.kind must be non-empty');
+        if ($name === '') {
+            throw new InvalidRequestException('peer.name must be non-empty');
         }
         if ($version === '') {
             throw new InvalidRequestException('peer.version must be non-empty');
@@ -33,7 +36,7 @@ final readonly class PeerInfo
     public function toArray(): array
     {
         $out = [
-            'kind' => $this->kind,
+            'name' => $this->name,
             'version' => $this->version,
         ];
         if ($this->fingerprint !== null) {
@@ -53,10 +56,10 @@ final readonly class PeerInfo
      */
     public static function fromArray(array $data): self
     {
-        $kind = $data['kind'] ?? throw new InvalidRequestException('peer.kind missing');
+        $name = $data['name'] ?? throw new InvalidRequestException('peer.name missing');
         $version = $data['version'] ?? throw new InvalidRequestException('peer.version missing');
-        if (!\is_string($kind) || !\is_string($version)) {
-            throw new InvalidRequestException('peer.kind/version must be strings');
+        if (!\is_string($name) || !\is_string($version)) {
+            throw new InvalidRequestException('peer.name/version must be strings');
         }
 
         $fingerprint = null;
@@ -80,6 +83,6 @@ final readonly class PeerInfo
             }
             $trustLevel = $data['trust_level'];
         }
-        return new self($kind, $version, $fingerprint, $principal, $trustLevel);
+        return new self($name, $version, $fingerprint, $principal, $trustLevel);
     }
 }

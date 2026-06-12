@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Arcp\Tests\Integration;
 
 use Amp\Cancellation;
+use Arcp\Auth\AnonymousAuth;
 use Arcp\Auth\AuthRouter;
-use Arcp\Auth\NoneAuth;
 use Arcp\Client\ARCPClient;
 use Arcp\Client\Handlers\AutoApprovePermissionHandler;
 use Arcp\Client\Handlers\PermissionHandler;
@@ -29,7 +29,7 @@ final class PermissionLeaseTest extends TestCase
 {
     public function testPermissionGrantedAndLeaseRegistered(): void
     {
-        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
+        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new AnonymousAuth()]));
         $runtime->registerTool('refund', new class () implements ToolHandler {
             #[\Override]
             public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
@@ -50,7 +50,7 @@ final class PermissionLeaseTest extends TestCase
             $clientT,
             permissionHandler: new AutoApprovePermissionHandler(60),
         );
-        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(anonymous: true));
+        $client->open(Auth::anonymous(), new PeerInfo('cli', '0.1'), new Capabilities());
         $result = $client->invokeTool('refund');
         self::assertIsArray($result->result);
         $lease = $result->result['lease'] ?? null;
@@ -65,7 +65,7 @@ final class PermissionLeaseTest extends TestCase
 
     public function testRepeatedLeaseInvocationsGetIndependentBudgetCounters(): void
     {
-        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
+        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new AnonymousAuth()]));
         $runtime->registerTool('spend', new class () implements ToolHandler {
             #[\Override]
             public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
@@ -80,7 +80,7 @@ final class PermissionLeaseTest extends TestCase
         [$serverT, $clientT] = MemoryTransport::pair();
         $serverFuture = $runtime->serveAsync($serverT);
         $client = new ARCPClient($clientT);
-        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(anonymous: true));
+        $client->open(Auth::anonymous(), new PeerInfo('cli', '0.1'), new Capabilities());
 
         $leaseId = LeaseId::random();
         $runtime->leases->register(
@@ -110,7 +110,7 @@ final class PermissionLeaseTest extends TestCase
 
     public function testReferencedLeaseOverlayCannotWidenBudget(): void
     {
-        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
+        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new AnonymousAuth()]));
         $runtime->registerTool('spend', new class () implements ToolHandler {
             #[\Override]
             public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
@@ -121,7 +121,7 @@ final class PermissionLeaseTest extends TestCase
         [$serverT, $clientT] = MemoryTransport::pair();
         $serverFuture = $runtime->serveAsync($serverT);
         $client = new ARCPClient($clientT);
-        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(anonymous: true));
+        $client->open(Auth::anonymous(), new PeerInfo('cli', '0.1'), new Capabilities());
 
         $leaseId = LeaseId::random();
         $runtime->leases->register(
@@ -157,7 +157,7 @@ final class PermissionLeaseTest extends TestCase
                 return new PermissionDeny($req->permission, $req->resource, $req->operation, 'policy');
             }
         };
-        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
+        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new AnonymousAuth()]));
         $runtime->registerTool('refund', new class () implements ToolHandler {
             #[\Override]
             public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
@@ -169,7 +169,7 @@ final class PermissionLeaseTest extends TestCase
         [$serverT, $clientT] = MemoryTransport::pair();
         $serverFuture = $runtime->serveAsync($serverT);
         $client = new ARCPClient($clientT, permissionHandler: $denyHandler);
-        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(anonymous: true));
+        $client->open(Auth::anonymous(), new PeerInfo('cli', '0.1'), new Capabilities());
 
         $this->expectException(PermissionDeniedException::class);
         try {

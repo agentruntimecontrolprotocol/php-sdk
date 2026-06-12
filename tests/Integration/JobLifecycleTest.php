@@ -10,8 +10,8 @@ use Amp\Cancellation;
 
 use function Amp\delay;
 
+use Arcp\Auth\AnonymousAuth;
 use Arcp\Auth\AuthRouter;
-use Arcp\Auth\NoneAuth;
 use Arcp\Client\ARCPClient;
 use Arcp\Errors\AgentNotAvailableException;
 use Arcp\Errors\AgentVersionNotAvailableException;
@@ -31,7 +31,7 @@ final class JobLifecycleTest extends TestCase
 {
     public function testSubmitReturnsJobResult(): void
     {
-        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
+        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new AnonymousAuth()]));
         $runtime->registerTool('echo', new class () implements ToolHandler {
             #[\Override]
             public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
@@ -43,7 +43,7 @@ final class JobLifecycleTest extends TestCase
         [$serverT, $clientT] = MemoryTransport::pair();
         $serverFuture = $runtime->serveAsync($serverT);
         $client = new ARCPClient($clientT);
-        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(anonymous: true));
+        $client->open(Auth::anonymous(), new PeerInfo('cli', '0.1'), new Capabilities());
 
         $result = $client->invokeTool('echo', ['foo' => 'bar']);
         self::assertSame(['echoed' => ['foo' => 'bar']], $result->result);
@@ -54,7 +54,7 @@ final class JobLifecycleTest extends TestCase
 
     public function testJobErrorPropagatesAsException(): void
     {
-        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
+        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new AnonymousAuth()]));
         $runtime->registerTool('boom', new class () implements ToolHandler {
             #[\Override]
             public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
@@ -65,7 +65,7 @@ final class JobLifecycleTest extends TestCase
         [$serverT, $clientT] = MemoryTransport::pair();
         $serverFuture = $runtime->serveAsync($serverT);
         $client = new ARCPClient($clientT);
-        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(anonymous: true));
+        $client->open(Auth::anonymous(), new PeerInfo('cli', '0.1'), new Capabilities());
 
         $this->expectException(InvalidRequestException::class);
         try {
@@ -78,11 +78,11 @@ final class JobLifecycleTest extends TestCase
 
     public function testUnknownAgentReturnsAgentNotAvailable(): void
     {
-        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
+        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new AnonymousAuth()]));
         [$serverT, $clientT] = MemoryTransport::pair();
         $serverFuture = $runtime->serveAsync($serverT);
         $client = new ARCPClient($clientT);
-        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(anonymous: true));
+        $client->open(Auth::anonymous(), new PeerInfo('cli', '0.1'), new Capabilities());
 
         try {
             $client->invokeTool('nope');
@@ -97,7 +97,7 @@ final class JobLifecycleTest extends TestCase
 
     public function testIdempotentReplayDoesNotReExecute(): void
     {
-        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
+        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new AnonymousAuth()]));
         $count = 0;
         $runtime->registerTool('once', new class ($count) implements ToolHandler {
             public function __construct(public int &$count)
@@ -114,7 +114,7 @@ final class JobLifecycleTest extends TestCase
         [$serverT, $clientT] = MemoryTransport::pair();
         $serverFuture = $runtime->serveAsync($serverT);
         $client = new ARCPClient($clientT);
-        $client->open(Auth::none(), new PeerInfo('cli', '0.1', principal: 'alice'), new Capabilities(anonymous: true));
+        $client->open(Auth::anonymous(), new PeerInfo('cli', '0.1', principal: 'alice'), new Capabilities());
 
         $key = new IdempotencyKey('refund-1');
         $first = $client->invokeTool('once', [], idempotencyKey: $key);
@@ -132,7 +132,7 @@ final class JobLifecycleTest extends TestCase
 
     public function testMultipleConcurrentJobsCompleteIndependently(): void
     {
-        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
+        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new AnonymousAuth()]));
         $runtime->registerTool('add', new class () implements ToolHandler {
             #[\Override]
             public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
@@ -145,7 +145,7 @@ final class JobLifecycleTest extends TestCase
         [$serverT, $clientT] = MemoryTransport::pair();
         $serverFuture = $runtime->serveAsync($serverT);
         $client = new ARCPClient($clientT);
-        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(anonymous: true));
+        $client->open(Auth::anonymous(), new PeerInfo('cli', '0.1'), new Capabilities());
 
         $r1 = $client->invokeTool('add', ['a' => 2, 'b' => 3]);
         $r2 = $client->invokeTool('add', ['a' => 10, 'b' => 100]);
@@ -158,7 +158,7 @@ final class JobLifecycleTest extends TestCase
 
     public function testVersionedToolResolution(): void
     {
-        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
+        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new AnonymousAuth()]));
         foreach (['1.0.0', '2.0.0'] as $version) {
             $runtime->registerToolVersion('planner', $version, new class ($version) implements ToolHandler {
                 public function __construct(private readonly string $version)
@@ -176,7 +176,7 @@ final class JobLifecycleTest extends TestCase
         [$serverT, $clientT] = MemoryTransport::pair();
         $serverFuture = $runtime->serveAsync($serverT);
         $client = new ARCPClient($clientT);
-        $accepted = $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(anonymous: true));
+        $accepted = $client->open(Auth::anonymous(), new PeerInfo('cli', '0.1'), new Capabilities());
 
         self::assertNotEmpty($accepted->capabilities->agents);
         self::assertSame(['version' => '1.0.0'], $client->invokeTool('planner@1.0.0')->result);
@@ -197,7 +197,7 @@ final class JobLifecycleTest extends TestCase
 
     public function testListJobsReturnsRunningJobsWithPagination(): void
     {
-        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
+        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new AnonymousAuth()]));
         $runtime->registerTool('slow', new class () implements ToolHandler {
             #[\Override]
             public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
@@ -209,7 +209,7 @@ final class JobLifecycleTest extends TestCase
         [$serverT, $clientT] = MemoryTransport::pair();
         $serverFuture = $runtime->serveAsync($serverT);
         $client = new ARCPClient($clientT);
-        $client->open(Auth::none(), new PeerInfo('cli', '0.1', principal: 'alice'), new Capabilities(anonymous: true, features: ['list_jobs']));
+        $client->open(Auth::anonymous(), new PeerInfo('cli', '0.1', principal: 'alice'), new Capabilities(features: ['list_jobs']));
 
         $future = async(fn () => $client->invokeTool('slow'));
         $deadline = microtime(true) + 2.0;
@@ -228,7 +228,7 @@ final class JobLifecycleTest extends TestCase
 
     public function testListJobsReturnsTerminalJobsWithinRetentionWindow(): void
     {
-        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
+        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new AnonymousAuth()]));
         $runtime->registerTool('fast', new class () implements ToolHandler {
             #[\Override]
             public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
@@ -239,7 +239,7 @@ final class JobLifecycleTest extends TestCase
         [$serverT, $clientT] = MemoryTransport::pair();
         $serverFuture = $runtime->serveAsync($serverT);
         $client = new ARCPClient($clientT);
-        $client->open(Auth::none(), new PeerInfo('cli', '0.1', principal: 'alice'), new Capabilities(anonymous: true, features: ['list_jobs']));
+        $client->open(Auth::anonymous(), new PeerInfo('cli', '0.1', principal: 'alice'), new Capabilities(features: ['list_jobs']));
 
         // Run two short jobs that complete immediately. With the pre-fix
         // behavior, these would vanish from list_jobs the moment they
@@ -260,7 +260,7 @@ final class JobLifecycleTest extends TestCase
 
     public function testResultChunksAreAssembledByClient(): void
     {
-        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
+        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new AnonymousAuth()]));
         $runtime->registerTool('chunker', new class () implements ToolHandler {
             #[\Override]
             public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
@@ -273,7 +273,7 @@ final class JobLifecycleTest extends TestCase
         [$serverT, $clientT] = MemoryTransport::pair();
         $serverFuture = $runtime->serveAsync($serverT);
         $client = new ARCPClient($clientT);
-        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(anonymous: true));
+        $client->open(Auth::anonymous(), new PeerInfo('cli', '0.1'), new Capabilities());
 
         $result = $client->invokeTool('chunker');
         self::assertSame(['result_id' => 'res_x'], $result->result);
@@ -286,7 +286,7 @@ final class JobLifecycleTest extends TestCase
 
     public function testCostBudgetExhaustionFailsJob(): void
     {
-        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
+        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new AnonymousAuth()]));
         $runtime->registerTool('spender', new class () implements ToolHandler {
             #[\Override]
             public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
@@ -299,7 +299,7 @@ final class JobLifecycleTest extends TestCase
         [$serverT, $clientT] = MemoryTransport::pair();
         $serverFuture = $runtime->serveAsync($serverT);
         $client = new ARCPClient($clientT);
-        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(anonymous: true));
+        $client->open(Auth::anonymous(), new PeerInfo('cli', '0.1'), new Capabilities());
 
         $caught = null;
         try {

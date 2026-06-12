@@ -10,8 +10,8 @@ use Amp\Cancellation;
 
 use function Amp\delay;
 
+use Arcp\Auth\AnonymousAuth;
 use Arcp\Auth\AuthRouter;
-use Arcp\Auth\NoneAuth;
 use Arcp\Client\ARCPClient;
 use Arcp\Envelope\Envelope;
 use Arcp\Errors\CancelledException;
@@ -199,7 +199,7 @@ final class CredentialLifecycleTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('durable revocation');
         new ARCPRuntime(
-            authRouter: new AuthRouter([new NoneAuth()]),
+            authRouter: new AuthRouter([new AnonymousAuth()]),
             credentialProvisioner: new InMemoryCredentialProvisioner(),
             // No credentialStore given → default InMemoryCredentialStore,
             // which now (correctly) reports no durable revocation.
@@ -212,7 +212,7 @@ final class CredentialLifecycleTest extends TestCase
     private function runtimeClient(InMemoryCredentialProvisioner $provisioner): array
     {
         $runtime = new ARCPRuntime(
-            authRouter: new AuthRouter([new NoneAuth()]),
+            authRouter: new AuthRouter([new AnonymousAuth()]),
             credentialProvisioner: $provisioner,
             credentialStore: new FakeDurableCredentialStore(),
         );
@@ -220,12 +220,12 @@ final class CredentialLifecycleTest extends TestCase
         $recording = new RecordingTransport($clientT);
         $serverFuture = $runtime->serveAsync($serverT);
         $client = new ARCPClient($recording);
-        $accepted = $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(
-            anonymous: true,
+        $accepted = $client->open(Auth::anonymous(), new PeerInfo('cli', '0.1'), new Capabilities(
             features: ['provisioned_credentials', 'model.use', 'subscribe'],
         ));
+        // §6.2 intersection preserves the runtime's advertised order.
         self::assertSame(
-            ['provisioned_credentials', 'model.use', 'subscribe'],
+            ['subscribe', 'provisioned_credentials', 'model.use'],
             $accepted->capabilities->features,
         );
         return [$runtime, $client, $recording, $serverFuture];

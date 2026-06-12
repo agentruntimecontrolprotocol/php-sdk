@@ -19,6 +19,6 @@ final class Version
     /** SemVer of this PHP SDK implementation. */
     public const string IMPL_VERSION = '0.1.0-dev';
 
-    /** Identifier reported in `client.kind` / `runtime.kind` (RFC §8.2/§8.3). */
-    public const string IMPL_KIND = 'arcp-php';
+    /** Identifier reported in `client.name` / `runtime.name` (ARCP v1.1 §6.2). */
+    public const string IMPL_NAME = 'arcp-php';
 }

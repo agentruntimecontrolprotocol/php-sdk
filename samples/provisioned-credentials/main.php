@@ -5,8 +5,8 @@ declare(strict_types=1);
 require __DIR__ . '/../../vendor/autoload.php';
 
 use Amp\Cancellation;
+use Arcp\Auth\AnonymousAuth;
 use Arcp\Auth\AuthRouter;
-use Arcp\Auth\NoneAuth;
 use Arcp\Client\ARCPClient;
 use Arcp\Envelope\Envelope;
 use Arcp\Messages\Execution\JobAccepted;
@@ -22,7 +22,7 @@ use Arcp\Transport\Transport;
 
 $provisioner = new InMemoryCredentialProvisioner();
 $runtime = new ARCPRuntime(
-    authRouter: new AuthRouter([new NoneAuth()]),
+    authRouter: new AuthRouter([new AnonymousAuth()]),
     credentialProvisioner: $provisioner,
 );
 $runtime->registerTool('planner', new class () implements ToolHandler {
@@ -73,9 +73,8 @@ $recording = new class ($clientT) implements Transport {
 };
 $serverFuture = $runtime->serveAsync($serverT);
 $client = new ARCPClient($recording);
-$client->open(Auth::none(), new PeerInfo('provisioned-demo', '0.1'), new Capabilities(
-    anonymous: true,
-    features: ['provisioned-credentials', 'model.use'],
+$client->open(Auth::anonymous(), new PeerInfo('provisioned-demo', '0.1'), new Capabilities(
+    features: ['provisioned_credentials', 'model.use'],
 ));
 $result = $client->invokeTool('planner', [
     'lease' => [

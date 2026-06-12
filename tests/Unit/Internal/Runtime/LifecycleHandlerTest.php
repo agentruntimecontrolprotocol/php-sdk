@@ -9,8 +9,8 @@ use Amp\Cancellation;
 use function Amp\delay;
 
 use Amp\Future;
+use Arcp\Auth\AnonymousAuth;
 use Arcp\Auth\AuthRouter;
-use Arcp\Auth\NoneAuth;
 use Arcp\Client\ARCPClient;
 use Arcp\Client\Handlers\HumanInputHandler;
 use Arcp\Envelope\Envelope;
@@ -45,11 +45,11 @@ final class LifecycleHandlerTest extends TestCase
     /** @return array{0: ARCPRuntime, 1: ARCPClient, 2: Future<mixed>} */
     private function pair(): array
     {
-        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
+        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new AnonymousAuth()]));
         [$serverT, $clientT] = MemoryTransport::pair();
         $serverFuture = $runtime->serveAsync($serverT);
         $client = new ARCPClient($clientT);
-        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(anonymous: true));
+        $client->open(Auth::anonymous(), new PeerInfo('cli', '0.1'), new Capabilities());
         return [$runtime, $client, $serverFuture];
     }
 

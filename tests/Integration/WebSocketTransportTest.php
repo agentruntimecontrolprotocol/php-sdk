@@ -16,8 +16,8 @@ use Amp\Websocket\Server\Rfc6455Acceptor;
 use Amp\Websocket\Server\Websocket;
 use Amp\Websocket\Server\WebsocketClientHandler;
 use Amp\Websocket\WebsocketClient;
+use Arcp\Auth\AnonymousAuth;
 use Arcp\Auth\AuthRouter;
-use Arcp\Auth\NoneAuth;
 use Arcp\Client\ARCPClient;
 use Arcp\Json\EnvelopeSerializer;
 use Arcp\Messages\Session\Auth;
@@ -32,7 +32,7 @@ final class WebSocketTransportTest extends TestCase
 {
     public function testHandshakeOverRealWebsocket(): void
     {
-        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
+        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new AnonymousAuth()]));
         $serializer = $runtime->serializer;
 
         $logger = new NullLogger();
@@ -67,9 +67,9 @@ final class WebSocketTransportTest extends TestCase
 
         $client = new ARCPClient($clientTransport, $runtime->registry);
         $accepted = $client->open(
-            Auth::none(),
+            Auth::anonymous(),
             new PeerInfo('ws-client', '0.1'),
-            new Capabilities(anonymous: true),
+            new Capabilities(),
         );
         self::assertNotEmpty((string) $accepted->sessionId);
 

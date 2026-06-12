@@ -9,8 +9,8 @@ use Arcp\Auth\AuthRouter;
 use Arcp\Envelope\Envelope;
 use Arcp\Errors\ErrorPayload;
 use Arcp\Errors\UnauthenticatedException;
-use Arcp\Ids\MessageId;
 use Arcp\Ids\SessionId;
+use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\Capabilities;
 use Arcp\Messages\Session\PeerInfo;
 use Arcp\Messages\Session\SessionHello;
@@ -54,32 +54,11 @@ final readonly class HandshakeNegotiator
             return;
         }
         $ctx = new SessionHelloContext($session, $env->id, $env->payload);
-        if (!$this->verifyCapabilities($session, $env->id, $ctx->open->capabilities)) {
-            return;
-        }
         $principal = $this->authenticate($ctx);
         if ($principal === null) {
             return;
         }
         $this->acceptSession($ctx, $principal);
-    }
-
-    private function verifyCapabilities(
-        Session $session,
-        MessageId $envId,
-        Capabilities $requested,
-    ): bool {
-        $mismatch = $this->checkCapabilities($requested);
-        if ($mismatch === null) {
-            return true;
-        }
-        $this->lifecycle->sendNoSession(
-            $session,
-            new SessionRejected(new ErrorPayload('INVALID_REQUEST', $mismatch)),
-            $envId,
-        );
-        $session->state = SessionState::Rejected;
-        return false;
     }
 
     /**
@@ -89,6 +68,12 @@ final readonly class HandshakeNegotiator
      */
     private function authenticate(SessionHelloContext $ctx): ?string
     {
+        // §6.1/§12: only `bearer` (and this SDK's `anonymous` extension)
+        // are honored; any other scheme is UNAUTHENTICATED.
+        $scheme = $ctx->open->auth->scheme;
+        if ($scheme !== Auth::BEARER && $scheme !== Auth::ANONYMOUS) {
+            return $this->rejectUnauthenticated($ctx, 'unsupported auth scheme: ' . $scheme);
+        }
         $router = $this->authRouter;
         if (!$router instanceof AuthRouter) {
             return $this->authenticateAnonymous($ctx);
@@ -96,21 +81,23 @@ final readonly class HandshakeNegotiator
         return $this->authenticateWithRouter($ctx, $router);
     }
 
+    private function rejectUnauthenticated(SessionHelloContext $ctx, string $reason): null
+    {
+        $this->lifecycle->sendNoSession(
+            $ctx->session,
+            new SessionUnauthenticated(new ErrorPayload('UNAUTHENTICATED', $reason)),
+            $ctx->envId,
+        );
+        $ctx->session->state = SessionState::Rejected;
+        return null;
+    }
+
     private function authenticateAnonymous(SessionHelloContext $ctx): ?string
     {
-        $open = $ctx->open;
-        // No auth router: allow `none` if anonymous capability is requested.
-        if ($open->auth->scheme !== 'none' || !$open->capabilities->anonymous) {
-            $this->lifecycle->sendNoSession(
-                $ctx->session,
-                new SessionUnauthenticated(new ErrorPayload(
-                    'UNAUTHENTICATED',
-                    'no auth router configured',
-                )),
-                $ctx->envId,
-            );
-            $ctx->session->state = SessionState::Rejected;
-            return null;
+        // No auth router configured: only the `anonymous` scheme can be
+        // honored — there is nothing to verify a bearer token against.
+        if ($ctx->open->auth->scheme !== Auth::ANONYMOUS) {
+            return $this->rejectUnauthenticated($ctx, 'no auth router configured');
         }
         // Do not trust the principal supplied in the untrusted PeerInfo
         // block: without an auth router the server assigns an opaque,
@@ -127,25 +114,10 @@ final readonly class HandshakeNegotiator
         try {
             $result = $router->verify($open->auth, $open->client);
         } catch (UnauthenticatedException $e) {
-            $this->lifecycle->sendNoSession(
-                $ctx->session,
-                new SessionUnauthenticated(new ErrorPayload('UNAUTHENTICATED', $e->getMessage())),
-                $ctx->envId,
-            );
-            $ctx->session->state = SessionState::Rejected;
-            return null;
+            return $this->rejectUnauthenticated($ctx, $e->getMessage());
         }
         if (!$result->accepted) {
-            $this->lifecycle->sendNoSession(
-                $ctx->session,
-                new SessionUnauthenticated(new ErrorPayload(
-                    'UNAUTHENTICATED',
-                    $result->error ?? 'authentication failed',
-                )),
-                $ctx->envId,
-            );
-            $ctx->session->state = SessionState::Rejected;
-            return null;
+            return $this->rejectUnauthenticated($ctx, $result->error ?? 'authentication failed');
         }
         return $result->principal ?? 'anonymous';
     }
@@ -162,7 +134,7 @@ final readonly class HandshakeNegotiator
         $session->state = SessionState::Authenticated;
 
         $defaultRuntime = new PeerInfo(
-            Version::IMPL_KIND,
+            Version::IMPL_NAME,
             Version::IMPL_VERSION,
             trustLevel: 'trusted',
         );
@@ -174,43 +146,14 @@ final readonly class HandshakeNegotiator
         $this->runtime->emit($session, $accepted, ['correlation_id' => $ctx->envId]);
     }
 
+    /**
+     * §6.2 intersection semantics: the effective feature set is the
+     * intersection of the hello and welcome features. Features the
+     * runtime does not back are silently absent from the welcome; the
+     * client MUST NOT use them.
+     */
     private function acceptedCapabilities(Capabilities $requested): Capabilities
     {
-        $advertised = $this->runtime->advertisedCapabilitiesForSession();
-        $features = array_values(array_intersect($requested->features, $advertised->features));
-        return $advertised->withFeatures($features);
-    }
-
-    /**
-     * Validate that the runtime supports every required capability the
-     * client requested. Returns a human-readable mismatch message, or
-     * `null` if everything is supported.
-     */
-    private function checkCapabilities(Capabilities $requested): ?string
-    {
-        $advertised = $this->runtime->advertisedCapabilities;
-        if ($requested->scheduledJobs && !$advertised->scheduledJobs) {
-            return 'scheduled_jobs unsupported (RFC §10.6 v0.2)';
-        }
-        if ($requested->agentHandoff && !$advertised->agentHandoff) {
-            return 'agent_handoff unsupported (RFC §14 v0.2)';
-        }
-        if ($requested->checkpoints && !$advertised->checkpoints) {
-            return 'checkpoints unsupported (RFC §19 v0.2)';
-        }
-        $required = $requested->extra['required_features'] ?? null;
-        if (\is_array($required)) {
-            $advertisedFeatures = $this->runtime->advertisedCapabilitiesForSession()->features;
-            foreach ($required as $feature) {
-                if (!\is_string($feature)) {
-                    return 'required_features entry must be string';
-                }
-                if (!\in_array($feature, $advertisedFeatures, true)) {
-                    return 'feature unsupported: ' . $feature;
-                }
-            }
-        }
-        // Extension demands are checked once they are registered explicitly.
-        return null;
+        return $this->runtime->advertisedCapabilitiesForSession()->intersect($requested);
     }
 }

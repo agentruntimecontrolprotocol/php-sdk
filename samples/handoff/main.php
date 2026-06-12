@@ -63,7 +63,7 @@ function main(): void
 
     // Pin runtime kind + fingerprint (RFC §8.3); refuse on mismatch.
     $peer = $cheap->session->peerInfo;
-    if ($peer === null || $peer->kind !== 'arcp-haiku-pool') {
+    if ($peer === null || $peer->name !== 'arcp-haiku-pool') {
         throw new UnauthenticatedException('cheap kind mismatch');
     }
 
