@@ -110,6 +110,6 @@ final readonly class ModelUse
     private function validPattern(string $pattern): bool
     {
         return $pattern === '*'
-            || preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]*(?:\/[A-Za-z0-9][A-Za-z0-9._-]*)*(?:\/\*)?$/', $pattern) === 1;
+            || preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]*(?:\/[A-Za-z0-9][A-Za-z0-9._-]*)*(?:[A-Za-z0-9._-]\*|\/\*)?$/', $pattern) === 1;
     }
 }
