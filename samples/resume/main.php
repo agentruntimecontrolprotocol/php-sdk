@@ -21,6 +21,8 @@ use Amp\Cancellation;
 
 use function Amp\delay;
 
+use Arcp\Auth\AnonymousAuth;
+use Arcp\Auth\AuthRouter;
 use Arcp\Client\ARCPClient;
 use Arcp\Errors\ResumeWindowExpiredException;
 use Arcp\Messages\Session\Auth;
@@ -31,7 +33,10 @@ use Arcp\Runtime\JobContext;
 use Arcp\Runtime\ToolHandler;
 use Arcp\Transport\MemoryTransport;
 
-$runtime = new ARCPRuntime();
+// §6.3/§14: resume is same-principal only. A router-less runtime mints a
+// fresh opaque principal per anonymous hello, which would (correctly)
+// reject every resume — so this demo pins one anonymous principal.
+$runtime = new ARCPRuntime(authRouter: new AuthRouter([new AnonymousAuth('demo-user')]));
 $runtime->registerTool('research', new class () implements ToolHandler {
     #[\Override]
     public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
@@ -47,7 +52,7 @@ $runtime->registerTool('research', new class () implements ToolHandler {
 
 // First connection: open, submit, then drop mid-job (no session.close).
 [$serverT1, $clientT1] = MemoryTransport::pair();
-$runtime->serveAsync($serverT1);
+$serve1 = $runtime->serveAsync($serverT1);
 $client1 = new ARCPClient($clientT1);
 $welcome1 = $client1->open(Auth::anonymous(), new PeerInfo('resume-demo', '0.1'), new Capabilities());
 printf("resume_token=%s window=%ds\n", (string) $welcome1->resumeToken, (int) $welcome1->resumeWindowSec);
@@ -63,6 +68,7 @@ printf("resume_token=%s window=%ds\n", (string) $welcome1->resumeToken, (int) $w
 delay(0.12); // a few steps in...
 $lastSeen = $client1->session->lastReceivedEventSeq ?? 0;
 $clientT1->close(); // simulated crash: NOT session.close — the job keeps running
+$serve1->await();   // the connection is gone; the session parks for the window
 printf("dropped after event_seq=%d\n", $lastSeen);
 
 // Second connection: resume with the token + last_event_seq. The runtime
