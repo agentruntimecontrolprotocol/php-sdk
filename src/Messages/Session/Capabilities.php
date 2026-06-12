@@ -317,7 +317,21 @@ final readonly class Capabilities
             heartbeatIntervalSeconds: 30,
             heartbeatRecovery: 'fail',
             binaryEncodings: ['base64'],
-            features: [],
+            // §6.2: advertise the v1.1 feature flags this runtime actually
+            // backs so the negotiated intersection is non-empty. `ack` is
+            // intentionally omitted (only partially implemented);
+            // `provisioned_credentials`/`model.use` are injected per-session
+            // by advertisedCapabilitiesForSession() when a provisioner exists.
+            features: [
+                'heartbeat',
+                'list_jobs',
+                'subscribe',
+                'lease_expires_at',
+                'cost.budget',
+                'progress',
+                'result_chunk',
+                'agent_versions',
+            ],
             artifactRetentionDefaultSeconds: 86400,
             artifactRetentionMaxSeconds: 604800,
         );

@@ -32,7 +32,7 @@ final class SubscriptionTest extends TestCase
         [$serverT, $clientT] = MemoryTransport::pair();
         $serverFuture = $runtime->serveAsync($serverT);
         $client = new ARCPClient($clientT);
-        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(subscriptions: true, anonymous: true));
+        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(subscriptions: true, anonymous: true, features: ['subscribe']));
 
         $sawBackfillMarker = new DeferredFuture();
         $client->subscribe(
@@ -67,7 +67,7 @@ final class SubscriptionTest extends TestCase
         [$serverT, $clientT] = MemoryTransport::pair();
         $serverFuture = $runtime->serveAsync($serverT);
         $client = new ARCPClient($clientT);
-        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(subscriptions: true, anonymous: true));
+        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(subscriptions: true, anonymous: true, features: ['subscribe']));
 
         $observed = [];
         $client->subscribe(
@@ -96,7 +96,7 @@ final class SubscriptionTest extends TestCase
         [$serverT, $clientT] = MemoryTransport::pair();
         $serverFuture = $runtime->serveAsync($serverT);
         $client = new ARCPClient($clientT);
-        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(subscriptions: true, anonymous: true));
+        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(subscriptions: true, anonymous: true, features: ['subscribe']));
 
         $caught = null;
         try {
@@ -128,8 +128,8 @@ final class SubscriptionTest extends TestCase
         $serverFutureB = $runtime->serveAsync($serverTB);
         $clientA = new ARCPClient($clientTA);
         $clientB = new ARCPClient($clientTB);
-        $clientA->open(Auth::none(), new PeerInfo('cli-a', '0.1'), new Capabilities(subscriptions: true, anonymous: true));
-        $clientB->open(Auth::none(), new PeerInfo('cli-b', '0.1'), new Capabilities(subscriptions: true, anonymous: true));
+        $clientA->open(Auth::none(), new PeerInfo('cli-a', '0.1'), new Capabilities(subscriptions: true, anonymous: true, features: ['subscribe']));
+        $clientB->open(Auth::none(), new PeerInfo('cli-b', '0.1'), new Capabilities(subscriptions: true, anonymous: true, features: ['subscribe']));
 
         $aObservedSessions = [];
         $clientA->subscribe(

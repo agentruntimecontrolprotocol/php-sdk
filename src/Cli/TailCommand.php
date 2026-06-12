@@ -53,7 +53,7 @@ final class TailCommand extends Command
         $client->open(
             Auth::none(),
             new PeerInfo('arcp-tail', Version::IMPL_VERSION),
-            new Capabilities(subscriptions: true, anonymous: true),
+            new Capabilities(subscriptions: true, anonymous: true, features: ['subscribe']),
         );
 
         $client->subscribe(

@@ -166,6 +166,16 @@ final readonly class Dispatcher
 
     private function routeWork(Session $session, Envelope $env, MessageType $msg): bool
     {
+        // §6.2: a feature-flagged surface may only be used when it is in the
+        // negotiated intersection. Reject un-negotiated list_jobs/subscribe.
+        if ($msg instanceof ListJobs && !$this->featureEnabled($session, 'list_jobs')) {
+            $this->lifecycle->nack($session, $env, 'UNIMPLEMENTED', 'list_jobs not negotiated');
+            return true;
+        }
+        if ($msg instanceof Subscribe && !$this->featureEnabled($session, 'subscribe')) {
+            $this->lifecycle->nack($session, $env, 'UNIMPLEMENTED', 'subscribe not negotiated');
+            return true;
+        }
         match (true) {
             $msg instanceof ToolInvoke => $this->toolInvocation->handle($session, $env, $msg),
             $msg instanceof ListJobs => $this->jobList->handle($session, $env, $msg),
@@ -183,6 +193,12 @@ final readonly class Dispatcher
             || $msg instanceof ArtifactPut
             || $msg instanceof ArtifactFetch
             || $msg instanceof ArtifactRelease;
+    }
+
+    private function featureEnabled(Session $session, string $feature): bool
+    {
+        return $session->capabilities !== null
+            && \in_array($feature, $session->capabilities->features, true);
     }
 
     private function routeFallback(Session $session, Envelope $env, MessageType $msg): void

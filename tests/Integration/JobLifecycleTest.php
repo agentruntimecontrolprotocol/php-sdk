@@ -209,7 +209,7 @@ final class JobLifecycleTest extends TestCase
         [$serverT, $clientT] = MemoryTransport::pair();
         $serverFuture = $runtime->serveAsync($serverT);
         $client = new ARCPClient($clientT);
-        $client->open(Auth::none(), new PeerInfo('cli', '0.1', principal: 'alice'), new Capabilities(anonymous: true));
+        $client->open(Auth::none(), new PeerInfo('cli', '0.1', principal: 'alice'), new Capabilities(anonymous: true, features: ['list_jobs']));
 
         $future = async(fn () => $client->invokeTool('slow'));
         $deadline = microtime(true) + 2.0;
@@ -239,7 +239,7 @@ final class JobLifecycleTest extends TestCase
         [$serverT, $clientT] = MemoryTransport::pair();
         $serverFuture = $runtime->serveAsync($serverT);
         $client = new ARCPClient($clientT);
-        $client->open(Auth::none(), new PeerInfo('cli', '0.1', principal: 'alice'), new Capabilities(anonymous: true));
+        $client->open(Auth::none(), new PeerInfo('cli', '0.1', principal: 'alice'), new Capabilities(anonymous: true, features: ['list_jobs']));
 
         // Run two short jobs that complete immediately. With the pre-fix
         // behavior, these would vanish from list_jobs the moment they
