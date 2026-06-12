@@ -37,9 +37,9 @@ use Arcp\Messages\Artifacts\ArtifactReleased;
 use Arcp\Messages\Control\Nack;
 use Arcp\Messages\Execution\JobCancel;
 use Arcp\Messages\Execution\JobError;
+use Arcp\Messages\Execution\JobEvent;
 use Arcp\Messages\Execution\JobResult;
 use Arcp\Messages\Execution\JobSubmit;
-use Arcp\Messages\Execution\ResultChunk;
 use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\Capabilities;
 use Arcp\Messages\Session\Jobs;
@@ -582,7 +582,9 @@ final class ARCPClient
             // §6.3: track the resume watermark presented as last_event_seq.
             $this->session->lastReceivedEventSeq = $env->eventSeq;
         }
-        if ($env->payload instanceof ResultChunk) {
+        if ($env->payload instanceof JobEvent) {
+            // §8.4: result_chunk events feed the assembler (other kinds
+            // are ignored by push()).
             $this->resultChunks->push($env->payload);
         }
         $this->router->handle($env);

@@ -36,7 +36,6 @@ use Arcp\Messages\Execution\JobAccepted;
 use Arcp\Messages\Execution\JobError;
 use Arcp\Messages\Execution\JobEvent;
 use Arcp\Messages\Execution\JobResult;
-use Arcp\Messages\Execution\ResultChunk;
 use Arcp\Messages\Session\Capabilities;
 use Arcp\Messages\Session\PeerInfo;
 use Arcp\Messages\Session\SessionAck;
@@ -485,8 +484,7 @@ final class ARCPRuntime
     {
         return $payload instanceof JobEvent
             || $payload instanceof JobResult
-            || $payload instanceof JobError
-            || $payload instanceof ResultChunk;
+            || $payload instanceof JobError;
     }
 
     private function redactedPayload(MessageType $payload): MessageType

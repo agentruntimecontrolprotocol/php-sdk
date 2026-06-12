@@ -5,35 +5,49 @@ declare(strict_types=1);
 namespace Arcp\Client;
 
 use Arcp\Errors\InvalidRequestException;
-use Arcp\Messages\Execution\ResultChunk;
+use Arcp\Messages\Execution\JobEvent;
 use Arcp\Messages\Execution\ResultChunkEncoding;
 
 /**
- * Collects `job.result_chunk` messages by result id and assembles final
- * bytes. Enforces sequence contiguity (0..N), terminal-chunk delivery,
- * and duplicate consistency so a truncated or out-of-order stream never
- * silently produces a corrupted result.
+ * Collects §8.4 `result_chunk` job events by `result_id` and assembles
+ * final bytes. Enforces sequence contiguity (0..N), terminal-chunk
+ * delivery, and duplicate consistency so a truncated, out-of-order, or
+ * divergent stream never silently produces a corrupted result.
  */
 final class ResultChunkAssembler
 {
-    /** @var array<string, array<int, ResultChunk>> */
+    /**
+     * @var array<string, array<int, array{data: string, encoding: ResultChunkEncoding, more: bool}>>
+     */
     private array $chunks = [];
 
     /** @var array<string, bool> */
     private array $complete = [];
 
-    public function push(ResultChunk $chunk): void
+    /**
+     * Ingest a `job.event`; events whose kind is not `result_chunk` are
+     * ignored. Byte-identical duplicates are tolerated (§8.4); a
+     * divergent duplicate raises.
+     */
+    public function push(JobEvent $event): void
     {
-        $existing = $this->chunks[$chunk->resultId][$chunk->chunkSeq] ?? null;
-        if ($existing instanceof ResultChunk && !$this->sameChunkPayload($existing, $chunk)) {
+        if ($event->eventKind !== 'result_chunk') {
+            return;
+        }
+        $chunk = $this->parse($event->body);
+        $resultId = $chunk['result_id'];
+        $seq = $chunk['chunk_seq'];
+        $existing = $this->chunks[$resultId][$seq] ?? null;
+        $record = ['data' => $chunk['data'], 'encoding' => $chunk['encoding'], 'more' => $chunk['more']];
+        if ($existing !== null && $existing !== $record) {
             throw new InvalidRequestException(
                 'result_chunk duplicate with conflicting payload',
-                ['result_id' => $chunk->resultId, 'chunk_seq' => $chunk->chunkSeq],
+                ['result_id' => $resultId, 'chunk_seq' => $seq],
             );
         }
-        $this->chunks[$chunk->resultId][$chunk->chunkSeq] = $chunk;
-        if (!$chunk->more) {
-            $this->complete[$chunk->resultId] = true;
+        $this->chunks[$resultId][$seq] = $record;
+        if (!$chunk['more']) {
+            $this->complete[$resultId] = true;
         }
     }
 
@@ -58,9 +72,9 @@ final class ResultChunkAssembler
         $this->assertContiguous($resultId, $chunks);
         $out = '';
         foreach ($chunks as $chunk) {
-            $out .= $chunk->encoding === ResultChunkEncoding::Base64
-                ? $this->decodeBase64($chunk)
-                : $chunk->data;
+            $out .= $chunk['encoding'] === ResultChunkEncoding::Base64
+                ? $this->decodeBase64($chunk['data'])
+                : $chunk['data'];
         }
         $this->forget($resultId);
         return $out;
@@ -75,7 +89,41 @@ final class ResultChunkAssembler
         unset($this->chunks[$resultId], $this->complete[$resultId]);
     }
 
-    /** @param array<int, ResultChunk> $chunks */
+    /**
+     * Validate and narrow a §8.4 `result_chunk` body.
+     *
+     * @param array<string, mixed> $body
+     *
+     * @return array{result_id: string, chunk_seq: int, data: string, encoding: ResultChunkEncoding, more: bool}
+     */
+    private function parse(array $body): array
+    {
+        $resultId = $body['result_id'] ?? throw new InvalidRequestException('result_chunk result_id missing');
+        $seq = $body['chunk_seq'] ?? throw new InvalidRequestException('result_chunk chunk_seq missing');
+        $data = $body['data'] ?? throw new InvalidRequestException('result_chunk data missing');
+        $encoding = $body['encoding'] ?? 'utf8';
+        $more = $body['more'] ?? throw new InvalidRequestException('result_chunk more missing');
+        if (!\is_string($resultId) || $resultId === '' || !\is_int($seq) || !\is_string($data)) {
+            throw new InvalidRequestException('result_id/data must be strings; chunk_seq must be int');
+        }
+        if ($seq < 0) {
+            throw new InvalidRequestException('chunk_seq must be non-negative');
+        }
+        if (!\is_string($encoding) || !\is_bool($more)) {
+            throw new InvalidRequestException('encoding/more have invalid types');
+        }
+        $encodingEnum = ResultChunkEncoding::tryFrom($encoding)
+            ?? throw new InvalidRequestException('encoding must be utf8 or base64');
+        return [
+            'result_id' => $resultId,
+            'chunk_seq' => $seq,
+            'data' => $data,
+            'encoding' => $encodingEnum,
+            'more' => $more,
+        ];
+    }
+
+    /** @param array<int, array{data: string, encoding: ResultChunkEncoding, more: bool}> $chunks */
     private function assertContiguous(string $resultId, array $chunks): void
     {
         $expected = 0;
@@ -90,7 +138,7 @@ final class ResultChunkAssembler
             ++$expected;
             $terminal = $chunk;
         }
-        if ($terminal instanceof ResultChunk && $terminal->more) {
+        if ($terminal !== null && $terminal['more']) {
             throw new InvalidRequestException(
                 'result_chunk highest sequence has more=true',
                 ['result_id' => $resultId],
@@ -98,16 +146,9 @@ final class ResultChunkAssembler
         }
     }
 
-    private function sameChunkPayload(ResultChunk $a, ResultChunk $b): bool
+    private function decodeBase64(string $data): string
     {
-        return $a->data === $b->data
-            && $a->encoding === $b->encoding
-            && $a->more === $b->more;
-    }
-
-    private function decodeBase64(ResultChunk $chunk): string
-    {
-        $decoded = base64_decode($chunk->data, strict: true);
+        $decoded = base64_decode($data, strict: true);
         if ($decoded === false) {
             throw new InvalidRequestException('result_chunk data is not valid base64');
         }

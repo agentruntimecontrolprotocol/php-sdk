@@ -20,7 +20,6 @@ use Arcp\Internal\Runtime\PermissionRequestSpec;
 use Arcp\Messages\Artifacts\ArtifactRef;
 use Arcp\Messages\Execution\JobEvent;
 use Arcp\Messages\Execution\JobHeartbeat;
-use Arcp\Messages\Execution\ResultChunk;
 use Arcp\Messages\Execution\ResultChunkEncoding;
 use Arcp\Messages\Human\HumanChoiceRequest;
 use Arcp\Messages\Human\HumanChoiceResponse;
@@ -58,19 +57,60 @@ final class JobContext
     ) {
     }
 
+    /**
+     * Stream a §8.4 result fragment as a `job.event` of kind
+     * `result_chunk`. The runtime mints the stable `result_id` on the
+     * first chunk and returns it; the terminal `job.result` references it
+     * (`final_status` + `result_id`) and the job MUST NOT also return an
+     * inline result.
+     *
+     * Retransmission: passing an already-emitted `$seq` with
+     * byte-identical fields re-sends the chunk (receivers dedupe);
+     * divergent payloads for the same `seq` are rejected.
+     *
+     * @return string the stable §8.4 `result_id` for this job's stream
+     */
     public function emitResultChunk(
-        string $resultId,
         string $data,
         bool $more = true,
         ResultChunkEncoding $encoding = ResultChunkEncoding::Utf8,
-    ): void {
-        $job = $this->runtime->jobs->tryGet($this->jobId);
-        $seq = $job instanceof Job ? $job->nextResultChunkSeq($resultId) : 0;
-        $this->runtime->emit(
-            $this->session,
-            new ResultChunk($resultId, $seq, $data, $encoding, $more),
-            ['job_id' => $this->jobId, 'trace_id' => $this->traceId],
-        );
+        ?int $seq = null,
+    ): string {
+        $job = $this->runtime->jobs->tryGet($this->jobId)
+            ?? throw new InvalidRequestException('job no longer tracked');
+        $resultId = $job->streamedResultId ??= 'res_' . bin2hex(random_bytes(12));
+        $seq ??= $job->nextResultChunkSeq();
+        $fingerprint = hash('sha256', $data . "\0" . $encoding->value . "\0" . ($more ? '1' : '0'));
+        $prior = $job->resultChunkHashes[$seq] ?? null;
+        if ($prior !== null && $prior !== $fingerprint) {
+            // §8.4: a divergent duplicate would corrupt the assembled
+            // result; only byte-identical retransmission is tolerated.
+            throw new InvalidRequestException(
+                'result_chunk retransmission diverges from original',
+                ['result_id' => $resultId, 'chunk_seq' => $seq],
+            );
+        }
+        if ($prior === null) {
+            $job->resultChunkHashes[$seq] = $fingerprint;
+            $decoded = $encoding === ResultChunkEncoding::Base64
+                ? base64_decode($data, strict: true)
+                : $data;
+            if ($decoded === false) {
+                throw new InvalidRequestException('result_chunk data is not valid base64');
+            }
+            $job->streamedResultBytes += \strlen($decoded);
+            if (!$more) {
+                $job->resultStreamClosed = true;
+            }
+        }
+        $this->emitJobEvent('result_chunk', [
+            'result_id' => $resultId,
+            'chunk_seq' => $seq,
+            'data' => $data,
+            'encoding' => $encoding->value,
+            'more' => $more,
+        ]);
+        return $resultId;
     }
 
     /**

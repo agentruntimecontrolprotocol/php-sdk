@@ -47,8 +47,30 @@ final class Job
     /** Wall-clock timestamp of the most recent terminal transition, if any. */
     public ?\DateTimeImmutable $terminatedAt = null;
 
-    /** @var array<string, int> */
-    private array $resultChunkSeq = [];
+    /**
+     * §8.4 streamed-result state. The runtime mints `streamedResultId`
+     * on the first chunk; once set, the terminal `job.result` MUST carry
+     * it and the job must not return an inline result.
+     */
+    public ?string $streamedResultId = null;
+
+    /** Total decoded byte size of all streamed chunks (`result_size`). */
+    public int $streamedResultBytes = 0;
+
+    /** True once the final chunk (`more: false`) has been emitted. */
+    public bool $resultStreamClosed = false;
+
+    /**
+     * SHA-256 of each emitted chunk's wire fields keyed by `chunk_seq`,
+     * for §8.4 duplicate detection: byte-identical retransmission is
+     * tolerated; a divergent duplicate is rejected.
+     *
+     * @var array<int, string>
+     */
+    public array $resultChunkHashes = [];
+
+    /** Next §8.4 `chunk_seq` to allocate (0-based, monotonic). */
+    private int $resultChunkSeq = 0;
 
     /**
      * Mailbox for guidance delivered in response to an `interrupt`. The
@@ -81,11 +103,9 @@ final class Job
         return $this->toolVersion === null ? $this->tool : $this->tool . '@' . $this->toolVersion;
     }
 
-    public function nextResultChunkSeq(string $resultId): int
+    public function nextResultChunkSeq(): int
     {
-        $next = $this->resultChunkSeq[$resultId] ?? 0;
-        $this->resultChunkSeq[$resultId] = $next + 1;
-        return $next;
+        return $this->resultChunkSeq++;
     }
 
     public function deliverInterruptResponse(HumanInputResponse $response): void

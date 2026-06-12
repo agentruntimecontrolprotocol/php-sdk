@@ -34,8 +34,6 @@ use Arcp\Messages\Execution\JobHeartbeat;
 use Arcp\Messages\Execution\JobResult;
 use Arcp\Messages\Execution\JobSchedule;
 use Arcp\Messages\Execution\JobSubmit;
-use Arcp\Messages\Execution\ResultChunk;
-use Arcp\Messages\Execution\ResultChunkEncoding;
 use Arcp\Messages\Execution\WorkflowComplete;
 use Arcp\Messages\Execution\WorkflowStart;
 use Arcp\Messages\Human\HumanChoiceRequest;
@@ -182,7 +180,6 @@ final class MessageCatalogRoundTripTest extends TestCase
             JobError::TIMED_OUT,
             new ErrorPayload('TIMEOUT', 'job exceeded max_runtime_sec', true),
         )];
-        yield 'job.result_chunk' => [new ResultChunk('res_x', 0, 'hello', ResultChunkEncoding::Utf8, true)];
         yield 'job.heartbeat' => [new JobHeartbeat(17, 60000, 'running')];
         yield 'job.checkpoint' => [new JobCheckpoint('chk_a', ['progress' => 50])];
         yield 'job.cancelled' => [new JobCancelled('user_aborted', 'CANCELLED')];

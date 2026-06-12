@@ -307,13 +307,38 @@ final readonly class JobSubmitHandler
         $session = $spec->session;
         $env = $spec->env;
         $job = $spec->job;
+        if ($job->streamedResultId !== null) {
+            // §8.4: once a result_chunk was emitted the terminal job.result
+            // MUST carry result_id — mixing in an inline result is rejected.
+            if ($value !== null) {
+                $this->failJob($spec, new ErrorPayload(
+                    'INVALID_REQUEST',
+                    'job mixed inline result and result_chunk (§8.4)',
+                    false,
+                ));
+                return;
+            }
+            if (!$job->resultStreamClosed) {
+                $this->failJob($spec, new ErrorPayload(
+                    'INVALID_REQUEST',
+                    'result_chunk stream not terminated: final chunk must carry more=false (§8.4)',
+                    false,
+                ));
+                return;
+            }
+        }
         $this->runtime->jobs->transition($job, JobState::Success);
-        // §7.3/§8.4: a single terminal job.result carries the inline result
-        // and resolves the synchronous submitter via correlation_id.
-        $outcomeId = $this->runtime->emit($session, new JobResult(
-            finalStatus: JobResult::SUCCESS,
-            result: $value,
-        ), [
+        // §7.3/§8.4: a single terminal job.result resolves the synchronous
+        // submitter via correlation_id. It carries either the inline result
+        // or the §8.4 result_id + result_size of the streamed result.
+        $result = $job->streamedResultId !== null
+            ? new JobResult(
+                finalStatus: JobResult::SUCCESS,
+                resultId: $job->streamedResultId,
+                resultSize: $job->streamedResultBytes,
+            )
+            : new JobResult(finalStatus: JobResult::SUCCESS, result: $value);
+        $outcomeId = $this->runtime->emit($session, $result, [
             'correlation_id' => $env->id,
             'job_id' => $job->id,
             'trace_id' => $env->traceId,

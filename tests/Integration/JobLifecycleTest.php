@@ -273,9 +273,9 @@ final class JobLifecycleTest extends TestCase
             #[\Override]
             public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
             {
-                $ctx->emitResultChunk('res_x', 'hello, ');
-                $ctx->emitResultChunk('res_x', 'world', more: false);
-                return ['result_id' => 'res_x'];
+                $ctx->emitResultChunk('hello, ');
+                $ctx->emitResultChunk('world', more: false);
+                return null;
             }
         });
         [$serverT, $clientT] = MemoryTransport::pair();
@@ -283,10 +283,71 @@ final class JobLifecycleTest extends TestCase
         $client = new ARCPClient($clientT);
         $client->open(Auth::anonymous(), new PeerInfo('cli', '0.1'), new Capabilities());
 
+        // §8.4: the terminating job.result carries final_status +
+        // result_id (+ result_size); the result itself was streamed.
         $result = $client->invokeTool('chunker');
-        self::assertSame(['result_id' => 'res_x'], $result->result);
-        self::assertTrue($client->resultChunks->isComplete('res_x'));
-        self::assertSame('hello, world', $client->resultChunks->assemble('res_x'));
+        self::assertNull($result->result);
+        $resultId = $result->resultId;
+        self::assertNotNull($resultId);
+        self::assertSame(\strlen('hello, world'), $result->resultSize);
+        self::assertTrue($client->resultChunks->isComplete($resultId));
+        self::assertSame('hello, world', $client->resultChunks->assemble($resultId));
+
+        $client->close();
+        $serverFuture->await();
+    }
+
+    public function testMixingInlineResultAndChunksIsRejected(): void
+    {
+        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new AnonymousAuth()]));
+        $runtime->registerTool('mixer', new class () implements ToolHandler {
+            #[\Override]
+            public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
+            {
+                $ctx->emitResultChunk('hello', more: false);
+                return ['also' => 'inline']; // §8.4 violation
+            }
+        });
+        [$serverT, $clientT] = MemoryTransport::pair();
+        $serverFuture = $runtime->serveAsync($serverT);
+        $client = new ARCPClient($clientT);
+        $client->open(Auth::anonymous(), new PeerInfo('cli', '0.1'), new Capabilities());
+
+        try {
+            $client->invokeTool('mixer');
+            self::fail('expected InvalidRequestException');
+        } catch (InvalidRequestException $e) {
+            self::assertStringContainsString('§8.4', $e->getMessage());
+        }
+
+        $client->close();
+        $serverFuture->await();
+    }
+
+    public function testDivergentChunkRetransmissionIsRejected(): void
+    {
+        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new AnonymousAuth()]));
+        $runtime->registerTool('diverge', new class () implements ToolHandler {
+            #[\Override]
+            public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
+            {
+                $ctx->emitResultChunk('hello', seq: 0);
+                $ctx->emitResultChunk('hello', seq: 0); // byte-identical: tolerated
+                $ctx->emitResultChunk('HELLO', seq: 0); // divergent: rejected
+                return null;
+            }
+        });
+        [$serverT, $clientT] = MemoryTransport::pair();
+        $serverFuture = $runtime->serveAsync($serverT);
+        $client = new ARCPClient($clientT);
+        $client->open(Auth::anonymous(), new PeerInfo('cli', '0.1'), new Capabilities());
+
+        try {
+            $client->invokeTool('diverge');
+            self::fail('expected InvalidRequestException');
+        } catch (InvalidRequestException $e) {
+            self::assertStringContainsString('diverges', $e->getMessage());
+        }
 
         $client->close();
         $serverFuture->await();

@@ -26,7 +26,6 @@ use Arcp\Messages\Execution\JobHeartbeat;
 use Arcp\Messages\Execution\JobResult;
 use Arcp\Messages\Execution\JobSchedule;
 use Arcp\Messages\Execution\JobSubmit;
-use Arcp\Messages\Execution\ResultChunk;
 use Arcp\Messages\Execution\WorkflowComplete;
 use Arcp\Messages\Execution\WorkflowStart;
 use Arcp\Messages\Human\HumanChoiceRequest;
@@ -111,7 +110,6 @@ final class MessageCatalog
         JobCancelled::class,
         JobHeartbeat::class,
         JobCheckpoint::class,
-        ResultChunk::class,
         JobSchedule::class,
         WorkflowStart::class,
         WorkflowComplete::class,
