@@ -39,6 +39,7 @@ use Arcp\Messages\Execution\JobProgress;
 use Arcp\Messages\Execution\JobSchedule;
 use Arcp\Messages\Execution\JobStarted;
 use Arcp\Messages\Execution\ResultChunk;
+use Arcp\Messages\Execution\ResultChunkEncoding;
 use Arcp\Messages\Execution\ToolError;
 use Arcp\Messages\Execution\ToolInvoke;
 use Arcp\Messages\Execution\ToolResult;
@@ -154,7 +155,7 @@ final class MessageCatalogRoundTripTest extends TestCase
         yield 'job.accepted' => [new JobAccepted('queued')];
         yield 'job.started' => [new JobStarted($now)];
         yield 'job.progress' => [new JobProgress(50, 'midway')];
-        yield 'job.result_chunk' => [new ResultChunk('res_x', 0, 'hello', 'utf8', true)];
+        yield 'job.result_chunk' => [new ResultChunk('res_x', 0, 'hello', ResultChunkEncoding::Utf8, true)];
         yield 'job.heartbeat' => [new JobHeartbeat(17, 60000, 'running')];
         yield 'job.checkpoint' => [new JobCheckpoint('chk_a', ['progress' => 50])];
         yield 'job.completed' => [new JobCompleted(['ok' => true])];

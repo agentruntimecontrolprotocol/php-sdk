@@ -41,7 +41,7 @@ final readonly class LeaseGranted extends MessageType
             'expires_at' => $this->expiresAt->format(\DateTimeInterface::RFC3339_EXTENDED),
         ];
         if ($this->modelUse !== null) {
-            $out['model.use'] = $this->modelUse->patterns;
+            $out['model.use'] = $this->modelUse->patterns();
         }
         if ($this->costBudget !== null) {
             $out['cost.budget'] = $this->costBudget->patterns();

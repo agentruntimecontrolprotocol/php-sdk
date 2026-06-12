@@ -6,6 +6,7 @@ namespace Arcp\Client;
 
 use Arcp\Errors\InvalidArgumentException;
 use Arcp\Messages\Execution\ResultChunk;
+use Arcp\Messages\Execution\ResultChunkEncoding;
 
 /**
  * Collects `job.result_chunk` messages by result id and assembles final
@@ -57,11 +58,21 @@ final class ResultChunkAssembler
         $this->assertContiguous($resultId, $chunks);
         $out = '';
         foreach ($chunks as $chunk) {
-            $out .= $chunk->encoding === 'base64'
+            $out .= $chunk->encoding === ResultChunkEncoding::Base64
                 ? $this->decodeBase64($chunk)
                 : $chunk->data;
         }
+        $this->forget($resultId);
         return $out;
+    }
+
+    /**
+     * Release all buffered chunks for an assembled (or abandoned) result so a
+     * long-lived client streaming many results does not grow without bound.
+     */
+    public function forget(string $resultId): void
+    {
+        unset($this->chunks[$resultId], $this->complete[$resultId]);
     }
 
     /** @param array<int, ResultChunk> $chunks */

@@ -46,6 +46,17 @@ final readonly class ModelUse
         return self::fromPatterns($out);
     }
 
+    /**
+     * The configured allow-list patterns. Mirrors {@see CostBudget::patterns()}
+     * so lease serialization can use one uniform accessor for both.
+     *
+     * @return list<string>
+     */
+    public function patterns(): array
+    {
+        return $this->patterns;
+    }
+
     public function allows(string $modelId): bool
     {
         foreach ($this->patterns as $pattern) {

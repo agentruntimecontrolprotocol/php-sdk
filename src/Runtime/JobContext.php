@@ -20,6 +20,7 @@ use Arcp\Messages\Artifacts\ArtifactRef;
 use Arcp\Messages\Execution\JobHeartbeat;
 use Arcp\Messages\Execution\JobProgress;
 use Arcp\Messages\Execution\ResultChunk;
+use Arcp\Messages\Execution\ResultChunkEncoding;
 use Arcp\Messages\Human\HumanChoiceRequest;
 use Arcp\Messages\Human\HumanChoiceResponse;
 use Arcp\Messages\Human\HumanInputCancelled;
@@ -62,7 +63,7 @@ final class JobContext
         string $resultId,
         string $data,
         bool $more = true,
-        string $encoding = 'utf8',
+        ResultChunkEncoding $encoding = ResultChunkEncoding::Utf8,
     ): void {
         $job = $this->runtime->jobs->tryGet($this->jobId);
         $seq = $job instanceof Job ? $job->nextResultChunkSeq($resultId) : 0;
