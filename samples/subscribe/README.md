@@ -28,7 +28,7 @@ agent never knows they exist.
 ## ARCP primitives
 
 - Subscriptions, filters, Observer role — RFC §13, §5.
-- `since.after_message_id` backfill + the synthetic
+- `from_event_seq` + `history` backfill (§7.6) + the synthetic
   `subscription.backfill_complete` marker — §13.3.
 - Standard metrics + trace spans — §17.
 - Stream-kind filtering for `kind: thought` redaction — §11.4.

@@ -8,13 +8,12 @@ true)`.
 
 ## `RESUME_WINDOW_EXPIRED`
 
-The PHP event log can replay after a known message id. If the referenced
-message is absent, resume fails with a data-loss style error.
-
-## `INVALID_REQUEST` on resume
-
-Verify that `after_message_id` or checkpoint fields refer to an event
-the runtime knows how to replay.
+A §6.3 resume presents the `resume_token` from the most recent
+`session.welcome` plus `last_event_seq`. The error means the token is
+unknown, expired, rotated away, owned by another principal, or the
+buffer no longer covers `last_event_seq` (events at or below an acked
+watermark are released). Reconnect with a fresh `session.hello` and
+resubscribe to the jobs you still care about (§7.6).
 
 ## `PERMISSION_DENIED` from a tool
 

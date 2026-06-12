@@ -11,7 +11,7 @@ common SDK tasks.
 $ctx->reportProgress(50, 'halfway');
 ```
 
-Subscribe to `job.progress` or use the event log to inspect progress
+Subscribe to `job.event` kind `progress` or use the event log to inspect progress
 after the fact.
 
 ## Crash-safe submission

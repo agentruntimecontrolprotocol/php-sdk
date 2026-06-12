@@ -9,20 +9,22 @@ but still diverges from the spec wire shape (tracked by the linked issues).
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| Envelope JSON and typed message catalog | Partial | no top-level `event_seq` yet (#132, #152) |
-| Session hello/welcome/rejected/close | Partial | uses `session.open`/`session.accepted` not `session.hello`/`session.welcome`; no `session.closed` ack (#121, #122, #123, #130) |
-| Ping/pong, ack, resume | Partial | `ping`/`pong` not `session.ping`/`session.pong`; `ack` is advisory-only; resume uses `after_message_id` not `session.resume` + rotating token (#127, #128, #146, #55, #125) |
-| `session.list_jobs` / `session.jobs` | Partial | entries omit `lease`/`parent_job_id`/`last_event_seq`; credentials redacted from the inventory (#143) |
-| Tool invocation and job lifecycle | Partial | submission uses `tool.invoke` not `job.submit`; terminal states are `completed`/`failed` not `success`/`error`/`timed_out` (#134, #137) |
-| Agent `name@version` resolution | Full | deterministic resolution; ambiguous unversioned names are rejected |
-| Progress, streams, and `job.result_chunk` | Partial | progress body uses `percent` not `current`/`total`; inline/chunk mixing not yet prevented (#63, #147, #64, #153, #154) |
+| Envelope JSON and typed message catalog | Full | top-level `event_seq` on sequenced job messages; lenient unknown-type decode |
+| Session hello/welcome/closed (§6.1–§6.2, §6.7) | Full | `{encodings, features, agents}` capabilities with intersection semantics; bearer/anonymous auth; `session.closed` ack leaves jobs running |
+| Ping/pong, ack, resume (§6.3–§6.5) | Full | heartbeats unsequenced and unbuffered; `session.ack` releases the buffer; token resume via `session.hello {resume_token, last_event_seq}` with rotation and `RESUME_WINDOW_EXPIRED` |
+| `session.list_jobs` / `session.jobs` (§6.6) | Full | entries carry `lease`/`parent_job_id`/`last_event_seq`; credentials redacted from the inventory |
+| Job submission and lifecycle (§7.1–§7.4) | Full | `job.submit`/`job.accepted`/`job.result`/`job.error`; §7.3 terminal states |
+| Idempotency (§7.2) | Full | canonical fingerprint; identical retry replays the original `job.accepted`; conflicting reuse returns `DUPLICATE_KEY` |
+| Agent `name@version` resolution (§7.5) | Full | deterministic resolution; ambiguous unversioned names are rejected |
+| Job events (§8.1–§8.4) | Full | `progress`/`log`/`metric`/`status`/`result_chunk` ride as `job.event` kinds; streamed results terminate with `job.result {final_status, result_id}`; inline/chunk mixing rejected |
 | Permissions and leases | Partial | `expires_at` UTC/future validation and runtime expiry enforcement pending (#60, #156) |
 | `cost.budget` counters | Partial | negative metrics rejected and exact-zero allowed; no pre-dispatch budget check (#158) |
 | `model.use` leases | Full | pattern grammar matches the spec examples |
 | Provisioned credentials | Partial | per-job scoping and retried revocation in place; no startup revocation replay (#160) |
 | `LEASE_SUBSET_VIOLATION` | Full | model.use, cost.budget, and `expires_at` containment enforced |
-| Artifacts | Full | `ref()`/`fetch()` agree on expiry |
-| Subscriptions and backfill | Partial | uses `subscribe`/`subscribe.accepted` not `job.subscribe`/`job.subscribed`; principal authorization pending (#138, #151, #139) |
+| Artifacts | Full | `ref()`/`fetch()` agree on expiry (SDK extension surface) |
+| Subscriptions and backfill (§7.6) | Partial | `job.subscribe`/`job.subscribed`/`job.unsubscribe`; cross-principal authorization policy pending (#139) |
+| Error taxonomy (§12) | Full | command rejections are correlated top-level `job.error`; no generic `nack` |
 | Vendor extensions | Full | core-type classification and `x-` rejection match the spec |
 
 ## v1.1 features
