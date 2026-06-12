@@ -21,7 +21,6 @@ use Arcp\Messages\Control\Backpressure;
 use Arcp\Messages\Control\CheckpointCreate;
 use Arcp\Messages\Control\CheckpointRestore;
 use Arcp\Messages\Control\Interrupt;
-use Arcp\Messages\Control\Nack;
 use Arcp\Messages\Execution\AgentDelegate;
 use Arcp\Messages\Execution\AgentHandoff;
 use Arcp\Messages\Execution\JobAccepted;
@@ -132,7 +131,6 @@ final class MessageCatalogRoundTripTest extends TestCase
         yield 'session.ping' => [new SessionPing('nonce-123', $now)];
         yield 'session.pong' => [new SessionPong('nonce-123', $now)];
         yield 'session.ack' => [new SessionAck(1827)];
-        yield 'nack' => [new Nack($err)];
         yield 'job.cancel' => [new JobCancel(new JobId('job_x'), 'aborted')];
         yield 'interrupt' => [new Interrupt('job', 'job_x', 'pause and ask')];
         yield 'backpressure' => [new Backpressure(20, 65536, 'render queue full')];

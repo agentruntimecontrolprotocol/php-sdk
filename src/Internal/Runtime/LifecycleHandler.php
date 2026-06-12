@@ -16,9 +16,9 @@ use Arcp\Ids\JobId;
 use Arcp\Ids\MessageId;
 use Arcp\Ids\SessionId;
 use Arcp\Messages\Control\Interrupt;
-use Arcp\Messages\Control\Nack;
 use Arcp\Messages\Execution\JobCancel;
 use Arcp\Messages\Execution\JobCancelled;
+use Arcp\Messages\Execution\JobError;
 use Arcp\Messages\Execution\JobEvent;
 use Arcp\Messages\Human\HumanInputRequest;
 use Arcp\Messages\Human\HumanInputResponse;
@@ -36,8 +36,8 @@ use Arcp\Runtime\SessionState;
 
 /**
  * Owns the small ARCP message handlers: session.ping/pong, session.ack,
- * session.close, job.cancel, interrupt, lease.refresh, plus shared
- * nack/no-session helpers used by sibling collaborators.
+ * session.close, job.cancel, interrupt, lease.refresh, plus the shared
+ * command-rejection / no-session helpers used by sibling collaborators.
  *
  * @internal
  */
@@ -94,11 +94,11 @@ final readonly class LifecycleHandler
     {
         $job = $this->runtime->jobs->tryGet($msg->jobId);
         if (!$job instanceof Job) {
-            $this->nack($session, $env, 'JOB_NOT_FOUND', 'job not found');
+            $this->reject($session, $env, 'JOB_NOT_FOUND', 'job not found');
             return;
         }
         if ($job->state->isTerminal()) {
-            $this->nack($session, $env, 'INVALID_REQUEST', 'job already terminal');
+            $this->reject($session, $env, 'INVALID_REQUEST', 'job already terminal');
             return;
         }
         $job->cancellation->cancel(
@@ -117,16 +117,16 @@ final readonly class LifecycleHandler
     {
         $job = $this->runtime->jobs->tryGet(new JobId($msg->targetId));
         if (!$job instanceof Job) {
-            $this->nack($session, $env, 'JOB_NOT_FOUND', 'job not found');
+            $this->reject($session, $env, 'JOB_NOT_FOUND', 'job not found');
             return;
         }
         if ($job->state->isTerminal()) {
-            $this->nack($session, $env, 'INVALID_REQUEST', 'job already terminal');
+            $this->reject($session, $env, 'INVALID_REQUEST', 'job already terminal');
             return;
         }
         // Only the owning session may interrupt a job (cf. handleCancel).
         if ($job->session !== $session) {
-            $this->nack($session, $env, 'PERMISSION_DENIED', 'job not owned by this session');
+            $this->reject($session, $env, 'PERMISSION_DENIED', 'job not owned by this session');
             return;
         }
         $requestId = $this->runtime->emit($session, new HumanInputRequest(
@@ -176,7 +176,7 @@ final readonly class LifecycleHandler
     {
         $sessionId = $session->sessionId;
         if (!$sessionId instanceof SessionId) {
-            $this->nack($session, $env, 'PERMISSION_DENIED', 'lease refresh requires an authenticated session');
+            $this->reject($session, $env, 'PERMISSION_DENIED', 'lease refresh requires an authenticated session');
             return;
         }
         try {
@@ -192,14 +192,21 @@ final readonly class LifecycleHandler
                 ['correlation_id' => $env->id],
             );
         } catch (ARCPException $e) {
-            $this->nack($session, $env, $e->code()->value, $e->getMessage());
+            $this->reject($session, $env, $e->code()->value, $e->getMessage());
         }
     }
 
-    public function nack(Session $session, Envelope $cause, string $code, string $message): void
+    /**
+     * §12: reject a command with a correlated top-level `job.error`
+     * echoing the request envelope id. Rejections are session control —
+     * they do not consume `event_seq` (§8.1 covers job events only).
+     */
+    public function reject(Session $session, Envelope $cause, string $code, string $message): void
     {
-        $this->runtime->emit($session, new Nack(new ErrorPayload($code, $message)), [
+        $this->runtime->emit($session, new JobError(JobError::ERROR, new ErrorPayload($code, $message)), [
             'correlation_id' => $cause->id,
+            'job_id' => $cause->jobId,
+            'sequenced' => false,
         ]);
     }
 

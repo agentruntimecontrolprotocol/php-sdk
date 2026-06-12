@@ -18,9 +18,9 @@ use Arcp\Ids\JobId;
 use Arcp\Ids\LeaseId;
 use Arcp\Ids\MessageId;
 use Arcp\Messages\Control\Interrupt;
-use Arcp\Messages\Control\Nack;
 use Arcp\Messages\Execution\JobCancel;
 use Arcp\Messages\Execution\JobCancelled;
+use Arcp\Messages\Execution\JobError;
 use Arcp\Messages\Execution\JobEvent;
 use Arcp\Messages\Execution\JobSubmit;
 use Arcp\Messages\Human\HumanChoiceRequest;
@@ -64,7 +64,7 @@ final class LifecycleHandlerTest extends TestCase
         );
         $client->session->transport->send($env);
         $response = $client->pending->awaitResponse($msgId, 5.0);
-        self::assertInstanceOf(Nack::class, $response);
+        self::assertInstanceOf(JobError::class, $response);
         self::assertSame('JOB_NOT_FOUND', $response->error->code);
 
         $client->close();
@@ -124,7 +124,7 @@ final class LifecycleHandlerTest extends TestCase
         $serverFuture->await();
     }
 
-    public function testInterruptOnUnknownJobIsNacked(): void
+    public function testInterruptOnUnknownJobIsRejected(): void
     {
         [, $client, $serverFuture] = $this->pair();
         $msgId = MessageId::random();
@@ -136,7 +136,7 @@ final class LifecycleHandlerTest extends TestCase
         );
         $client->session->transport->send($env);
         $response = $client->pending->awaitResponse($msgId, 5.0);
-        self::assertInstanceOf(Nack::class, $response);
+        self::assertInstanceOf(JobError::class, $response);
         self::assertSame('JOB_NOT_FOUND', $response->error->code);
 
         $client->close();
@@ -223,7 +223,7 @@ final class LifecycleHandlerTest extends TestCase
         $serverFuture->await();
     }
 
-    public function testLeaseRefreshUnknownLeaseIsNacked(): void
+    public function testLeaseRefreshUnknownLeaseIsRejected(): void
     {
         [, $client, $serverFuture] = $this->pair();
 
@@ -236,7 +236,7 @@ final class LifecycleHandlerTest extends TestCase
         );
         $client->session->transport->send($env);
         $response = $client->pending->awaitResponse($msgId, 5.0);
-        self::assertInstanceOf(Nack::class, $response);
+        self::assertInstanceOf(JobError::class, $response);
         self::assertSame('PERMISSION_DENIED', $response->error->code);
 
         $client->close();

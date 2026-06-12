@@ -402,7 +402,8 @@ final class ARCPRuntime
      *     stream_id?: StreamId|null,
      *     subscription_id?: SubscriptionId|null,
      *     trace_id?: TraceId|null,
-     *     priority?: Priority
+     *     priority?: Priority,
+     *     sequenced?: bool
      * } $hints
      */
     public function emit(Session $session, MessageType $payload, array $hints = []): MessageId
@@ -410,7 +411,10 @@ final class ARCPRuntime
         $id = $hints['message_id'] ?? MessageId::random();
         $redactedPayload = $this->redactedPayload($payload);
         $jobId = $hints['job_id'] ?? null;
-        $eventSeq = $this->isSequenced($payload) ? $session->nextEventSeq() : null;
+        // Top-level command rejections reuse the job.error type but are
+        // NOT job events: callers opt out of event_seq via the hint.
+        $sequenced = $hints['sequenced'] ?? $this->isSequenced($payload);
+        $eventSeq = $sequenced ? $session->nextEventSeq() : null;
         $env = new Envelope(
             id: $id,
             payload: $payload,

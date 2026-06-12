@@ -34,7 +34,6 @@ use Arcp\Messages\Artifacts\ArtifactPut;
 use Arcp\Messages\Artifacts\ArtifactRef;
 use Arcp\Messages\Artifacts\ArtifactRelease;
 use Arcp\Messages\Artifacts\ArtifactReleased;
-use Arcp\Messages\Control\Nack;
 use Arcp\Messages\Execution\JobCancel;
 use Arcp\Messages\Execution\JobError;
 use Arcp\Messages\Execution\JobEvent;
@@ -196,7 +195,7 @@ final class ARCPClient
      *                                                    (`payload.lease_constraints`).
      *
      * @throws \Arcp\Errors\ARCPExceptionInterface mapped from `job.error`
-     *                                             or correlated `nack` (e.g. `PermissionDeniedException`,
+     *                                             or a correlated top-level `job.error` (e.g. `PermissionDeniedException`,
      *                                             `BudgetExhaustedException`, `AgentNotAvailableException`).
      * @throws \Arcp\Errors\TimeoutException when `deadlineSeconds`
      *                                       elapses before a terminal response arrives.
@@ -235,9 +234,6 @@ final class ARCPClient
         $this->session->transport->send($env);
         $response = $this->pending->awaitResponse($id, $deadlineSeconds, $cancellation);
         if ($response instanceof JobError) {
-            throw $this->errorMapper->raise($response->error);
-        }
-        if ($response instanceof Nack) {
             throw $this->errorMapper->raise($response->error);
         }
         if (!$response instanceof JobResult) {
@@ -280,7 +276,7 @@ final class ARCPClient
         $this->session->transport->send($env);
         try {
             $response = $this->pending->awaitResponse($id, 30.0, $cancellation);
-            if ($response instanceof Nack) {
+            if ($response instanceof JobError) {
                 throw $this->errorMapper->raise($response->error);
             }
             if (!$response instanceof JobSubscribed) {
@@ -312,7 +308,7 @@ final class ARCPClient
      * @param array<string, mixed> $filter
      *
      * @throws \Arcp\Errors\ARCPExceptionInterface for runtime errors mapped
-     *                                             from a correlated `nack`.
+     *                                             from a correlated top-level `job.error`.
      * @throws InvalidRequestException for unexpected response shapes.
      */
     public function listJobs(
@@ -330,7 +326,7 @@ final class ARCPClient
         );
         $this->session->transport->send($env);
         $response = $this->pending->awaitResponse($id, 30.0, $cancellation);
-        if ($response instanceof Nack) {
+        if ($response instanceof JobError) {
             throw $this->errorMapper->raise($response->error);
         }
         if (!$response instanceof Jobs) {
@@ -373,7 +369,7 @@ final class ARCPClient
      * Round-trip a ping/pong heartbeat.
      *
      * @throws \Arcp\Errors\ARCPExceptionInterface when the runtime
-     *                                             returns a Nack instead of a SessionPong.
+     *                                             rejects the ping with a correlated job.error.
      * @throws InvalidRequestException for an unexpected response type.
      */
     public function ping(?string $nonce = null, float $deadlineSeconds = 5.0): SessionPong
@@ -390,7 +386,7 @@ final class ARCPClient
         );
         $this->session->transport->send($env);
         $resp = $this->pending->awaitResponse($id, $deadlineSeconds);
-        if ($resp instanceof Nack) {
+        if ($resp instanceof JobError) {
             throw $this->errorMapper->raise($resp->error);
         }
         if (!$resp instanceof SessionPong) {
@@ -425,7 +421,7 @@ final class ARCPClient
         );
         $this->session->transport->send($env);
         $resp = $this->pending->awaitResponse($id, 30.0);
-        if ($resp instanceof Nack) {
+        if ($resp instanceof JobError) {
             throw $this->errorMapper->raise($resp->error);
         }
         if (!$resp instanceof ArtifactRef) {
@@ -454,7 +450,7 @@ final class ARCPClient
         );
         $this->session->transport->send($env);
         $resp = $this->pending->awaitResponse($id, 30.0);
-        if ($resp instanceof Nack) {
+        if ($resp instanceof JobError) {
             throw $this->errorMapper->raise($resp->error);
         }
         if (!$resp instanceof ArtifactPut) {
@@ -485,7 +481,7 @@ final class ARCPClient
         );
         $this->session->transport->send($env);
         $resp = $this->pending->awaitResponse($id, 30.0);
-        if ($resp instanceof Nack) {
+        if ($resp instanceof JobError) {
             throw $this->errorMapper->raise($resp->error);
         }
         if (!$resp instanceof ArtifactReleased) {

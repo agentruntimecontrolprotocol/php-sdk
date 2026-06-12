@@ -37,12 +37,12 @@ final readonly class SubscriptionRouter
         $job = $this->runtime->jobs->tryGet($msg->jobId);
         if (!$job instanceof Job) {
             // §12: the job does not exist or is not visible.
-            $this->lifecycle->nack($session, $env, 'JOB_NOT_FOUND', 'job not found');
+            $this->lifecycle->reject($session, $env, 'JOB_NOT_FOUND', 'job not found');
             return;
         }
         if (!$this->authorized($session, $job)) {
             // §7.6: unauthorized subscription returns PERMISSION_DENIED.
-            $this->lifecycle->nack(
+            $this->lifecycle->reject(
                 $session,
                 $env,
                 'PERMISSION_DENIED',

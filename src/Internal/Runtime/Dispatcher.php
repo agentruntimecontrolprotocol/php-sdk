@@ -18,10 +18,10 @@ use Arcp\Messages\Artifacts\ArtifactFetch;
 use Arcp\Messages\Artifacts\ArtifactPut;
 use Arcp\Messages\Artifacts\ArtifactRelease;
 use Arcp\Messages\Control\Interrupt;
-use Arcp\Messages\Control\Nack;
 use Arcp\Messages\Execution\AgentDelegate;
 use Arcp\Messages\Execution\AgentHandoff;
 use Arcp\Messages\Execution\JobCancel;
+use Arcp\Messages\Execution\JobError;
 use Arcp\Messages\Execution\JobSchedule;
 use Arcp\Messages\Execution\JobSubmit;
 use Arcp\Messages\Execution\WorkflowStart;
@@ -131,8 +131,12 @@ final readonly class Dispatcher
             if (!($e instanceof ARCPException)) {
                 $e = new InternalErrorException($e->getMessage(), [], null, $e);
             }
-            $this->runtime->emit($session, new Nack(ErrorPayload::fromException($e)), [
+            // §12: command failures answer with a correlated top-level
+            // job.error echoing the request envelope id.
+            $this->runtime->emit($session, new JobError(JobError::ERROR, ErrorPayload::fromException($e)), [
                 'correlation_id' => $env->id,
+                'job_id' => $env->jobId,
+                'sequenced' => false,
             ]);
         }
     }
@@ -180,11 +184,11 @@ final readonly class Dispatcher
         // §6.2: a feature-flagged surface may only be used when it is in the
         // negotiated intersection. Reject un-negotiated list_jobs/subscribe.
         if ($msg instanceof ListJobs && !$this->featureEnabled($session, 'list_jobs')) {
-            $this->lifecycle->nack($session, $env, 'INVALID_REQUEST', 'list_jobs not negotiated');
+            $this->lifecycle->reject($session, $env, 'INVALID_REQUEST', 'list_jobs not negotiated');
             return true;
         }
         if ($msg instanceof JobSubscribe && !$this->featureEnabled($session, 'subscribe')) {
-            $this->lifecycle->nack($session, $env, 'INVALID_REQUEST', 'subscribe not negotiated');
+            $this->lifecycle->reject($session, $env, 'INVALID_REQUEST', 'subscribe not negotiated');
             return true;
         }
         $handled = true;
@@ -215,7 +219,7 @@ final readonly class Dispatcher
             || $msg instanceof AgentDelegate
             || $msg instanceof AgentHandoff
         ) {
-            $this->lifecycle->nack($session, $env, 'INVALID_REQUEST', 'feature deferred to v0.2');
+            $this->lifecycle->reject($session, $env, 'INVALID_REQUEST', 'feature deferred to v0.2');
             return;
         }
         // session.pong etc. with no waiter: silently drop.

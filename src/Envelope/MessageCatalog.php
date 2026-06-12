@@ -13,7 +13,6 @@ use Arcp\Messages\Control\Backpressure;
 use Arcp\Messages\Control\CheckpointCreate;
 use Arcp\Messages\Control\CheckpointRestore;
 use Arcp\Messages\Control\Interrupt;
-use Arcp\Messages\Control\Nack;
 use Arcp\Messages\Execution\AgentDelegate;
 use Arcp\Messages\Execution\AgentHandoff;
 use Arcp\Messages\Execution\JobAccepted;
@@ -95,7 +94,6 @@ final class MessageCatalog
         SessionPong::class,
         SessionAck::class,
         // Control
-        Nack::class,
         JobCancel::class,
         Interrupt::class,
         Backpressure::class,

@@ -32,7 +32,7 @@ final readonly class ArtifactDispatcher
     {
         $bytes = base64_decode($msg->data, strict: true);
         if ($bytes === false) {
-            $this->lifecycle->nack(
+            $this->lifecycle->reject(
                 $session,
                 $env,
                 'INVALID_REQUEST',
@@ -43,7 +43,7 @@ final readonly class ArtifactDispatcher
         if ($msg->sha256 !== null) {
             $normalized = strtolower(trim($msg->sha256));
             if (preg_match('/^[0-9a-f]{64}$/', $normalized) !== 1) {
-                $this->lifecycle->nack(
+                $this->lifecycle->reject(
                     $session,
                     $env,
                     'INVALID_REQUEST',
@@ -53,7 +53,7 @@ final readonly class ArtifactDispatcher
             }
             $computed = hash('sha256', $bytes);
             if (!hash_equals($computed, $normalized)) {
-                $this->lifecycle->nack(
+                $this->lifecycle->reject(
                     $session,
                     $env,
                     'INVALID_REQUEST',
@@ -75,7 +75,7 @@ final readonly class ArtifactDispatcher
             $bytes = $this->runtime->artifacts->fetch($msg->artifactId, $session);
             $mediaType = $this->runtime->artifacts->ref($msg->artifactId, $session)->mediaType;
         } catch (ARCPException $e) {
-            $this->lifecycle->nack($session, $env, $e->code()->value, $e->getMessage());
+            $this->lifecycle->reject($session, $env, $e->code()->value, $e->getMessage());
             return;
         }
         $put = new ArtifactPut(
@@ -90,7 +90,7 @@ final readonly class ArtifactDispatcher
         try {
             $ok = $this->runtime->artifacts->release($msg->artifactId, $session);
         } catch (ARCPException $e) {
-            $this->lifecycle->nack($session, $env, $e->code()->value, $e->getMessage());
+            $this->lifecycle->reject($session, $env, $e->code()->value, $e->getMessage());
             return;
         }
         $this->runtime->emit($session, new ArtifactReleased($ok), [

@@ -13,8 +13,8 @@ use Arcp\Errors\InvalidRequestException;
 use Arcp\Ids\ArtifactId;
 use Arcp\Ids\LeaseId;
 use Arcp\Ids\MessageId;
-use Arcp\Messages\Control\Nack;
 use Arcp\Messages\Execution\AgentDelegate;
+use Arcp\Messages\Execution\JobError;
 use Arcp\Messages\Execution\JobSchedule;
 use Arcp\Messages\Permissions\LeaseExtended;
 use Arcp\Messages\Permissions\LeaseGranted;
@@ -29,7 +29,7 @@ use PHPUnit\Framework\TestCase;
 /**
  * Smoke tests for misc runtime/client paths that aren't covered by
  * the topic-specific integration files: ping/pong, deferred-feature
- * nacks, resume, lease refresh, etc.
+ * top-level job.error rejections, lease refresh, etc.
  */
 final class RuntimeMiscTest extends TestCase
 {
@@ -53,11 +53,12 @@ final class RuntimeMiscTest extends TestCase
         $serverFuture->await();
     }
 
-    public function testDeferredFeaturesAreNackedWithInvalidRequest(): void
+    public function testDeferredFeaturesAreRejectedWithInvalidRequest(): void
     {
         [, $client, $serverFuture] = $this->client();
 
-        // Send a job.schedule envelope manually and expect a nack.
+        // Send a job.schedule envelope manually and expect a correlated
+        // top-level job.error (§12).
         $msgId = MessageId::random();
         $env = new Envelope(
             id: $msgId,
@@ -67,14 +68,14 @@ final class RuntimeMiscTest extends TestCase
         );
         $client->session->transport->send($env);
         $response = $client->pending->awaitResponse($msgId, 5.0);
-        self::assertInstanceOf(Nack::class, $response);
+        self::assertInstanceOf(JobError::class, $response);
         self::assertSame('INVALID_REQUEST', $response->error->code);
 
         $client->close();
         $serverFuture->await();
     }
 
-    public function testAgentDelegateNacksAsInvalidRequest(): void
+    public function testAgentDelegateRejectedAsInvalidRequest(): void
     {
         [, $client, $serverFuture] = $this->client();
         $msgId = MessageId::random();
@@ -86,7 +87,7 @@ final class RuntimeMiscTest extends TestCase
         );
         $client->session->transport->send($env);
         $response = $client->pending->awaitResponse($msgId, 5.0);
-        self::assertInstanceOf(Nack::class, $response);
+        self::assertInstanceOf(JobError::class, $response);
         self::assertSame('INVALID_REQUEST', $response->error->code);
         $client->close();
         $serverFuture->await();
@@ -119,7 +120,7 @@ final class RuntimeMiscTest extends TestCase
         $serverFuture->await();
     }
 
-    public function testArtifactFetchUnknownIdSurfacesAsNack(): void
+    public function testArtifactFetchUnknownIdSurfacesAsJobError(): void
     {
         [, $client, $serverFuture] = $this->client();
         $caught = null;

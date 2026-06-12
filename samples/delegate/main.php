@@ -39,7 +39,7 @@ function delegate(ARCPClient $client, string $target, string $task, TraceId $tra
 {
     $job = new Job($target);
     // Real impl: send `agent.delegate`, await `job.accepted`.
-    // On Nack/error, populate $job->error and return.
+    // On a job.error rejection, populate $job->error and return.
     throw new \RuntimeException('not implemented');
 }
 
