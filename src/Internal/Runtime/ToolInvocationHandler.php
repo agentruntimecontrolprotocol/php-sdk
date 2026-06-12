@@ -84,7 +84,7 @@ final readonly class ToolInvocationHandler
             $resolved->name,
             $resolved->version,
             $lease instanceof LeaseGranted
-                ? $lease->costBudget
+                ? $lease->costBudget?->snapshot()
                 : CostBudget::fromInvocationArguments($msg->arguments),
             $lease,
         );

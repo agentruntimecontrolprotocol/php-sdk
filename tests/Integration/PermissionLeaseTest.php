@@ -13,10 +13,13 @@ use Arcp\Client\Handlers\PermissionHandler;
 use Arcp\Errors\PermissionDeniedException;
 use Arcp\Messages\Permissions\PermissionDeny;
 use Arcp\Messages\Permissions\PermissionRequest;
+use Arcp\Ids\LeaseId;
+use Arcp\Messages\Permissions\LeaseGranted;
 use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\Capabilities;
 use Arcp\Messages\Session\PeerInfo;
 use Arcp\Runtime\ARCPRuntime;
+use Arcp\Runtime\CostBudget;
 use Arcp\Runtime\JobContext;
 use Arcp\Runtime\ToolHandler;
 use Arcp\Transport\MemoryTransport;
@@ -55,6 +58,51 @@ final class PermissionLeaseTest extends TestCase
         self::assertStringStartsWith('lease_', $lease);
         // Lease should now exist in the runtime's lease manager.
         self::assertCount(1, $runtime->leases->all());
+
+        $client->close();
+        $serverFuture->await();
+    }
+
+    public function testRepeatedLeaseInvocationsGetIndependentBudgetCounters(): void
+    {
+        $runtime = new ARCPRuntime(authRouter: new AuthRouter([new NoneAuth()]));
+        $runtime->registerTool('spend', new class () implements ToolHandler {
+            #[\Override]
+            public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
+            {
+                // Consume USD:0.40. With a per-job budget this always leaves
+                // USD:0.10; if the counter were aliased across jobs the
+                // second invocation would overspend and throw.
+                $ctx->emitMetric('cost.usage', 0.4, 'USD');
+                return ['ok' => true];
+            }
+        });
+        [$serverT, $clientT] = MemoryTransport::pair();
+        $serverFuture = $runtime->serveAsync($serverT);
+        $client = new ARCPClient($clientT);
+        $client->open(Auth::none(), new PeerInfo('cli', '0.1'), new Capabilities(anonymous: true));
+
+        $leaseId = LeaseId::random();
+        $runtime->leases->register(
+            new LeaseGranted(
+                $leaseId,
+                'tool.invoke',
+                'spend',
+                'run',
+                new \DateTimeImmutable('+5 minutes'),
+                null,
+                CostBudget::fromPatterns(['USD:0.50']),
+            ),
+            $client->session->sessionId,
+        );
+
+        $args = ['lease' => ['lease_id' => (string) $leaseId]];
+        $first = $client->invokeTool('spend', $args);
+        $second = $client->invokeTool('spend', $args);
+
+        // Both jobs start at the granted USD:0.50 and succeed independently.
+        self::assertSame(['ok' => true], $first->value);
+        self::assertSame(['ok' => true], $second->value);
 
         $client->close();
         $serverFuture->await();

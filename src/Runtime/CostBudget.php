@@ -74,6 +74,16 @@ final class CostBudget
         return $this->format($this->remaining[$unit]);
     }
 
+    /**
+     * Return an independent copy of this budget seeded from the current
+     * remaining amounts. Used so each job gets its own counter rather than
+     * aliasing a registered lease's mutable instance (§9.6).
+     */
+    public function snapshot(): self
+    {
+        return new self($this->remaining);
+    }
+
     /** @return array<string, string> */
     public function remaining(): array
     {

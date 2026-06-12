@@ -140,7 +140,9 @@ final readonly class CredentialLifecycle
             $base->operation,
             $this->expiresAt($leaseArg) ?? $base->expiresAt,
             $modelUse ?? $base->modelUse,
-            $costBudget ?? $base->costBudget,
+            // Snapshot the registered lease's budget so this invocation's
+            // lease does not alias (and mutate) the shared counter (§9.6).
+            $costBudget ?? $base->costBudget?->snapshot(),
         );
     }
 
