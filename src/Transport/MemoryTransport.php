@@ -23,8 +23,16 @@ final class MemoryTransport implements Transport
     /** @var \SplQueue<Envelope> */
     private readonly \SplQueue $inbox;
 
-    /** @var list<DeferredFuture<Envelope|null>> */
-    private array $waiters = [];
+    /** @var \SplQueue<DeferredFuture<Envelope|null>> */
+    private readonly \SplQueue $waiters;
+
+    /**
+     * Object ids of waiters cancelled while still queued. They are skipped
+     * lazily at dequeue time so cancellation does not rebuild the queue.
+     *
+     * @var array<int, true>
+     */
+    private array $cancelledWaiters = [];
 
     private bool $closed = false;
     private ?MemoryTransport $peer = null;
@@ -34,6 +42,9 @@ final class MemoryTransport implements Transport
         /** @var \SplQueue<Envelope> $q */
         $q = new \SplQueue();
         $this->inbox = $q;
+        /** @var \SplQueue<DeferredFuture<Envelope|null>> $w */
+        $w = new \SplQueue();
+        $this->waiters = $w;
     }
 
     /**
@@ -60,8 +71,14 @@ final class MemoryTransport implements Transport
 
     private function deliver(Envelope $env): void
     {
-        if ($this->waiters !== []) {
-            $waiter = array_shift($this->waiters);
+        while (!$this->waiters->isEmpty()) {
+            $waiter = $this->waiters->dequeue();
+            $oid = spl_object_id($waiter);
+            if (isset($this->cancelledWaiters[$oid])) {
+                unset($this->cancelledWaiters[$oid]);
+
+                continue;
+            }
             $waiter->complete($env);
             return;
         }
@@ -79,19 +96,15 @@ final class MemoryTransport implements Transport
         }
         /** @var DeferredFuture<Envelope|null> $deferred */
         $deferred = new DeferredFuture();
-        $this->waiters[] = $deferred;
+        $this->waiters->enqueue($deferred);
         try {
             /** @var Envelope|null $result */
             $result = $deferred->getFuture()->await($cancellation);
             return $result;
         } catch (\Throwable $e) {
-            $kept = [];
-            foreach ($this->waiters as $w) {
-                if ($w !== $deferred) {
-                    $kept[] = $w;
-                }
-            }
-            $this->waiters = $kept;
+            // Tombstone this waiter so deliver() skips it at dequeue time
+            // rather than rebuilding the whole queue on every cancellation.
+            $this->cancelledWaiters[spl_object_id($deferred)] = true;
             throw $e;
         }
     }
@@ -115,10 +128,7 @@ final class MemoryTransport implements Transport
             return;
         }
         $this->closed = true;
-        foreach ($this->waiters as $w) {
-            $w->complete();
-        }
-        $this->waiters = [];
+        $this->completePendingWaitersWithEof();
         if ($this->peer instanceof \Arcp\Transport\MemoryTransport && !$this->peer->closed) {
             // Propagate close to the peer: clear the peer link and resolve
             // any pending receive() waiters with EOF.
@@ -136,11 +146,24 @@ final class MemoryTransport implements Transport
     private function signalClosed(): void
     {
         $this->peer = null;
-        foreach ($this->waiters as $w) {
-            $w->complete();
-        }
-        $this->waiters = [];
         $this->closed = true;
+        $this->completePendingWaitersWithEof();
+    }
+
+    /** Resolve every still-queued, non-cancelled waiter with a clean EOF. */
+    private function completePendingWaitersWithEof(): void
+    {
+        while (!$this->waiters->isEmpty()) {
+            $waiter = $this->waiters->dequeue();
+            $oid = spl_object_id($waiter);
+            if (isset($this->cancelledWaiters[$oid])) {
+                unset($this->cancelledWaiters[$oid]);
+
+                continue;
+            }
+            $waiter->complete();
+        }
+        $this->cancelledWaiters = [];
     }
 
     #[\Override]
