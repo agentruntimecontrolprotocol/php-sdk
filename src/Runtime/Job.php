@@ -8,6 +8,7 @@ use Amp\DeferredCancellation;
 use Amp\Future;
 use Arcp\Envelope\Envelope;
 use Arcp\Ids\JobId;
+use Arcp\Messages\Human\HumanInputResponse;
 use Arcp\Messages\Permissions\LeaseGranted;
 
 /**
@@ -25,6 +26,14 @@ final class Job
 
     /** @var array<string, int> */
     private array $resultChunkSeq = [];
+
+    /**
+     * Mailbox for guidance delivered in response to an `interrupt`. The
+     * tool handler drains it via {@see JobContext::takeInterruptResponse()}.
+     *
+     * @var list<HumanInputResponse>
+     */
+    private array $interruptResponses = [];
 
     /** @var Future<mixed>|null */
     public ?Future $future = null;
@@ -52,5 +61,16 @@ final class Job
         $next = $this->resultChunkSeq[$resultId] ?? 0;
         $this->resultChunkSeq[$resultId] = $next + 1;
         return $next;
+    }
+
+    public function deliverInterruptResponse(HumanInputResponse $response): void
+    {
+        $this->interruptResponses[] = $response;
+    }
+
+    /** Pop the oldest interrupt guidance, or null if none is pending. */
+    public function takeInterruptResponse(): ?HumanInputResponse
+    {
+        return array_shift($this->interruptResponses);
     }
 }

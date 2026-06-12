@@ -72,6 +72,15 @@ final class JobContext
         );
     }
 
+    /**
+     * Drain guidance delivered by an `interrupt` for this job, oldest first.
+     * Returns null when no interrupt response is pending.
+     */
+    public function takeInterruptResponse(): ?HumanInputResponse
+    {
+        return $this->runtime->jobs->tryGet($this->jobId)?->takeInterruptResponse();
+    }
+
     public function reportProgress(int $percent, ?string $message = null): void
     {
         $this->runtime->emit($this->session, new JobProgress($percent, $message), [

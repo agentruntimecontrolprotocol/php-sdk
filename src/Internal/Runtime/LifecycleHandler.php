@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Arcp\Internal\Runtime;
 
+use function Amp\async;
+
 use Amp\CancelledException;
 use Arcp\Envelope\Envelope;
 use Arcp\Envelope\MessageType;
@@ -23,6 +25,7 @@ use Arcp\Messages\Control\Pong;
 use Arcp\Messages\Control\Resume;
 use Arcp\Messages\Execution\ToolError;
 use Arcp\Messages\Human\HumanInputRequest;
+use Arcp\Messages\Human\HumanInputResponse;
 use Arcp\Messages\Permissions\LeaseExtended;
 use Arcp\Messages\Permissions\LeaseRefresh;
 use Arcp\Runtime\ARCPRuntime;
@@ -96,8 +99,13 @@ final readonly class LifecycleHandler
             $this->nack($session, $env, 'FAILED_PRECONDITION', 'job not interruptible');
             return;
         }
+        // Only the owning session may interrupt a job (cf. handleCancel).
+        if ($job->session !== $session) {
+            $this->nack($session, $env, 'PERMISSION_DENIED', 'job not owned by this session');
+            return;
+        }
         $job->state = JobState::Blocked;
-        $this->runtime->emit($session, new HumanInputRequest(
+        $requestId = $this->runtime->emit($session, new HumanInputRequest(
             prompt: $msg->prompt !== '' ? $msg->prompt : 'Job interrupted; provide guidance.',
             responseSchema: ['type' => 'object'],
             expiresAt: $this->runtime->clock->now()->modify('+5 minutes'),
@@ -106,7 +114,32 @@ final readonly class LifecycleHandler
             'trace_id' => $job->invocation->traceId,
             'priority' => Priority::High,
         ]);
+        $this->awaitInterruptResponse($job, $requestId);
         $this->runtime->emit($session, new Ack(), ['correlation_id' => $env->id]);
+    }
+
+    /**
+     * Register a waiter for the interrupt's human-input request so the
+     * correlated response is routed back here, delivered to the job's
+     * mailbox, and the job restored to `running`. The state is also
+     * restored on deadline expiry or cancellation.
+     */
+    private function awaitInterruptResponse(Job $job, MessageId $requestId): void
+    {
+        async(function () use ($job, $requestId): void {
+            try {
+                $response = $this->runtime->pending->awaitResponse($requestId, 300.0);
+                if ($response instanceof HumanInputResponse) {
+                    $job->deliverInterruptResponse($response);
+                }
+            } catch (\Throwable) {
+                // Deadline / cancellation: fall through to restore state.
+            } finally {
+                if ($job->state === JobState::Blocked) {
+                    $job->state = JobState::Running;
+                }
+            }
+        });
     }
 
     public function handleResume(Session $session, Envelope $env, Resume $msg): void
