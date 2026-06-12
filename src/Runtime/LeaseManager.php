@@ -167,6 +167,14 @@ final class LeaseManager
                 'cost.budget',
             );
         }
+        // §9.4: a delegated lease's expires_at MUST NOT exceed the parent's.
+        if ($child->expiresAt > $parent->expiresAt) {
+            throw new LeaseSubsetViolationException(
+                (string) $parent->leaseId,
+                (string) $child->leaseId,
+                'lease_constraints.expires_at',
+            );
+        }
     }
 
     public function revoke(LeaseId $id, string $reason = ''): LeaseRevoked
