@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Branch/path coverage configuration (issue #43). PCOV cannot report
+  branch coverage, so this profile requires the Xdebug driver:
+
+      XDEBUG_MODE=coverage composer coverage:branch
+
+  It enables path coverage and writes an HTML report (which surfaces the
+  per-line branch hit counts) plus a Clover file for CI threshold gates.
+  The target is 80% branch coverage, matching the line-coverage gate.
+-->
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd" bootstrap="vendor/autoload.php" cacheDirectory=".phpunit.cache" colors="true" executionOrder="depends,defects" requireCoverageMetadata="false" beStrictAboutCoverageMetadata="false" beStrictAboutOutputDuringTests="true" failOnRisky="true" failOnWarning="false">
+  <testsuites>
+    <testsuite name="unit">
+      <directory>tests/Unit</directory>
+    </testsuite>
+    <testsuite name="integration">
+      <directory>tests/Integration</directory>
+    </testsuite>
+    <testsuite name="e2e">
+      <directory>tests/E2E</directory>
+    </testsuite>
+  </testsuites>
+  <source restrictNotices="true" restrictWarnings="true" ignoreIndirectDeprecations="true">
+    <include>
+      <directory>src</directory>
+    </include>
+    <exclude>
+      <directory>src/Cli</directory>
+    </exclude>
+  </source>
+  <coverage pathCoverage="true">
+    <report>
+      <text outputFile="php://stdout" showOnlySummary="true"/>
+      <clover outputFile="build/coverage-branch.xml"/>
+      <html outputDirectory="build/coverage-branch"/>
+    </report>
+  </coverage>
+</phpunit>

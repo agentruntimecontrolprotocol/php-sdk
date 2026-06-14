@@ -68,6 +68,7 @@
         "infection": "infection --threads=max --min-msi=80 --min-covered-msi=80",
         "test": "phpunit --testdox",
         "coverage": "phpunit --coverage-text --coverage-clover=coverage.xml",
+        "coverage:branch": "phpunit -c phpunit.branch.xml.dist",
         "audit": "composer audit",
         "docs:api": "php scripts/gen-api-docs.php",
         "gates": [

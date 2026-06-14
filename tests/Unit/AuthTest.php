@@ -138,6 +138,61 @@ final class AuthTest extends TestCase
         self::assertFalse($result->accepted);
     }
 
+    public function testJwtRejectsWrongScheme(): void
+    {
+        $scheme = new JwtAuth(new Key('s', 'HS256'), 'aud');
+        $result = $scheme->verify(Auth::anonymous(), new PeerInfo('c', '0'));
+        self::assertFalse($result->accepted);
+        self::assertSame('scheme mismatch', $result->error);
+    }
+
+    public function testJwtAcceptsAudienceArrayContainingAudience(): void
+    {
+        $secret = 'this-is-a-super-secret-key-with-at-least-32-bytes!!';
+        $token = JWT::encode([
+            'sub' => 'alice',
+            'aud' => ['other-runtime', 'arcp-runtime'],
+            'iat' => time(),
+            'exp' => time() + 60,
+        ], $secret, 'HS256');
+
+        $scheme = new JwtAuth(new Key($secret, 'HS256'), 'arcp-runtime');
+        $result = $scheme->verify(Auth::bearer($token), new PeerInfo('c', '0'));
+        self::assertTrue($result->accepted);
+        self::assertSame('alice', $result->principal);
+    }
+
+    public function testJwtRejectsAudienceArrayWithoutAudience(): void
+    {
+        $secret = 'this-is-a-super-secret-key-with-at-least-32-bytes!!';
+        $token = JWT::encode([
+            'sub' => 'alice',
+            'aud' => ['one', 'two'],
+            'iat' => time(),
+            'exp' => time() + 60,
+        ], $secret, 'HS256');
+
+        $scheme = new JwtAuth(new Key($secret, 'HS256'), 'arcp-runtime');
+        $result = $scheme->verify(Auth::bearer($token), new PeerInfo('c', '0'));
+        self::assertFalse($result->accepted);
+        self::assertSame('aud mismatch', $result->error);
+    }
+
+    public function testJwtRejectsMissingSub(): void
+    {
+        $secret = 'this-is-a-super-secret-key-with-at-least-32-bytes!!';
+        $token = JWT::encode([
+            'aud' => 'arcp-runtime',
+            'iat' => time(),
+            'exp' => time() + 60,
+        ], $secret, 'HS256');
+
+        $scheme = new JwtAuth(new Key($secret, 'HS256'), 'arcp-runtime');
+        $result = $scheme->verify(Auth::bearer($token), new PeerInfo('c', '0'));
+        self::assertFalse($result->accepted);
+        self::assertSame('jwt missing sub', $result->error);
+    }
+
     public function testRouterDispatchesToScheme(): void
     {
         $router = new AuthRouter([new BearerAuth(['t' => 'alice']), new AnonymousAuth('pub')]);
