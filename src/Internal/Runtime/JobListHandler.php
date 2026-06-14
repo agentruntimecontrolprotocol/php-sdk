@@ -110,25 +110,90 @@ final readonly class JobListHandler
     }
 
     /**
+     * The list is sorted by the `(created_at, id)` tuple, so the cursor
+     * encodes that tuple and the start offset is found with a binary
+     * search — O(log n) per page rather than the previous O(n) scan.
+     *
      * @param list<Job> $jobs
      *
      * @return array{0: list<Job>, 1: ?string}
      */
     private function paginate(array $jobs, ?string $cursor, int $limit): array
     {
-        $start = 0;
-        if ($cursor !== null && $cursor !== '') {
-            foreach ($jobs as $i => $job) {
-                if ((string) $job->id === $cursor) {
-                    $start = $i + 1;
-                    break;
-                }
-            }
-        }
+        $start = $cursor !== null && $cursor !== ''
+            ? $this->afterCursor($jobs, $cursor)
+            : 0;
         $page = \array_slice($jobs, $start, $limit);
         $last = $page !== [] ? $page[\count($page) - 1] : null;
-        $next = $start + $limit < \count($jobs) && $last instanceof Job ? (string) $last->id : null;
+        $next = $start + $limit < \count($jobs) && $last instanceof Job
+            ? $this->encodeCursor($last)
+            : null;
         return [$page, $next];
+    }
+
+    /**
+     * Binary-search the upper bound: the index of the first job whose
+     * `(created_at, id)` tuple is strictly greater than the cursor.
+     *
+     * @param list<Job> $jobs
+     */
+    private function afterCursor(array $jobs, string $cursor): int
+    {
+        $key = $this->decodeCursor($cursor);
+        if ($key === null) {
+            return 0;
+        }
+        $lo = 0;
+        $hi = \count($jobs);
+        while ($lo < $hi) {
+            $mid = intdiv($lo + $hi, 2);
+            $job = $jobs[$mid] ?? null;
+            if (!$job instanceof Job) {
+                break;
+            }
+            if ($this->compareKey($job, $key) <= 0) {
+                $lo = $mid + 1;
+            } else {
+                $hi = $mid;
+            }
+        }
+        return $lo;
+    }
+
+    private function encodeCursor(Job $job): string
+    {
+        // Microsecond precision + explicit offset so the cursor round-trips
+        // to the exact instant; RFC3339_EXTENDED would truncate to
+        // milliseconds and misplace the binary-search boundary.
+        return base64_encode(
+            $job->createdAt->format('Y-m-d\TH:i:s.uP') . "\x1f" . (string) $job->id,
+        );
+    }
+
+    /** @return array{ts: \DateTimeImmutable, id: string}|null */
+    private function decodeCursor(string $cursor): ?array
+    {
+        $raw = base64_decode($cursor, true);
+        if ($raw === false) {
+            return null;
+        }
+        $parts = explode("\x1f", $raw, 2);
+        if (\count($parts) !== 2) {
+            return null;
+        }
+        try {
+            $ts = new \DateTimeImmutable($parts[0]);
+        } catch (\Exception) {
+            return null;
+        }
+        return ['ts' => $ts, 'id' => $parts[1]];
+    }
+
+    /** @param array{ts: \DateTimeImmutable, id: string} $key */
+    private function compareKey(Job $job, array $key): int
+    {
+        $timeCmp = $job->createdAt <=> $key['ts'];
+        return $timeCmp !== 0 ? $timeCmp : strcmp((string) $job->id, $key['id']);
     }
 
     /** @return array<string, mixed> */
