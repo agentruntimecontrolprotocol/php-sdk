@@ -54,7 +54,7 @@ final readonly class JobSubmitHandler
     {
         // ยง7.2: an existing claim under the same key replays the original
         // job.accepted on an identical fingerprint, or DUPLICATE_KEY on a
-        // conflicting one โ€” before any execution side effects.
+        // conflicting one โÿÿ before any execution side effects.
         $key = $this->idempotencyKey($env, $msg);
         $principal = $session->principal;
         if ($key instanceof IdempotencyKey && $principal !== null) {
@@ -115,6 +115,16 @@ final readonly class JobSubmitHandler
             return;
         }
         $this->emitJobAccepted($session, $env, $job, $msg, $lease, $credentials, $acceptedId);
+        // ?9.6: the runtime MUST check budget counters before authorizing any
+        // operation. A job whose lease budget is already ? 0 fails with
+        // BUDGET_EXHAUSTED before the handler fiber is ever started.
+        if ($job->budget !== null && $job->budget->exhausted()) {
+            $this->failJob(
+                new SubmitJobContextSpec($session, $env, $msg, $job),
+                new ErrorPayload('BUDGET_EXHAUSTED', 'cost.budget exhausted before dispatch (?9.6)', false),
+            );
+            return;
+        }
         $this->runtime->jobs->transition($job, JobState::Running);
         $this->runtime->emit($session, new JobEvent(
             'status',
@@ -375,7 +385,7 @@ final readonly class JobSubmitHandler
         } catch (ARCPException $e) {
             $this->failJob($spec, ErrorPayload::fromException($e));
         } catch (\Throwable $e) {
-            // ยง12: INTERNAL_ERROR is always retryable โ€” flag it explicitly
+            // ยง12: INTERNAL_ERROR is always retryable โÿÿ flag it explicitly
             // so the wire shape is correct and the idempotency key is not
             // consumed.
             $this->failJob($spec, new ErrorPayload('INTERNAL_ERROR', $e->getMessage(), true));
@@ -394,7 +404,7 @@ final readonly class JobSubmitHandler
         $job = $spec->job;
         if ($job->streamedResultId !== null) {
             // ยง8.4: once a result_chunk was emitted the terminal job.result
-            // MUST carry result_id โ€” mixing in an inline result is rejected.
+            // MUST carry result_id โÿÿ mixing in an inline result is rejected.
             if ($value !== null) {
                 $this->failJob($spec, new ErrorPayload(
                     'INVALID_REQUEST',
@@ -520,8 +530,8 @@ final readonly class JobSubmitHandler
         ]);
         $this->resolveDuplicateSubmitters($spec, $error);
         $this->credentials->revoke($spec->job);
-        // ยง7.2: the key was consumed at acceptance; every terminal โ€”
-        // including errors โ€” becomes the replayable outcome for identical
+        // ยง7.2: the key was consumed at acceptance; every terminal โÿÿ
+        // including errors โÿÿ becomes the replayable outcome for identical
         // retries of the same accepted job.
         $this->recordIdempotentOutcome($spec->session, $spec->env, $spec->msg, (string) $outcomeId);
         return $outcomeId;

@@ -94,6 +94,21 @@ final class CostBudget
         return new self($this->remaining);
     }
 
+    /**
+     * §9.6: true when any currency counter has reached zero (or gone
+     * negative). The runtime MUST check this before authorizing an
+     * operation and fail with BUDGET_EXHAUSTED when exhausted.
+     */
+    public function exhausted(): bool
+    {
+        foreach ($this->remaining as $amount) {
+            if ($amount <= 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** @return array<string, string> */
     public function remaining(): array
     {
