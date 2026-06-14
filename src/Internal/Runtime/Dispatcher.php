@@ -25,7 +25,6 @@ use Arcp\Messages\Execution\JobError;
 use Arcp\Messages\Execution\JobSchedule;
 use Arcp\Messages\Execution\JobSubmit;
 use Arcp\Messages\Execution\WorkflowStart;
-use Arcp\Messages\Permissions\LeaseRefresh;
 use Arcp\Messages\Session\ListJobs;
 use Arcp\Messages\Session\SessionAck;
 use Arcp\Messages\Session\SessionClose;
@@ -75,6 +74,18 @@ final readonly class Dispatcher
                 return;
             }
             if ($env->payload instanceof UnknownMessage) {
+                if ($env->type() === 'lease.refresh') {
+                    // §9.5: lease renewal is NOT supported. The type is no
+                    // longer in the catalog, but a legacy client's refresh
+                    // attempt is answered explicitly rather than dropped.
+                    $this->lifecycle->reject(
+                        $session,
+                        $env,
+                        'INVALID_REQUEST',
+                        'lease renewal is not supported (§9.5); cancel and resubmit',
+                    );
+                    continue;
+                }
                 // §5: unrecognized message types are ignored, not fatal.
                 $this->runtime->logger->info(
                     'ignored unknown message type',
@@ -172,8 +183,6 @@ final readonly class Dispatcher
             $msg instanceof SessionClose => $this->lifecycle->handleSessionClose($session, $env, $msg),
             $msg instanceof JobCancel => $this->lifecycle->handleCancel($session, $env, $msg),
             $msg instanceof Interrupt => $this->lifecycle->handleInterrupt($session, $env, $msg),
-            $msg instanceof LeaseRefresh
-                => $this->lifecycle->handleLeaseRefresh($session, $env, $msg),
             default => $handled = false,
         };
         return $handled;

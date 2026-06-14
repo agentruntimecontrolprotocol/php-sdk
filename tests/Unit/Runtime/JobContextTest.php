@@ -136,12 +136,12 @@ final class JobContextTest extends TestCase
             #[\Override]
             public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
             {
-                [$sid, $chunk, $close] = $ctx->openStream(StreamKind::Text, 'text/plain');
-                $this->sawSid = (string) $sid;
-                $chunk('hello world');
-                $chunk(['kv' => 'value'], 'application/json');
-                $chunk(null);
-                $close();
+                $stream = $ctx->openStream(StreamKind::Text, 'text/plain');
+                $this->sawSid = (string) $stream->id;
+                $stream->push('hello world');
+                $stream->push(['kv' => 'value'], 'application/json');
+                $stream->push(null);
+                $stream->close();
                 return ['streamed' => true];
             }
         });
@@ -162,9 +162,9 @@ final class JobContextTest extends TestCase
             #[\Override]
             public function invoke(array $arguments, JobContext $ctx, ?Cancellation $cancellation = null): mixed
             {
-                [, $chunk, $close] = $ctx->openStream(StreamKind::Log);
-                $chunk('one');
-                $close(7);
+                $stream = $ctx->openStream(StreamKind::Log);
+                $stream->push('one');
+                $stream->close(7);
                 return ['ok' => true];
             }
         });

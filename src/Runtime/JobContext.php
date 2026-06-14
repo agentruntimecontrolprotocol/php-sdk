@@ -9,6 +9,7 @@ use Amp\DeferredCancellation;
 use Arcp\Envelope\Priority;
 use Arcp\Errors\BudgetExhaustedException;
 use Arcp\Errors\InvalidRequestException;
+use Arcp\Errors\LeaseExpiredException;
 use Arcp\Errors\PermissionDeniedException;
 use Arcp\Errors\TimeoutException;
 use Arcp\Ids\JobId;
@@ -111,6 +112,24 @@ final class JobContext
             'more' => $more,
         ]);
         return $resultId;
+    }
+
+    /**
+     * §9.5: assert the job's effective lease has not expired before an
+     * authority-bearing operation. Throws {@see LeaseExpiredException}
+     * (code `LEASE_EXPIRED`, `retryable: false`) at or after the lease's
+     * `expires_at`; the handler fiber then unwinds and the runtime
+     * terminates the job with `final_status: "error"`. Agents SHOULD call
+     * this before performing their own authority-bearing work (fs/net/tool
+     * operations); the runtime calls it internally before the operations
+     * it mediates (artifacts, permission requests).
+     */
+    public function enforceLease(): void
+    {
+        $lease = $this->runtime->jobs->tryGet($this->jobId)?->lease;
+        if ($lease instanceof LeaseGranted && $lease->expiresAt <= $this->runtime->clock->now()) {
+            throw new LeaseExpiredException($lease->leaseId, $lease->expiresAt);
+        }
     }
 
     /**
@@ -224,20 +243,15 @@ final class JobContext
     }
 
     /**
-     * Open a `text`/`event`/`log`/`thought` stream and return its id and a
-     * helper to push chunks. `binary` is supported as base64 only.
-     *
-     * @return array{
-     *     0: StreamId,
-     *     1: \Closure(string|array<string, mixed>|null, ?string=): void,
-     *     2: \Closure(?int=): void
-     * }
+     * Open a `text`/`event`/`log`/`thought` stream and return a typed
+     * {@see StreamHandle} exposing `id`, `push()`, and `close()`. `binary`
+     * is supported as base64 only.
      */
     public function openStream(
         StreamKind $kind,
         ?string $contentType = null,
         ?string $encoding = null,
-    ): array {
+    ): StreamHandle {
         $sid = StreamId::random();
         $this->runtime->emit($this->session, new StreamOpen($kind, $contentType, $encoding), [
             'job_id' => $this->jobId,
@@ -245,7 +259,11 @@ final class JobContext
             'stream_id' => $sid,
         ]);
         $sequence = 0;
-        return [$sid, $this->makeChunkEmitter($sid, $sequence), $this->makeCloser($sid, $sequence)];
+        return new StreamHandle(
+            $sid,
+            $this->makeChunkEmitter($sid, $sequence),
+            $this->makeCloser($sid, $sequence),
+        );
     }
 
     /**
@@ -385,6 +403,8 @@ final class JobContext
         int $requestedLeaseSeconds = 300,
         ?Cancellation $cancellation = null,
     ): LeaseId {
+        // §9.5: acquiring new authority is itself authority-bearing.
+        $this->enforceLease();
         $spec = new PermissionRequestSpec(
             $permission,
             $resource,
@@ -457,6 +477,9 @@ final class JobContext
         string $bytes,
         ?int $retentionSeconds = null,
     ): ArtifactRef {
+        // §9.5: persisting an artifact is an authority-bearing (fs.write)
+        // operation; reject it once the job's lease has expired.
+        $this->enforceLease();
         return $this->runtime->artifacts->put(
             $this->session,
             new ArtifactBlob($mediaType, $bytes, $retentionSeconds),

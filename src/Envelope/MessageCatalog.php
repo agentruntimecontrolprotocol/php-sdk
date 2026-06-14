@@ -32,9 +32,7 @@ use Arcp\Messages\Human\HumanChoiceResponse;
 use Arcp\Messages\Human\HumanInputCancelled;
 use Arcp\Messages\Human\HumanInputRequest;
 use Arcp\Messages\Human\HumanInputResponse;
-use Arcp\Messages\Permissions\LeaseExtended;
 use Arcp\Messages\Permissions\LeaseGranted;
-use Arcp\Messages\Permissions\LeaseRefresh;
 use Arcp\Messages\Permissions\LeaseRevoked;
 use Arcp\Messages\Permissions\PermissionDeny;
 use Arcp\Messages\Permissions\PermissionGrant;
@@ -129,9 +127,7 @@ final class MessageCatalog
         PermissionGrant::class,
         PermissionDeny::class,
         LeaseGranted::class,
-        LeaseExtended::class,
         LeaseRevoked::class,
-        LeaseRefresh::class,
         // Subscriptions
         JobSubscribe::class,
         JobSubscribed::class,

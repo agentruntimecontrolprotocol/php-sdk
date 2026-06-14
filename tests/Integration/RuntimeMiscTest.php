@@ -9,6 +9,7 @@ use Arcp\Auth\AnonymousAuth;
 use Arcp\Auth\AuthRouter;
 use Arcp\Client\ARCPClient;
 use Arcp\Envelope\Envelope;
+use Arcp\Envelope\UnknownMessage;
 use Arcp\Errors\InvalidRequestException;
 use Arcp\Ids\ArtifactId;
 use Arcp\Ids\LeaseId;
@@ -16,9 +17,7 @@ use Arcp\Ids\MessageId;
 use Arcp\Messages\Execution\AgentDelegate;
 use Arcp\Messages\Execution\JobError;
 use Arcp\Messages\Execution\JobSchedule;
-use Arcp\Messages\Permissions\LeaseExtended;
 use Arcp\Messages\Permissions\LeaseGranted;
-use Arcp\Messages\Permissions\LeaseRefresh;
 use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\Capabilities;
 use Arcp\Messages\Session\PeerInfo;
@@ -29,7 +28,7 @@ use PHPUnit\Framework\TestCase;
 /**
  * Smoke tests for misc runtime/client paths that aren't covered by
  * the topic-specific integration files: ping/pong, deferred-feature
- * top-level job.error rejections, lease refresh, etc.
+ * top-level job.error rejections, etc.
  */
 final class RuntimeMiscTest extends TestCase
 {
@@ -93,28 +92,30 @@ final class RuntimeMiscTest extends TestCase
         $serverFuture->await();
     }
 
-    public function testLeaseRefreshExtendsExistingLease(): void
+    public function testLeaseRefreshIsRejectedNoRenewalPath(): void
     {
+        // §9.5: renewal is NOT supported — a legacy lease.refresh frame is
+        // answered with INVALID_REQUEST and no lease's expires_at changes.
         [$runtime, $client, $serverFuture] = $this->client();
-        $lease = new LeaseGranted(
-            new LeaseId('lease_x'),
-            'p',
-            'r',
-            'op',
-            new \DateTimeImmutable()->modify('+1 hour'),
-        );
+        $expires = new \DateTimeImmutable()->modify('+1 hour');
+        $lease = new LeaseGranted(new LeaseId('lease_x'), 'p', 'r', 'op', $expires);
         $runtime->leases->register($lease);
 
         $msgId = MessageId::random();
         $env = new Envelope(
             id: $msgId,
-            payload: new LeaseRefresh($lease->leaseId, 600),
+            payload: new UnknownMessage('lease.refresh', [
+                'lease_id' => 'lease_x',
+                'extend_seconds' => 600,
+            ]),
             timestamp: new \DateTimeImmutable(),
             sessionId: $client->session->sessionId,
         );
         $client->session->transport->send($env);
         $response = $client->pending->awaitResponse($msgId, 5.0);
-        self::assertInstanceOf(LeaseExtended::class, $response);
+        self::assertInstanceOf(JobError::class, $response);
+        self::assertSame('INVALID_REQUEST', $response->error->code);
+        self::assertSame($expires, $runtime->leases->get($lease->leaseId)->expiresAt);
 
         $client->close();
         $serverFuture->await();

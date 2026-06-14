@@ -10,7 +10,6 @@ use Amp\CancelledException;
 use Arcp\Envelope\Envelope;
 use Arcp\Envelope\MessageType;
 use Arcp\Envelope\Priority;
-use Arcp\Errors\ARCPException;
 use Arcp\Errors\ErrorPayload;
 use Arcp\Ids\JobId;
 use Arcp\Ids\MessageId;
@@ -22,8 +21,6 @@ use Arcp\Messages\Execution\JobError;
 use Arcp\Messages\Execution\JobEvent;
 use Arcp\Messages\Human\HumanInputRequest;
 use Arcp\Messages\Human\HumanInputResponse;
-use Arcp\Messages\Permissions\LeaseExtended;
-use Arcp\Messages\Permissions\LeaseRefresh;
 use Arcp\Messages\Session\SessionAck;
 use Arcp\Messages\Session\SessionClose;
 use Arcp\Messages\Session\SessionClosed;
@@ -36,7 +33,7 @@ use Arcp\Runtime\SessionState;
 
 /**
  * Owns the small ARCP message handlers: session.ping/pong, session.ack,
- * session.close, job.cancel, interrupt, lease.refresh, plus the shared
+ * session.close, job.cancel, interrupt, plus the shared
  * command-rejection / no-session helpers used by sibling collaborators.
  *
  * @internal
@@ -95,6 +92,13 @@ final readonly class LifecycleHandler
         $job = $this->runtime->jobs->tryGet($msg->jobId);
         if (!$job instanceof Job) {
             $this->reject($session, $env, 'JOB_NOT_FOUND', 'job not found');
+            return;
+        }
+        // §7.4/§7.6/§14: cancellation is reserved for the submitting session.
+        // A subscriber (or any peer that merely learned the job id) may
+        // observe the job but MUST NOT be able to terminate it.
+        if ($job->session !== $session) {
+            $this->reject($session, $env, 'PERMISSION_DENIED', 'job not owned by this session');
             return;
         }
         if ($job->state->isTerminal()) {
@@ -170,30 +174,6 @@ final readonly class LifecycleHandler
                 // job keeps running throughout (§7.3 has no blocked state).
             }
         });
-    }
-
-    public function handleLeaseRefresh(Session $session, Envelope $env, LeaseRefresh $msg): void
-    {
-        $sessionId = $session->sessionId;
-        if (!$sessionId instanceof SessionId) {
-            $this->reject($session, $env, 'PERMISSION_DENIED', 'lease refresh requires an authenticated session');
-            return;
-        }
-        try {
-            $extra = $msg->extendSeconds ?? 300;
-            // Resolve through the session-scoped accessor so a session cannot
-            // refresh a lease that belongs to another session (auth bypass).
-            $current = $this->runtime->leases->getForSession($msg->leaseId, $sessionId);
-            $newExp = $current->expiresAt->modify('+' . $extra . ' seconds');
-            $extended = $this->runtime->leases->extend($msg->leaseId, $newExp);
-            $this->runtime->emit(
-                $session,
-                new LeaseExtended($extended->leaseId, $extended->expiresAt),
-                ['correlation_id' => $env->id],
-            );
-        } catch (ARCPException $e) {
-            $this->reject($session, $env, $e->code()->value, $e->getMessage());
-        }
     }
 
     /**

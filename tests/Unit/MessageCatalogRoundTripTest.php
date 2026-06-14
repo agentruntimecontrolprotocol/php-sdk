@@ -40,9 +40,7 @@ use Arcp\Messages\Human\HumanChoiceResponse;
 use Arcp\Messages\Human\HumanInputCancelled;
 use Arcp\Messages\Human\HumanInputRequest;
 use Arcp\Messages\Human\HumanInputResponse;
-use Arcp\Messages\Permissions\LeaseExtended;
 use Arcp\Messages\Permissions\LeaseGranted;
-use Arcp\Messages\Permissions\LeaseRefresh;
 use Arcp\Messages\Permissions\LeaseRevoked;
 use Arcp\Messages\Permissions\PermissionDeny;
 use Arcp\Messages\Permissions\PermissionGrant;
@@ -223,9 +221,7 @@ final class MessageCatalogRoundTripTest extends TestCase
             'op',
             $now->modify('+5 minutes'),
         )];
-        yield 'lease.extended' => [new LeaseExtended(new LeaseId('lease_x'), $now->modify('+10 minutes'))];
         yield 'lease.revoked' => [new LeaseRevoked(new LeaseId('lease_x'), 'policy_violation')];
-        yield 'lease.refresh' => [new LeaseRefresh(new LeaseId('lease_x'), 60)];
 
         yield 'job.subscribe' => [new JobSubscribe(new JobId('job_x'), 1822, true)];
         yield 'job.subscribed' => [new JobSubscribed(

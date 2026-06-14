@@ -14,8 +14,8 @@ use Arcp\Auth\AuthRouter;
 use Arcp\Client\ARCPClient;
 use Arcp\Client\Handlers\HumanInputHandler;
 use Arcp\Envelope\Envelope;
+use Arcp\Envelope\UnknownMessage;
 use Arcp\Ids\JobId;
-use Arcp\Ids\LeaseId;
 use Arcp\Ids\MessageId;
 use Arcp\Messages\Control\Interrupt;
 use Arcp\Messages\Execution\JobCancel;
@@ -27,9 +27,6 @@ use Arcp\Messages\Human\HumanChoiceRequest;
 use Arcp\Messages\Human\HumanChoiceResponse;
 use Arcp\Messages\Human\HumanInputRequest;
 use Arcp\Messages\Human\HumanInputResponse;
-use Arcp\Messages\Permissions\LeaseExtended;
-use Arcp\Messages\Permissions\LeaseGranted;
-use Arcp\Messages\Permissions\LeaseRefresh;
 use Arcp\Messages\Session\Auth;
 use Arcp\Messages\Session\Capabilities;
 use Arcp\Messages\Session\PeerInfo;
@@ -223,48 +220,28 @@ final class LifecycleHandlerTest extends TestCase
         $serverFuture->await();
     }
 
-    public function testLeaseRefreshUnknownLeaseIsRejected(): void
+    public function testLeaseRefreshIsRejectedAsUnsupported(): void
     {
+        // §9.5: renewal is NOT supported. The wire type is no longer in the
+        // catalog; a legacy client's lease.refresh arrives as an unknown
+        // message and is answered with INVALID_REQUEST, not silently dropped.
         [, $client, $serverFuture] = $this->pair();
 
         $msgId = MessageId::random();
         $env = new Envelope(
             id: $msgId,
-            payload: new LeaseRefresh(new LeaseId('lease_unknown'), 300),
+            payload: new UnknownMessage('lease.refresh', [
+                'lease_id' => 'lease_x',
+                'extend_seconds' => 300,
+            ]),
             timestamp: new \DateTimeImmutable(),
             sessionId: $client->session->sessionId,
         );
         $client->session->transport->send($env);
         $response = $client->pending->awaitResponse($msgId, 5.0);
         self::assertInstanceOf(JobError::class, $response);
-        self::assertSame('PERMISSION_DENIED', $response->error->code);
-
-        $client->close();
-        $serverFuture->await();
-    }
-
-    public function testLeaseRefreshNullExtendUsesDefault(): void
-    {
-        [$runtime, $client, $serverFuture] = $this->pair();
-        $lease = new LeaseGranted(
-            new LeaseId('lease_pre'),
-            'p',
-            'r',
-            'op',
-            new \DateTimeImmutable()->modify('+1 hour'),
-        );
-        $runtime->leases->register($lease);
-
-        $msgId = MessageId::random();
-        $env = new Envelope(
-            id: $msgId,
-            payload: new LeaseRefresh($lease->leaseId),
-            timestamp: new \DateTimeImmutable(),
-            sessionId: $client->session->sessionId,
-        );
-        $client->session->transport->send($env);
-        $response = $client->pending->awaitResponse($msgId, 5.0);
-        self::assertInstanceOf(LeaseExtended::class, $response);
+        self::assertSame('INVALID_REQUEST', $response->error->code);
+        self::assertStringContainsString('renewal', $response->error->message);
 
         $client->close();
         $serverFuture->await();

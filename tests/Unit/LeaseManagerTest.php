@@ -98,17 +98,6 @@ final class LeaseManagerTest extends TestCase
         );
     }
 
-    public function testExtendUpdatesExpiry(): void
-    {
-        $clock = new FakeClock();
-        $mgr = new LeaseManager($clock);
-        $lease = $this->makeLease($clock);
-        $mgr->register($lease);
-        $newExp = $clock->now()->modify('+1 hour');
-        $extended = $mgr->extend($lease->leaseId, $newExp);
-        self::assertEquals($newExp, $extended->expiresAt);
-    }
-
     public function testGetForSessionAllowsOwner(): void
     {
         $clock = new FakeClock();

@@ -161,7 +161,43 @@ final readonly class CredentialLifecycle
         if ($expiresAt === null && \is_array($constraints)) {
             $expiresAt = $constraints['expires_at'] ?? null;
         }
-        return \is_string($expiresAt) ? new \DateTimeImmutable($expiresAt) : null;
+        if ($expiresAt === null) {
+            return null;
+        }
+        if (!\is_string($expiresAt)) {
+            throw new InvalidRequestException('lease_constraints.expires_at must be a string (§9.5)');
+        }
+        return $this->parseExpiresAt($expiresAt);
+    }
+
+    /**
+     * §9.5: `expires_at` is ISO 8601 with timezone, MUST be UTC (`Z`
+     * suffix), and MUST be in the future at submission time. Past,
+     * non-UTC, or malformed values are rejected with INVALID_REQUEST.
+     */
+    private function parseExpiresAt(string $raw): \DateTimeImmutable
+    {
+        if (!str_ends_with($raw, 'Z')) {
+            throw new InvalidRequestException(
+                'lease_constraints.expires_at must be UTC with a Z suffix (§9.5)',
+                ['expires_at' => $raw],
+            );
+        }
+        try {
+            $parsed = new \DateTimeImmutable($raw);
+        } catch (\Exception) {
+            throw new InvalidRequestException(
+                'lease_constraints.expires_at is not a valid ISO 8601 timestamp (§9.5)',
+                ['expires_at' => $raw],
+            );
+        }
+        if ($parsed <= $this->runtime->clock->now()) {
+            throw new InvalidRequestException(
+                'lease_constraints.expires_at must be in the future at submission time (§9.5)',
+                ['expires_at' => $raw],
+            );
+        }
+        return $parsed;
     }
 
     private function shouldIssue(Session $session, LeaseGranted $lease): bool
