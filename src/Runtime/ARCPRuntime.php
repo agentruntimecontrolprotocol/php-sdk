@@ -130,6 +130,14 @@ final class ARCPRuntime
         ) {
             throw new \InvalidArgumentException('provisioned credentials require a durable revocation store');
         }
+        // §14: revocation is a durability concern. On startup, replay any
+        // credentials the durable store still holds outstanding — these were
+        // issued by a prior runtime instance that terminated before revoking
+        // them — so the provisioner clears dangling upstream spend authority
+        // before serve() accepts traffic.
+        if ($this->credentialProvisioner instanceof CredentialProvisioner) {
+            $this->replayOutstandingRevocations($this->credentialProvisioner);
+        }
         $this->advertisedCapabilities = $capabilities ?? Capabilities::defaultRuntime();
 
         $lifecycle = new LifecycleHandler($this);
@@ -175,6 +183,41 @@ final class ARCPRuntime
             $config->resumeWindowSec ?? 600,
             $config->heartbeatIntervalSec ?? 30,
         );
+    }
+
+    /**
+     * §14: drain credentials the durable store still reports outstanding,
+     * revoking each at the upstream and dropping it from the store on
+     * success. Permanent failures are retained for a later retry and
+     * surfaced to operators via the logger.
+     */
+    private function replayOutstandingRevocations(CredentialProvisioner $provisioner): void
+    {
+        foreach ($this->credentials->outstanding() as $entry) {
+            $jobId = new JobId($entry['job_id']);
+            $credentialId = $entry['credential_id'];
+            $revoked = false;
+            for ($attempt = 1; $attempt <= 2 && !$revoked; $attempt++) {
+                try {
+                    $provisioner->revoke($credentialId);
+                    $revoked = true;
+                } catch (\Throwable $e) {
+                    if ($attempt >= 2) {
+                        $this->logger->error(
+                            'startup credential revocation failed; record retained for retry',
+                            [
+                                'credential_id' => $credentialId,
+                                'job_id' => $entry['job_id'],
+                                'error' => $e->getMessage(),
+                            ],
+                        );
+                    }
+                }
+            }
+            if ($revoked) {
+                $this->credentials->remove($jobId, $credentialId);
+            }
+        }
     }
 
     public function registerTool(string $name, ToolHandler $handler): void
